@@ -213,3 +213,22 @@ def ajustar_precio_lote(data: AjustePrecioLote, db: Session = Depends(get_db)):
         db.refresh(v)
 
     return variantes
+
+
+# ─── AJUSTE DE STOCK DIRECTO ─────────────────────────────────────────────────
+
+from pydantic import BaseModel as PydanticBase
+
+class StockAjuste(PydanticBase):
+    stock_actual: int
+
+
+@router.put("/variantes/{variante_id}/stock", response_model=VarianteResponse)
+def ajustar_stock(variante_id: int, data: StockAjuste, db: Session = Depends(get_db)):
+    variante = db.query(Variante).filter(Variante.id == variante_id).first()
+    if not variante:
+        raise HTTPException(status_code=404, detail="Variante no encontrada")
+    variante.stock_actual = data.stock_actual
+    db.commit()
+    db.refresh(variante)
+    return variante

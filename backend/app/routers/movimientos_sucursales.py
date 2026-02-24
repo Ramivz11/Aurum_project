@@ -7,10 +7,14 @@ from datetime import datetime
 
 from app.database import get_db
 from app.models import Venta, Compra, VentaItem, Sucursal
+from pydantic import BaseModel
 from app.schemas import (
     VentaResponse, CompraResponse, ResumenPeriodo,
     SucursalCreate, SucursalResponse, SucursalComparacionResponse
 )
+
+class SucursalUpdate(BaseModel):
+    nombre: str
 
 # ─── MOVIMIENTOS ─────────────────────────────────────────────────────────────
 
@@ -179,3 +183,25 @@ def comparar_sucursales(
         ))
 
     return sorted(resultado, key=lambda x: x.ventas_total, reverse=True)
+
+
+@sucursales_router.put("/{sucursal_id}", response_model=SucursalResponse)
+def actualizar_sucursal(sucursal_id: int, data: SucursalUpdate, db: Session = Depends(get_db)):
+    sucursal = db.query(Sucursal).filter(Sucursal.id == sucursal_id).first()
+    if not sucursal:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+    sucursal.nombre = data.nombre
+    db.commit()
+    db.refresh(sucursal)
+    return sucursal
+
+
+@sucursales_router.delete("/{sucursal_id}", status_code=204)
+def eliminar_sucursal(sucursal_id: int, db: Session = Depends(get_db)):
+    sucursal = db.query(Sucursal).filter(Sucursal.id == sucursal_id).first()
+    if not sucursal:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+    sucursal.activa = False
+    db.commit()
