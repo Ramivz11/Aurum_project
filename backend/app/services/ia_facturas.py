@@ -1,15 +1,11 @@
 import base64
 import json
 from decimal import Decimal
-from typing import Optional
-from openai import AsyncOpenAI
+import httpx
 
 from app.config import settings
 from app.schemas import FacturaIAResponse, CompraItemCreate
 
-
-def get_client():
-    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 PROMPT_FACTURA = """
 Analizá esta factura o remito de compra de suplementos deportivos.
@@ -41,47 +37,44 @@ async def procesar_factura_con_ia(
     contenido: bytes,
     content_type: str
 ) -> FacturaIAResponse:
-    """
-    Envía la imagen/PDF a GPT-4o Vision y parsea la respuesta.
-    Devuelve FacturaIAResponse con los items detectados.
-    """
-    # Encodear a base64
     imagen_b64 = base64.standard_b64encode(contenido).decode("utf-8")
 
-    # Para PDF, usamos el primer approach de imagen
-    # Si es PDF habría que convertir a imagen primero (Pillow/pdf2image)
     if content_type == "application/pdf":
-        media_type = "image/jpeg"  # Railway: usar pdf2image si se necesita
+        mime_type = "application/pdf"
     else:
-        media_type = content_type
+        mime_type = content_type
 
-    client = get_client()
-    response = await client.chat.completions.create(
-        model="gpt-4o",
-        max_tokens=1500,
-        messages=[
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+
+    payload = {
+        "contents": [
             {
-                "role": "user",
-                "content": [
+                "parts": [
                     {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{imagen_b64}",
-                            "detail": "high"
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": imagen_b64
                         }
                     },
                     {
-                        "type": "text",
                         "text": PROMPT_FACTURA
                     }
                 ]
             }
-        ]
-    )
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 1500,
+        }
+    }
 
-    texto = response.choices[0].message.content.strip()
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
 
-    # Limpiar posibles backticks de markdown
+    texto = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
     if texto.startswith("```"):
         texto = texto.split("```")[1]
         if texto.startswith("json"):
@@ -89,14 +82,12 @@ async def procesar_factura_con_ia(
 
     datos = json.loads(texto)
 
-    # Construir respuesta — los variante_id se dejan en 0
-    # El frontend los matchea manualmente antes de confirmar
     items = []
     for item in datos.get("items", []):
         if item.get("cantidad") and item.get("precio_unitario"):
             items.append(
                 CompraItemCreate(
-                    variante_id=0,  # el usuario los asigna en el frontend
+                    variante_id=0,
                     cantidad=int(item["cantidad"]),
                     costo_unitario=Decimal(str(item["precio_unitario"]))
                 )
