@@ -14,6 +14,7 @@ export const productosApi = {
   crearVariante: (productoId, data) => api.post(`/productos/${productoId}/variantes`, data),
   actualizarVariante: (varianteId, data) => api.put(`/productos/variantes/${varianteId}`, data),
   eliminarVariante: (varianteId) => api.delete(`/productos/variantes/${varianteId}`),
+  ajustarStock: (varianteId, stockActual) => api.put(`/productos/variantes/${varianteId}/stock`, { stock_actual: stockActual }),
 }
 
 // ── VENTAS ──
@@ -95,7 +96,9 @@ export const movimientosApi = {
 // ── SUCURSALES ──
 export const sucursalesApi = {
   listar: () => api.get('/sucursales'),
-  crear: (nombre) => api.post('/sucursales', { nombre }),
+  crear: (data) => api.post('/sucursales', data),
+  actualizar: (id, data) => api.put(`/sucursales/${id}`, data),
+  eliminar: (id) => api.delete(`/sucursales/${id}`),
   comparacion: (params = {}) => {
     const q = new URLSearchParams(params).toString()
     return api.get(`/sucursales/comparacion${q ? '?' + q : ''}`)

@@ -1,27 +1,69 @@
 import { useState, useEffect } from 'react'
 import { ventasApi, clientesApi, sucursalesApi, productosApi } from '../api'
 import { useToast } from '../components/Toast'
+import { useSucursal } from '../context/SucursalContext'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const METODOS = ['efectivo', 'transferencia', 'tarjeta']
 const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chip-gray' }
 const ESTADO_CHIP = { confirmada: 'chip-green', abierta: 'chip-gold', cancelada: 'chip-red' }
 
-function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }) {
+function ModalNuevoCliente({ onClose, onCreated }) {
   const toast = useToast()
+  const [form, setForm] = useState({ nombre: '', ubicacion: '', telefono: '' })
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (!form.nombre) return toast('El nombre es obligatorio', 'error')
+    setSaving(true)
+    try {
+      const cliente = await clientesApi.crear(form)
+      toast('Cliente creado')
+      onCreated(cliente)
+    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ marginTop: 16, padding: 16, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+      <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 13, color: 'var(--gold-light)' }}>Nuevo cliente</div>
+      <div className="form-row">
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Nombre *</label>
+          <input className="form-input" placeholder="Nombre completo" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoFocus />
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Teléfono</label>
+          <input className="form-input" placeholder="Ej: 11-1234-5678" value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} />
+        </div>
+      </div>
+      <div className="form-group" style={{ marginBottom: 12 }}>
+        <label className="form-label">Ubicación</label>
+        <input className="form-input" placeholder="Ciudad / barrio" value={form.ubicacion} onChange={e => setForm(f => ({ ...f, ubicacion: e.target.value }))} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Crear cliente'}</button>
+      </div>
+    </div>
+  )
+}
+
+function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, onClose, onSaved }) {
+  const toast = useToast()
+  const [clientes, setClientes] = useState(initialClientes)
   const [clienteId, setClienteId] = useState(venta?.cliente_id || '')
   const [sucursalId, setSucursalId] = useState(venta?.sucursal_id || sucursales[0]?.id || '')
   const [metodo, setMetodo] = useState(venta?.metodo_pago || 'efectivo')
   const [estado, setEstado] = useState(venta?.estado || 'confirmada')
   const [notas, setNotas] = useState(venta?.notas || '')
-  const [items, setItems] = useState(venta?.items?.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario, _label: '' })) || [])
+  const [items, setItems] = useState(venta?.items?.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario })) || [])
   const [busqProd, setBusqProd] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showNuevoCliente, setShowNuevoCliente] = useState(false)
 
   const variantesFlat = productos.flatMap(p => p.variantes?.filter(v => v.activa).map(v => ({
     ...v,
     label: `${p.nombre} — ${[v.sabor, v.tamanio].filter(Boolean).join(' · ')}`,
-    precio_venta: v.precio_venta,
   })) || [])
 
   const filtradas = variantesFlat.filter(v => v.label.toLowerCase().includes(busqProd.toLowerCase()))
@@ -30,7 +72,7 @@ function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }
     setItems(prev => {
       const exists = prev.find(i => i.variante_id === variante.id)
       if (exists) return prev.map(i => i.variante_id === variante.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { variante_id: variante.id, cantidad: 1, precio_unitario: Number(variante.precio_venta), _label: variante.label }]
+      return [...prev, { variante_id: variante.id, cantidad: 1, precio_unitario: Number(variante.precio_venta) }]
     })
     setBusqProd('')
   }
@@ -71,10 +113,20 @@ function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Cliente</label>
-              <select className="form-select" value={clienteId} onChange={e => setClienteId(e.target.value)}>
-                <option value="">Sin cliente</option>
-                {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select className="form-select" value={clienteId} onChange={e => setClienteId(e.target.value)} style={{ flex: 1 }}>
+                  <option value="">Sin cliente</option>
+                  {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ whiteSpace: 'nowrap' }}
+                  onClick={() => setShowNuevoCliente(v => !v)}
+                  title="Crear cliente nuevo"
+                >
+                  {showNuevoCliente ? '✕' : '+ Nuevo'}
+                </button>
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Sucursal *</label>
@@ -83,6 +135,18 @@ function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }
               </select>
             </div>
           </div>
+
+          {showNuevoCliente && (
+            <ModalNuevoCliente
+              onClose={() => setShowNuevoCliente(false)}
+              onCreated={(cliente) => {
+                setClientes(c => [...c, cliente])
+                setClienteId(cliente.id)
+                setShowNuevoCliente(false)
+              }}
+            />
+          )}
+
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Método de pago</label>
@@ -99,7 +163,6 @@ function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }
             </div>
           </div>
 
-          {/* Buscador de productos */}
           <div className="form-group">
             <label className="form-label">Agregar producto</label>
             <div style={{ position: 'relative' }}>
@@ -107,12 +170,14 @@ function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }
               {busqProd && filtradas.length > 0 && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
                   {filtradas.slice(0, 8).map(v => (
-                    <div key={v.id} style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}
+                    <div key={v.id}
+                      style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}
                       onMouseDown={() => addItem(v)}
-                      onMouseEnter={e => e.target.style.background = 'var(--surface2)'}
-                      onMouseLeave={e => e.target.style.background = 'transparent'}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      {v.label} — <span style={{ color: 'var(--gold-light)' }}>{fmt(v.precio_venta)}</span>
+                      <span>{v.label}</span>
+                      <span style={{ color: 'var(--gold-light)' }}>{fmt(v.precio_venta)}</span>
                     </div>
                   ))}
                 </div>
@@ -120,7 +185,6 @@ function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }
             </div>
           </div>
 
-          {/* Carrito */}
           {items.length > 0 && (
             <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
               {items.map((item, i) => {
@@ -157,14 +221,15 @@ function ModalVenta({ venta, clientes, sucursales, productos, onClose, onSaved }
 
 export default function Ventas() {
   const toast = useToast()
+  const { sucursalActual, sucursales } = useSucursal()
   const [ventas, setVentas] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [clientes, setClientes] = useState([])
-  const [sucursales, setSucursales] = useState([])
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
   const [verPedidos, setVerPedidos] = useState(false)
+  const [filtroSucursal, setFiltroSucursal] = useState('')
 
   const cargar = () => {
     setLoading(true)
@@ -172,14 +237,18 @@ export default function Ventas() {
       ventasApi.listar({ estado: 'confirmada' }),
       ventasApi.pedidosAbiertos(),
       clientesApi.listar(),
-      sucursalesApi.listar(),
       productosApi.listar(),
-    ]).then(([v, p, c, s, pr]) => {
-      setVentas(v); setPedidos(p); setClientes(c); setSucursales(s); setProductos(pr)
+    ]).then(([v, p, c, pr]) => {
+      setVentas(v); setPedidos(p); setClientes(c); setProductos(pr)
     }).finally(() => setLoading(false))
   }
 
   useEffect(() => { cargar() }, [])
+
+  // Auto-set filtro when sucursal changes
+  useEffect(() => {
+    if (sucursalActual) setFiltroSucursal(String(sucursalActual.id))
+  }, [sucursalActual?.id])
 
   const eliminar = async (id) => {
     if (!confirm('¿Eliminar esta venta?')) return
@@ -192,13 +261,35 @@ export default function Ventas() {
     catch (e) { toast(e.message, 'error') }
   }
 
-  const lista = verPedidos ? pedidos : ventas
+  const base = verPedidos ? pedidos : ventas
+  const lista = filtroSucursal
+    ? base.filter(v => String(v.sucursal_id) === filtroSucursal)
+    : base
+
+  const getNombreSucursal = (id) => sucursales.find(s => s.id === id)?.nombre || `#${id}`
+  const getNombreCliente = (id) => clientes.find(c => c.id === id)?.nombre || `#${id}`
 
   return (
     <>
       <div className="topbar">
-        <div className="page-title">Ventas</div>
+        <div className="page-title">
+          Ventas
+          {sucursalActual && filtroSucursal && (
+            <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 10 }}>
+              — {getNombreSucursal(Number(filtroSucursal))}
+            </span>
+          )}
+        </div>
         <div className="topbar-actions">
+          <select
+            className="form-select"
+            style={{ width: 'auto', padding: '9px 14px' }}
+            value={filtroSucursal}
+            onChange={e => setFiltroSucursal(e.target.value)}
+          >
+            <option value="">Todas las sucursales</option>
+            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
           <button className={`btn ${verPedidos ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setVerPedidos(v => !v)}>
             Pedidos abiertos {pedidos.length > 0 && `(${pedidos.length})`}
           </button>
@@ -222,8 +313,8 @@ export default function Ventas() {
                   {lista.map(v => (
                     <tr key={v.id}>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{v.cliente_id ? `Cliente #${v.cliente_id}` : '—'}</td>
-                      <td>{v.sucursal_id}</td>
+                      <td>{v.cliente_id ? getNombreCliente(v.cliente_id) : '—'}</td>
+                      <td>{getNombreSucursal(v.sucursal_id)}</td>
                       <td><span className={`chip ${CHIP[v.metodo_pago]}`}>{v.metodo_pago}</span></td>
                       <td><strong>{fmt(v.total)}</strong></td>
                       <td><span className={`chip ${ESTADO_CHIP[v.estado]}`}>{v.estado}</span></td>

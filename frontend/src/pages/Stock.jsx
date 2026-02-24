@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { productosApi } from '../api'
 import { useToast } from '../components/Toast'
+import { useSucursal } from '../context/SucursalContext'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
@@ -10,35 +11,67 @@ const getEmoji = (cat) => EMOJI[cat?.toLowerCase()] || '📦'
 function ModalProducto({ prod, onClose, onSaved }) {
   const toast = useToast()
   const [form, setForm] = useState(prod || { nombre: '', marca: '', categoria: 'proteina', imagen_url: '' })
-  const [variantes, setVariantes] = useState(prod?.variantes || [{ sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }])
+  const [variantes, setVariantes] = useState(
+    prod?.variantes?.length > 0
+      ? prod.variantes.filter(v => v.activa)
+      : [{ sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0, stock_actual: 0 }]
+  )
   const [saving, setSaving] = useState(false)
 
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setV = (i, k, v) => setVariantes(vs => vs.map((x, j) => j === i ? { ...x, [k]: v } : x))
-  const addVariante = () => setVariantes(vs => [...vs, { sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }])
+  const addVariante = () => setVariantes(vs => [...vs, { sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0, stock_actual: 0 }])
   const removeVariante = (i) => setVariantes(vs => vs.filter((_, j) => j !== i))
 
   const save = async () => {
     if (!form.nombre) return toast('El nombre es obligatorio', 'error')
     setSaving(true)
     try {
-      const payload = {
-        ...form,
-        variantes: prod ? undefined : variantes.map(v => ({
-          ...v,
-          costo: parseFloat(v.costo) || 0,
-          precio_venta: parseFloat(v.precio_venta) || 0,
-          stock_minimo: parseInt(v.stock_minimo) || 0,
-        }))
-      }
       if (prod) {
-        await productosApi.actualizar(prod.id, payload)
-        // update variantes individually
+        // Update product info
+        await productosApi.actualizar(prod.id, {
+          nombre: form.nombre, marca: form.marca, categoria: form.categoria, imagen_url: form.imagen_url
+        })
+        // Update or create variantes
         for (const v of variantes) {
-          if (v.id) await productosApi.actualizarVariante(v.id, v)
+          const payload = {
+            sabor: v.sabor, tamanio: v.tamanio, sku: v.sku,
+            costo: parseFloat(v.costo) || 0,
+            precio_venta: parseFloat(v.precio_venta) || 0,
+            stock_minimo: parseInt(v.stock_minimo) || 0,
+          }
+          if (v.id) {
+            await productosApi.actualizarVariante(v.id, payload)
+            // If stock changed, update it
+            if (v.stock_actual !== undefined) {
+              await productosApi.ajustarStock(v.id, parseInt(v.stock_actual) || 0)
+            }
+          } else {
+            // New variant
+            const created = await productosApi.crearVariante(prod.id, payload)
+            // Set stock if non-zero
+            if (parseInt(v.stock_actual) > 0) {
+              await productosApi.ajustarStock(created.id, parseInt(v.stock_actual) || 0)
+            }
+          }
         }
       } else {
-        await productosApi.crear(payload)
+        const payload = {
+          ...form,
+          variantes: variantes.map(v => ({
+            sabor: v.sabor, tamanio: v.tamanio, sku: v.sku,
+            costo: parseFloat(v.costo) || 0,
+            precio_venta: parseFloat(v.precio_venta) || 0,
+            stock_minimo: parseInt(v.stock_minimo) || 0,
+          }))
+        }
+        const created = await productosApi.crear(payload)
+        // Set initial stocks
+        for (let i = 0; i < variantes.length; i++) {
+          if (parseInt(variantes[i].stock_actual) > 0 && created.variantes?.[i]?.id) {
+            await productosApi.ajustarStock(created.variantes[i].id, parseInt(variantes[i].stock_actual) || 0)
+          }
+        }
       }
       toast(prod ? 'Producto actualizado' : 'Producto creado')
       onSaved()
@@ -119,6 +152,18 @@ function ModalProducto({ prod, onClose, onSaved }) {
                     <input className="form-input" type="number" value={v.stock_minimo || ''} onChange={e => setV(i, 'stock_minimo', e.target.value)} placeholder="0" />
                   </div>
                 </div>
+                <div className="form-group" style={{ margin: '10px 0 0' }}>
+                  <label className="form-label">Stock actual (unidades)</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    min="0"
+                    value={v.stock_actual ?? ''}
+                    onChange={e => setV(i, 'stock_actual', e.target.value)}
+                    placeholder="0"
+                    style={{ maxWidth: 140 }}
+                  />
+                </div>
                 {variantes.length > 1 && (
                   <button onClick={() => removeVariante(i)} style={{ position: 'absolute', top: 10, right: 10, background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16 }}>✕</button>
                 )}
@@ -193,13 +238,69 @@ function ModalLote({ producto, onClose, onSaved }) {
   )
 }
 
+// Inline editable stock number
+function StockEditable({ variante, onSaved }) {
+  const toast = useToast()
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(variante.stock_actual)
+
+  const save = async () => {
+    try {
+      await productosApi.ajustarStock(variante.id, parseInt(val) || 0)
+      toast('Stock actualizado')
+      setEditing(false)
+      onSaved()
+    } catch (e) { toast(e.message, 'error') }
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          type="number"
+          min="0"
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+          autoFocus
+          style={{ width: 60, background: 'var(--surface3)', border: '1px solid var(--gold)', borderRadius: 6, color: 'var(--text)', padding: '4px 8px', fontSize: 14, textAlign: 'center', fontFamily: 'Syne, sans-serif', fontWeight: 700 }}
+        />
+        <button onClick={save} style={{ background: 'var(--gold)', border: 'none', borderRadius: 4, color: '#000', cursor: 'pointer', padding: '4px 8px', fontSize: 11 }}>✓</button>
+        <button onClick={() => setEditing(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px', fontSize: 11 }}>✕</button>
+      </div>
+    )
+  }
+
+  const getStockColor = (actual, minimo) => {
+    if (actual <= 0) return 'var(--red)'
+    if (actual <= minimo) return 'var(--red)'
+    if (actual <= minimo * 2) return 'var(--gold)'
+    return 'var(--green)'
+  }
+
+  return (
+    <div
+      className="stock-qty"
+      onClick={() => { setVal(variante.stock_actual); setEditing(true) }}
+      style={{ cursor: 'pointer' }}
+      title="Click para editar stock"
+    >
+      <div className="stock-qty-num" style={{ color: getStockColor(variante.stock_actual, variante.stock_minimo) }}>
+        {variante.stock_actual}
+      </div>
+      <div className="stock-qty-label">unidades ✎</div>
+    </div>
+  )
+}
+
 export default function Stock() {
   const toast = useToast()
+  const { sucursalActual } = useSucursal()
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [categoria, setCategoria] = useState('')
-  const [modal, setModal] = useState(null) // null | 'nuevo' | {prod}
+  const [modal, setModal] = useState(null)
   const [modalLote, setModalLote] = useState(null)
 
   const cargar = () => {
@@ -233,7 +334,14 @@ export default function Stock() {
   return (
     <>
       <div className="topbar">
-        <div className="page-title">Stock</div>
+        <div className="page-title">
+          Stock
+          {sucursalActual && (
+            <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 10 }}>
+              — {sucursalActual.nombre}
+            </span>
+          )}
+        </div>
         <div className="topbar-actions">
           <div className="search-wrap">
             <span className="search-icon">⌕</span>
@@ -274,27 +382,24 @@ export default function Stock() {
                       <button className="btn btn-danger btn-sm" onClick={() => eliminar(prod.id)}>✕</button>
                     </div>
                   </div>
-                  {prod.variantes?.filter(v => v.activa).map(v => (
-                    <div className="stock-item" key={v.id}>
-                      <div className="stock-info">
-                        <div className="stock-name">{[v.sabor, v.tamanio].filter(Boolean).join(' · ') || 'Sin variante'}</div>
-                        <div className="stock-variant">Costo: {fmt(v.costo)} · Precio: {fmt(v.precio_venta)}</div>
+                  {prod.variantes?.filter(v => v.activa).length > 0
+                    ? prod.variantes.filter(v => v.activa).map(v => (
+                      <div className="stock-item" key={v.id}>
+                        <div className="stock-info">
+                          <div className="stock-name">{[v.sabor, v.tamanio].filter(Boolean).join(' · ') || 'Sin variante'}</div>
+                          <div className="stock-variant">Costo: {fmt(v.costo)} · Precio: {fmt(v.precio_venta)}</div>
+                        </div>
+                        <div className="stock-bar-wrap">
+                          <div className="stock-bar" style={{
+                            width: `${getStockPct(v.stock_actual, v.stock_minimo)}%`,
+                            background: getStockColor(v.stock_actual, v.stock_minimo)
+                          }} />
+                        </div>
+                        <StockEditable variante={v} onSaved={cargar} />
                       </div>
-                      <div className="stock-bar-wrap">
-                        <div className="stock-bar" style={{
-                          width: `${getStockPct(v.stock_actual, v.stock_minimo)}%`,
-                          background: getStockColor(v.stock_actual, v.stock_minimo)
-                        }} />
-                      </div>
-                      <div className="stock-qty">
-                        <div className="stock-qty-num" style={{ color: getStockColor(v.stock_actual, v.stock_minimo) }}>{v.stock_actual}</div>
-                        <div className="stock-qty-label">unidades</div>
-                      </div>
-                    </div>
-                  ))}
-                  {(!prod.variantes || prod.variantes.length === 0) && (
-                    <div className="empty">Sin variantes</div>
-                  )}
+                    ))
+                    : <div className="empty">Sin variantes</div>
+                  }
                 </div>
               ))}
             </div>

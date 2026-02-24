@@ -9,12 +9,14 @@ import { Clientes } from './pages/Clientes'
 import { Movimientos } from './pages/Movimientos'
 import { Finanzas } from './pages/Finanzas'
 import { Sucursales } from './pages/Sucursales'
+import { SucursalProvider } from './context/SucursalContext'
 import './styles/globals.css'
 
 export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
+      <SucursalProvider>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
@@ -27,6 +29,7 @@ export default function App() {
             <Route path="sucursales" element={<Sucursales />} />
           </Route>
         </Routes>
+      </SucursalProvider>
       </ToastProvider>
     </BrowserRouter>
   )

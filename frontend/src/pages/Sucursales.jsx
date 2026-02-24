@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { sucursalesApi, deudasApi } from '../api'
 import { useToast } from '../components/Toast'
+import { useSucursal } from '../context/SucursalContext'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
@@ -61,13 +62,58 @@ function ModalDeuda({ onClose, onSaved }) {
   )
 }
 
+function ModalSucursal({ sucursal, onClose, onSaved }) {
+  const toast = useToast()
+  const [nombre, setNombre] = useState(sucursal?.nombre || '')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (!nombre.trim()) return toast('El nombre es obligatorio', 'error')
+    setSaving(true)
+    try {
+      if (sucursal) {
+        await sucursalesApi.actualizar(sucursal.id, { nombre: nombre.trim() })
+        toast('Sucursal actualizada')
+      } else {
+        await sucursalesApi.crear({ nombre: nombre.trim() })
+        toast('Sucursal creada')
+      }
+      onSaved()
+    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-header">
+          <div className="modal-title">{sucursal ? 'Editar sucursal' : 'Nueva sucursal'}</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div className="form-group">
+            <label className="form-label">Nombre *</label>
+            <input className="form-input" value={nombre} onChange={e => setNombre(e.target.value)}
+              placeholder="Ej: Centro, Norte, Sur..." onKeyDown={e => e.key === 'Enter' && save()} autoFocus />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Sucursales() {
   const toast = useToast()
+  const { sucursales, cargarSucursales } = useSucursal()
   const [comparacion, setComparacion] = useState([])
   const [deudas, setDeudas] = useState([])
   const [resumenDeudas, setResumenDeudas] = useState(null)
   const [loading, setLoading] = useState(true)
   const [modalDeuda, setModalDeuda] = useState(false)
+  const [modalSucursal, setModalSucursal] = useState(null) // null | 'nuevo' | sucursal
 
   const cargar = () => {
     setLoading(true)
@@ -75,6 +121,7 @@ export function Sucursales() {
       .then(([c, d, r]) => { setComparacion(c); setDeudas(d); setResumenDeudas(r) })
       .finally(() => setLoading(false))
   }
+
   useEffect(() => { cargar() }, [])
 
   const saldar = async (id) => {
@@ -88,15 +135,51 @@ export function Sucursales() {
     catch (e) { toast(e.message, 'error') }
   }
 
+  const eliminarSucursal = async (s) => {
+    if (!confirm(`¿Eliminar "${s.nombre}"? Esta acción no se puede deshacer.`)) return
+    try {
+      await sucursalesApi.eliminar(s.id)
+      toast('Sucursal eliminada')
+      cargarSucursales()
+      cargar()
+    } catch (e) { toast(e.message, 'error') }
+  }
+
   return (
     <>
       <div className="topbar">
         <div className="page-title">Sucursales</div>
         <div className="topbar-actions">
+          <button className="btn btn-ghost" onClick={() => setModalSucursal('nuevo')}>+ Nueva sucursal</button>
           <button className="btn btn-primary" onClick={() => setModalDeuda(true)}>+ Nueva deuda</button>
         </div>
       </div>
       <div className="content page-enter">
+
+        {/* Gestión de sucursales */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header"><span className="card-title">Gestión de sucursales</span></div>
+          <div style={{ padding: '16px 20px' }}>
+            {sucursales.length === 0 ? (
+              <div className="empty">No hay sucursales. ¡Creá la primera!</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {sucursales.map(s => (
+                  <div key={s.id} style={{
+                    background: 'var(--surface2)', borderRadius: 10, padding: '12px 16px',
+                    display: 'flex', alignItems: 'center', gap: 12, border: '1px solid var(--border)', minWidth: 180
+                  }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontWeight: 500, fontSize: 14 }}>{s.nombre}</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setModalSucursal(s)} style={{ padding: '4px 8px' }}>✎</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => eliminarSucursal(s)} style={{ padding: '4px 8px' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Comparación */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-header"><span className="card-title">Comparación — mes actual</span></div>
@@ -158,7 +241,15 @@ export function Sucursales() {
           )}
         </div>
       </div>
+
       {modalDeuda && <ModalDeuda onClose={() => setModalDeuda(false)} onSaved={() => { setModalDeuda(false); cargar() }} />}
+      {modalSucursal && (
+        <ModalSucursal
+          sucursal={modalSucursal === 'nuevo' ? null : modalSucursal}
+          onClose={() => setModalSucursal(null)}
+          onSaved={() => { setModalSucursal(null); cargarSucursales(); cargar() }}
+        />
+      )}
     </>
   )
 }
