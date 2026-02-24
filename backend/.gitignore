@@ -1,0 +1,37 @@
+# Variables de entorno (¡nunca subir al repo!)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+
+# Alembic (versiones generadas localmente)
+alembic/versions/*.pyc
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
