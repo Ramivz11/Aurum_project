@@ -33,10 +33,7 @@ Reglas:
 """
 
 
-async def procesar_factura_con_ia(
-    contenido: bytes,
-    content_type: str
-) -> FacturaIAResponse:
+async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> FacturaIAResponse:
     imagen_b64 = base64.standard_b64encode(contenido).decode("utf-8")
 
     if content_type == "application/pdf":
@@ -44,7 +41,8 @@ async def procesar_factura_con_ia(
     else:
         mime_type = content_type
 
-url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.GEMINI_API_KEY}"
+
     payload = {
         "contents": [
             {
