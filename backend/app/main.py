@@ -17,12 +17,11 @@ app = FastAPI(
 # CORS — permite que el frontend en Railway llame a la API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción: reemplazar con la URL del frontend
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Registrar routers
 app.include_router(productos.router)
 app.include_router(ventas.router)
