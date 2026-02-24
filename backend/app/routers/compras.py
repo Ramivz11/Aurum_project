@@ -154,5 +154,8 @@ async def analizar_factura_con_ia(
         )
 
     contenido = await archivo.read()
+try:
     resultado = await procesar_factura_con_ia(contenido, archivo.content_type)
-    return resultado
+except Exception as e:
+    raise HTTPException(status_code=503, detail=str(e))
+return resultado
