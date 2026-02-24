@@ -67,6 +67,8 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
 
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.post(url, json=payload)
+        if response.status_code == 429:
+            raise Exception("Límite de requests de IA alcanzado. Esperá unos segundos e intentá de nuevo.")
         response.raise_for_status()
         data = response.json()
 
