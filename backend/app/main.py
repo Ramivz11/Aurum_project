@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.routers import productos, ventas, compras, clientes, finanzas, deudas, stock
 from app.routers.movimientos_sucursales import movimientos_router, sucursales_router
-from app.routers import categorias_producto
+from app.routers import categorias_productos as categorias_producto
 
 # Crear tablas al iniciar (en producción usar Alembic)
 Base.metadata.create_all(bind=engine)

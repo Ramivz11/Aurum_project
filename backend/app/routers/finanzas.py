@@ -229,7 +229,7 @@ def listar_categorias(db: Session = Depends(get_db)):
 
 
 @router.post("/categorias-gasto", status_code=201)
-def crear_categoria(nombre: str, db: Session = Depends(get_db)):
+def crear_categoria(nombre: str = Query(...), db: Session = Depends(get_db)):
     cat = CategoriaGasto(nombre=nombre)
     db.add(cat)
     db.commit()
