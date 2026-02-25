@@ -53,8 +53,9 @@ def listar_recordatorios(
     # Orden: alta → media → baja, luego por fecha
     from sqlalchemy import case
     orden = case(
-        {"alta": 0, "media": 1, "baja": 2},
-        value=Recordatorio.prioridad
+        (Recordatorio.prioridad == "alta", 0),
+        (Recordatorio.prioridad == "media", 1),
+        else_=2
     )
     return query.order_by(orden, Recordatorio.creado_en.desc()).all()
 
