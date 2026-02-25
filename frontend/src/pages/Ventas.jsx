@@ -64,6 +64,8 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
   const variantesFlat = productos.flatMap(p => p.variantes?.filter(v => v.activa).map(v => ({
     ...v,
     label: `${p.nombre} — ${[v.sabor, v.tamanio].filter(Boolean).join(' · ')}`,
+    marca: p.marca,
+    nombre_producto: p.nombre,
   })) || [])
 
   const filtradas = variantesFlat.filter(v => v.label.toLowerCase().includes(busqProd.toLowerCase()))
@@ -191,7 +193,11 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
                 const v = variantesFlat.find(x => x.id === Number(item.variante_id))
                 return (
                   <div className="carrito-item" key={i}>
-                    <div className="carrito-nombre">{v?.label || `Variante #${item.variante_id}`}</div>
+                    <div className="carrito-nombre">
+                      <span>{v?.nombre_producto || `Variante #${item.variante_id}`}</span>
+                      {v?.marca && <span style={{ color: 'var(--text-muted)', marginLeft: 5 }}>· {v.marca}</span>}
+                      {v && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 1 }}>{[v.sabor, v.tamanio].filter(Boolean).join(' · ')}</div>}
+                    </div>
                     <input className="carrito-qty" type="number" min={1} value={item.cantidad} onChange={e => setItemField(i, 'cantidad', e.target.value)} />
                     <input className="carrito-precio" type="number" value={item.precio_unitario} onChange={e => setItemField(i, 'precio_unitario', e.target.value)} />
                     <div className="carrito-subtotal">{fmt(item.cantidad * item.precio_unitario)}</div>
@@ -306,15 +312,31 @@ export default function Ventas() {
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Fecha</th><th>Cliente</th><th>Sucursal</th><th>Pago</th><th>Total</th><th>Estado</th><th></th></tr>
+                  <tr><th>Fecha</th><th>Cliente</th><th>Sucursal</th><th>Productos</th><th>Pago</th><th>Total</th><th>Estado</th><th></th></tr>
                 </thead>
                 <tbody>
-                  {lista.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Sin registros</td></tr>}
+                  {lista.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Sin registros</td></tr>}
                   {lista.map(v => (
                     <tr key={v.id}>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
                       <td>{v.cliente_id ? getNombreCliente(v.cliente_id) : '—'}</td>
                       <td>{getNombreSucursal(v.sucursal_id)}</td>
+                      <td>
+                        {v.items?.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {v.items.slice(0, 2).map((item, idx) => {
+                              const variante = productos.flatMap(p => p.variantes?.map(vv => ({ ...vv, marca: p.marca, nombre: p.nombre })) || []).find(vv => vv.id === item.variante_id)
+                              return (
+                                <div key={idx} style={{ fontSize: 12 }}>
+                                  <span style={{ color: 'var(--text)' }}>{variante?.nombre || `#${item.variante_id}`}</span>
+                                  {variante?.marca && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {variante.marca}</span>}
+                                </div>
+                              )
+                            })}
+                            {v.items.length > 2 && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>+{v.items.length - 2} más</div>}
+                          </div>
+                        ) : <span style={{ color: 'var(--text-dim)' }}>—</span>}
+                      </td>
                       <td><span className={`chip ${CHIP[v.metodo_pago]}`}>{v.metodo_pago}</span></td>
                       <td><strong>{fmt(v.total)}</strong></td>
                       <td><span className={`chip ${ESTADO_CHIP[v.estado]}`}>{v.estado}</span></td>

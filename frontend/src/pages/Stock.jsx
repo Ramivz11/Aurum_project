@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { productosApi, stockApi, sucursalesApi } from '../api'
+import { productosApi, stockApi, sucursalesApi, categoriasProductoApi } from '../api'
 import { useToast } from '../components/Toast'
 import { useSucursal } from '../context/SucursalContext'
 
@@ -92,7 +92,7 @@ function ModalTransferencia({ variante, sucursales, onClose, onSaved }) {
 }
 
 // ─── MODAL PRODUCTO ───────────────────────────────────────────────────────────
-function ModalProducto({ prod, onClose, onSaved }) {
+function ModalProducto({ prod, categorias, onClose, onSaved }) {
   const toast = useToast()
   const [form, setForm] = useState(prod || { nombre: '', marca: '', categoria: 'proteina', imagen_url: '' })
   const [variantes, setVariantes] = useState(
@@ -165,11 +165,8 @@ function ModalProducto({ prod, onClose, onSaved }) {
             <div className="form-group">
               <label className="form-label">Categoría</label>
               <select className="form-select" value={form.categoria || ''} onChange={e => setF('categoria', e.target.value)}>
-                <option value="proteina">Proteína</option>
-                <option value="creatina">Creatina</option>
-                <option value="pre-workout">Pre-Workout</option>
-                <option value="bcaa">BCAA</option>
-                <option value="otro">Otro</option>
+                <option value="">Sin categoría</option>
+                {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
               </select>
             </div>
             <div className="form-group">
@@ -372,15 +369,20 @@ export default function Stock() {
   const toast = useToast()
   const { sucursales, sucursalActual } = useSucursal()
   const [productos, setProductos] = useState([])
+  const [categorias, setCategorias] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [categoria, setCategoria] = useState('')
   const [filtroSucursal, setFiltroSucursal] = useState('')
   const [modal, setModal] = useState(null)
   const [modalLote, setModalLote] = useState(null)
-  const [modalTransferencia, setModalTransferencia] = useState(null) // variante
+  const [modalTransferencia, setModalTransferencia] = useState(null)
 
   // Sin auto-filtro: el usuario elige desde el selector del topbar
+
+  useEffect(() => {
+    categoriasProductoApi.listar().then(setCategorias).catch(() => {})
+  }, [])
 
   const cargar = () => {
     setLoading(true)
@@ -443,11 +445,7 @@ export default function Stock() {
           </div>
           <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={categoria} onChange={e => setCategoria(e.target.value)}>
             <option value="">Todas las categorías</option>
-            <option value="proteina">Proteína</option>
-            <option value="creatina">Creatina</option>
-            <option value="pre-workout">Pre-Workout</option>
-            <option value="bcaa">BCAA</option>
-            <option value="otro">Otro</option>
+            {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
           </select>
           <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={filtroSucursal} onChange={e => setFiltroSucursal(e.target.value ? Number(e.target.value) : '')}>
             <option value="">Vista global</option>
@@ -465,13 +463,15 @@ export default function Stock() {
           : (
             <div className="grid-2">
               {productosFiltrados.map(prod => (
-                <div className="card" key={prod.id}>
+                <div className="card" key={prod.id} style={{ height: 'fit-content' }}>
                   <div className="card-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 18 }}>{getEmoji(prod.categoria)}</span>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{prod.nombre}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{prod.marca}</div>
+                        <span style={{ fontWeight: 500, fontSize: 13.5 }}>{prod.nombre}</span>
+                        {prod.marca && (
+                          <span style={{ fontWeight: 500, fontSize: 13.5, color: 'var(--text-muted)', marginLeft: 6 }}>· {prod.marca}</span>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -501,7 +501,7 @@ export default function Stock() {
       </div>
 
       {modal && (
-        <ModalProducto prod={modal === 'nuevo' ? null : modal} onClose={() => setModal(null)} onSaved={() => { setModal(null); cargar() }} />
+        <ModalProducto prod={modal === 'nuevo' ? null : modal} categorias={categorias} onClose={() => setModal(null)} onSaved={() => { setModal(null); cargar() }} />
       )}
       {modalLote && (
         <ModalLote producto={modalLote} onClose={() => setModalLote(null)} onSaved={() => { setModalLote(null); cargar() }} />

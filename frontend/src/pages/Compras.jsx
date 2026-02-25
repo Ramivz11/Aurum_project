@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { comprasApi, sucursalesApi, productosApi } from '../api'
+import { useState, useEffect, useRef } from 'react'
+import { comprasApi, productosApi, categoriasProductoApi } from '../api'
 import { useToast } from '../components/Toast'
 import { useSucursal } from '../context/SucursalContext'
 
@@ -7,7 +7,7 @@ const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const METODOS = ['efectivo', 'transferencia', 'tarjeta']
 const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chip-gray' }
 
-// ─── DISTRIBUIDOR POR SUCURSAL ────────────────────────────────────────────────
+// ─── DISTRIBUIDOR ─────────────────────────────────────────────────────────────
 function Distribuidor({ item, sucursales, onChange }) {
   const total = parseInt(item.cantidad) || 0
   const distribucion = item.distribucion || []
@@ -40,10 +40,7 @@ function Distribuidor({ item, sucursales, onChange }) {
           <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)' }} />
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.nombre}</span>
-            <input
-              type="number"
-              min="0"
-              max={total}
+            <input type="number" min="0" max={total}
               value={distribucion.find(d => d.sucursal_id === s.id)?.cantidad || ''}
               onChange={e => setCant(s.id, e.target.value)}
               placeholder="0"
@@ -59,7 +56,336 @@ function Distribuidor({ item, sucursales, onChange }) {
   )
 }
 
-// ─── MODAL COMPRA ─────────────────────────────────────────────────────────────
+// ─── MODAL IA — CONFIRMACIÓN ──────────────────────────────────────────────────
+function ModalIAConfirmacion({ resultado, productos, sucursales, onConfirm, onClose }) {
+  const toast = useToast()
+  const variantesFlat = productos.flatMap(p =>
+    (p.variantes || []).filter(v => v.activa).map(v => ({
+      ...v,
+      label: `${p.nombre}${v.sabor ? ' · ' + v.sabor : ''}${v.tamanio ? ' · ' + v.tamanio : ''}`,
+      marca: p.marca,
+      nombre_producto: p.nombre,
+    }))
+  )
+
+  // Para cada ítem detectado, intentamos hacer match por nombre
+  const hacerMatch = (descripcion) => {
+    const desc = descripcion.toLowerCase()
+    let mejor = null, mejorScore = 0
+    for (const v of variantesFlat) {
+      const palabras = v.label.toLowerCase().split(/[\s·,\-]+/)
+      const coincidencias = palabras.filter(p => p.length > 2 && desc.includes(p)).length
+      if (coincidencias > mejorScore) { mejorScore = coincidencias; mejor = v }
+    }
+    return mejorScore >= 1 ? mejor : null
+  }
+
+  const [items, setItems] = useState(() =>
+    resultado.items_detectados.map(item => {
+      const match = hacerMatch(item.descripcion || '')
+      return {
+        descripcion_ia: item.descripcion,
+        variante_id: match?.id || '',
+        cantidad: item.cantidad,
+        costo_unitario: Number(item.costo_unitario),
+        distribucion: [],
+        match_auto: !!match,
+      }
+    })
+  )
+
+  const [proveedor, setProveedor] = useState(resultado.proveedor_detectado || '')
+  const [paso, setPaso] = useState(1)
+
+  const setField = (i, k, v) => setItems(prev => prev.map((x, j) => j === i ? { ...x, [k]: v } : x))
+  const setDistribucion = (i, dist) => setItems(prev => prev.map((x, j) => j === i ? { ...x, distribucion: dist } : x))
+  const removeItem = (i) => setItems(prev => prev.filter((_, j) => j !== i))
+  const addItem = () => setItems(prev => [...prev, { descripcion_ia: '', variante_id: '', cantidad: 1, costo_unitario: 0, distribucion: [], match_auto: false }])
+
+  const validar = () => {
+    for (const item of items) {
+      if (!item.variante_id) return false
+      if (!item.cantidad || item.cantidad <= 0) return false
+    }
+    return items.length > 0
+  }
+
+  const confirmar = () => {
+    if (!validar()) return toast('Todos los ítems deben tener variante y cantidad válida', 'error')
+    onConfirm({
+      proveedor,
+      items: items.map(i => ({
+        variante_id: Number(i.variante_id),
+        cantidad: Number(i.cantidad),
+        costo_unitario: Number(i.costo_unitario),
+        distribucion: i.distribucion || [],
+      }))
+    })
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal modal-lg">
+        <div className="modal-header">
+          <div>
+            <div className="modal-title">✨ Revisión de factura IA</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              Confianza: {Math.round((resultado.confianza || 0) * 100)}%
+              {resultado.total_detectado && ` · Total detectado: ${fmt(resultado.total_detectado)}`}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {[1, 2].map(n => (
+              <div key={n} style={{
+                width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700,
+                background: paso === n ? 'var(--gold)' : paso > n ? 'var(--green)' : 'var(--surface3)',
+                color: paso === n || paso > n ? '#000' : 'var(--text-muted)',
+                cursor: paso > n ? 'pointer' : 'default',
+              }} onClick={() => paso > n && setPaso(n)}>
+                {paso > n ? '✓' : n}
+              </div>
+            ))}
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div className="modal-body">
+          {paso === 1 && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Proveedor</label>
+                <input className="form-input" value={proveedor} onChange={e => setProveedor(e.target.value)} placeholder="Ej: Nutri Argentina" />
+              </div>
+
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                La IA detectó <strong style={{ color: 'var(--text)' }}>{items.length} ítems</strong>. Revisá cada uno y corregí si es necesario.
+              </div>
+
+              {items.map((item, i) => {
+                const varianteSel = variantesFlat.find(v => v.id === Number(item.variante_id))
+                return (
+                  <div key={i} style={{
+                    background: 'var(--surface2)', borderRadius: 10, padding: 14, marginBottom: 10,
+                    border: `1px solid ${item.variante_id ? 'var(--border)' : 'rgba(224,85,85,0.3)'}`,
+                    position: 'relative',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Detectado por IA
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--gold-light)', fontStyle: 'italic' }}>
+                          "{item.descripcion_ia || 'Sin descripción'}"
+                        </div>
+                        {item.match_auto && item.variante_id && (
+                          <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 4 }}>
+                            ✓ Match automático encontrado
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => removeItem(i)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16, padding: 4, flexShrink: 0 }}>✕</button>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                        <label className="form-label">Variante del sistema *</label>
+                        <select
+                          className="form-select"
+                          value={item.variante_id}
+                          onChange={e => setField(i, 'variante_id', e.target.value)}
+                          style={{ borderColor: item.variante_id ? 'var(--border)' : 'var(--red)' }}
+                        >
+                          <option value="">— Seleccioná la variante —</option>
+                          {variantesFlat.map(v => (
+                            <option key={v.id} value={v.id}>{v.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-row" style={{ marginTop: 10 }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Cantidad</label>
+                        <input className="form-input" type="number" min="1"
+                          value={item.cantidad}
+                          onChange={e => setField(i, 'cantidad', e.target.value)} />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Costo unitario ($)</label>
+                        <input className="form-input" type="number" min="0"
+                          value={item.costo_unitario}
+                          onChange={e => setField(i, 'costo_unitario', e.target.value)} />
+                      </div>
+                    </div>
+
+                    {item.variante_id && (
+                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                        Subtotal: <strong style={{ color: 'var(--text)' }}>{fmt(item.cantidad * item.costo_unitario)}</strong>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              <button className="btn btn-ghost btn-sm" onClick={addItem} style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>
+                + Agregar ítem manualmente
+              </button>
+
+              <div style={{ textAlign: 'right', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--gold-light)' }}>
+                Total: {fmt(items.reduce((s, i) => s + (Number(i.cantidad) * Number(i.costo_unitario)), 0))}
+              </div>
+            </>
+          )}
+
+          {paso === 2 && (
+            <>
+              <div style={{ marginBottom: 16, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)' }}>
+                Distribuí el stock entre las sucursales. Lo que no distribuyas queda en el <strong style={{ color: 'var(--text)' }}>depósito central</strong>.
+              </div>
+              {items.map((item, i) => {
+                const v = variantesFlat.find(x => x.id === Number(item.variante_id))
+                return (
+                  <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
+                      {v?.label || `Variante #${item.variante_id}`}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      {item.cantidad} unidades · {fmt(item.cantidad * item.costo_unitario)}
+                    </div>
+                    <Distribuidor item={item} sucursales={sucursales} onChange={(dist) => setDistribucion(i, dist)} />
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          {paso === 1 && (
+            <>
+              <button className="btn btn-ghost" onClick={() => confirmar()}>Guardar (todo a central)</button>
+              <button className="btn btn-primary" onClick={() => { if (!validar()) return toast('Completá todos los campos', 'error'); setPaso(2) }}>
+                Distribuir por sucursal →
+              </button>
+            </>
+          )}
+          {paso === 2 && (
+            <>
+              <button className="btn btn-ghost" onClick={() => setPaso(1)}>← Volver</button>
+              <button className="btn btn-primary" onClick={confirmar}>Confirmar compra ✓</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── MODAL IA — UPLOAD ────────────────────────────────────────────────────────
+function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }) {
+  const toast = useToast()
+  const [archivo, setArchivo] = useState(null)
+  const [analizando, setAnalizando] = useState(false)
+  const [resultado, setResultado] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const fileRef = useRef()
+
+  const analizar = async () => {
+    if (!archivo) return toast('Seleccioná un archivo', 'error')
+    setAnalizando(true)
+    try {
+      const form = new FormData()
+      form.append('archivo', archivo)
+      const res = await comprasApi.analizarFactura(form)
+      setResultado(res)
+    } catch (e) { toast(e.message || 'Error al analizar', 'error') }
+    finally { setAnalizando(false) }
+  }
+
+  const confirmarCompra = async ({ proveedor, items }) => {
+    setGuardando(true)
+    try {
+      await comprasApi.crear({
+        proveedor: proveedor || null,
+        sucursal_id: Number(sucursalId),
+        metodo_pago: metodo,
+        items: items.map(i => ({
+          variante_id: i.variante_id,
+          cantidad: i.cantidad,
+          costo_unitario: i.costo_unitario,
+          distribucion: (i.distribucion || []).filter(d => d.cantidad > 0),
+        }))
+      })
+      toast('Compra registrada exitosamente')
+      onSaved()
+    } catch (e) { toast(e.message, 'error') }
+    finally { setGuardando(false) }
+  }
+
+  if (resultado) {
+    return (
+      <ModalIAConfirmacion
+        resultado={resultado}
+        productos={productos}
+        sucursales={sucursales}
+        onConfirm={confirmarCompra}
+        onClose={onClose}
+      />
+    )
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-header">
+          <div className="modal-title">✨ Cargar factura con IA</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div className="ia-banner">
+            <div className="ia-banner-icon">🧾</div>
+            <div className="ia-banner-text">
+              <div className="ia-banner-title">Gemini analiza tu factura</div>
+              <div className="ia-banner-desc">Subí una foto o PDF de tu recibo y la IA detectará automáticamente los productos, cantidades y precios.</div>
+            </div>
+          </div>
+
+          <div
+            onClick={() => fileRef.current?.click()}
+            style={{
+              border: '2px dashed var(--border)', borderRadius: 12, padding: 32,
+              textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.15s',
+              background: archivo ? 'var(--surface2)' : 'transparent',
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{archivo ? '📄' : '📁'}</div>
+            <div style={{ fontSize: 13, color: 'var(--text)' }}>
+              {archivo ? archivo.name : 'Hacer clic para seleccionar'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              JPG, PNG o PDF · máx. 10MB
+            </div>
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+              onChange={e => setArchivo(e.target.files[0] || null)} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={analizar} disabled={!archivo || analizando}>
+            {analizando ? '⏳ Analizando...' : '✨ Analizar con IA'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── MODAL COMPRA MANUAL ──────────────────────────────────────────────────────
 function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
   const toast = useToast()
   const [proveedor, setProveedor] = useState(compra?.proveedor || '')
@@ -71,10 +397,13 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
   )
   const [busqProd, setBusqProd] = useState('')
   const [saving, setSaving] = useState(false)
-  const [paso, setPaso] = useState(1) // 1=compra, 2=distribución
+  const [paso, setPaso] = useState(1)
 
   const variantesFlat = productos.flatMap(p => p.variantes?.filter(v => v.activa).map(v => ({
-    ...v, label: `${p.nombre} — ${[v.sabor, v.tamanio].filter(Boolean).join(' · ')}`,
+    ...v,
+    label: `${p.nombre}${p.marca ? ' · ' + p.marca : ''} — ${[v.sabor, v.tamanio].filter(Boolean).join(' · ')}`,
+    nombre_producto: p.nombre,
+    marca: p.marca,
   })) || [])
 
   const filtradas = variantesFlat.filter(v => v.label.toLowerCase().includes(busqProd.toLowerCase()))
@@ -93,19 +422,9 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
   const removeItem = (i) => setItems(prev => prev.filter((_, j) => j !== i))
   const total = items.reduce((s, i) => s + (Number(i.cantidad) * Number(i.costo_unitario)), 0)
 
-  const validarDistribucion = () => {
-    for (const item of items) {
-      const dist = item.distribucion || []
-      const distribuido = dist.reduce((s, d) => s + (parseInt(d.cantidad) || 0), 0)
-      if (distribuido > parseInt(item.cantidad)) return false
-    }
-    return true
-  }
-
   const save = async () => {
     if (!sucursalId) return toast('Seleccioná una sucursal', 'error')
     if (items.length === 0) return toast('Agregá al menos un producto', 'error')
-    if (!validarDistribucion()) return toast('La distribución supera la cantidad en algún ítem', 'error')
     setSaving(true)
     try {
       const payload = {
@@ -133,7 +452,6 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
         <div className="modal-header">
           <div className="modal-title">{compra ? 'Editar compra' : 'Registrar compra'}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Steps */}
             {[1, 2].map(n => (
               <div key={n} style={{
                 width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -194,7 +512,10 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
                     const v = variantesFlat.find(x => x.id === Number(item.variante_id))
                     return (
                       <div className="carrito-item" key={i}>
-                        <div className="carrito-nombre">{v?.label || `Variante #${item.variante_id}`}</div>
+                        <div className="carrito-nombre">
+                          <span>{v?.nombre_producto || `Variante #${item.variante_id}`}</span>
+                          {v?.marca && <span style={{ color: 'var(--text-muted)', marginLeft: 5 }}>· {v.marca}</span>}
+                        </div>
                         <input className="carrito-qty" type="number" min={1} value={item.cantidad} onChange={e => setField(i, 'cantidad', e.target.value)} />
                         <input className="carrito-precio" type="number" value={item.costo_unitario} onChange={e => setField(i, 'costo_unitario', e.target.value)} />
                         <div className="carrito-subtotal">{fmt(item.cantidad * item.costo_unitario)}</div>
@@ -213,7 +534,6 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
               </div>
             </>
           )}
-
           {paso === 2 && (
             <>
               <div style={{ marginBottom: 16, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)' }}>
@@ -256,17 +576,21 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
   )
 }
 
+// ─── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────
 export default function Compras() {
   const toast = useToast()
   const { sucursales, sucursalActual } = useSucursal()
   const [compras, setCompras] = useState([])
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null)
+  const [modal, setModal] = useState(null)       // null | 'nuevo' | compra
+  const [modalIA, setModalIA] = useState(false)
   const [filtroSucursal, setFiltroSucursal] = useState('')
+  const [metodoIA, setMetodoIA] = useState('efectivo')
+  const [sucursalIA, setSucursalIA] = useState('')
 
   useEffect(() => {
-    if (sucursalActual) setFiltroSucursal(String(sucursalActual.id))
+    if (sucursalActual) { setFiltroSucursal(String(sucursalActual.id)); setSucursalIA(String(sucursalActual.id)) }
   }, [sucursalActual?.id])
 
   const cargar = () => {
@@ -299,6 +623,9 @@ export default function Compras() {
             <option value="">Todas las sucursales</option>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
+          <button className="btn btn-ghost" onClick={() => setModalIA(true)} style={{ gap: 6 }}>
+            ✨ Cargar con IA
+          </button>
           <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar compra</button>
         </div>
       </div>
@@ -341,6 +668,17 @@ export default function Compras() {
           productos={productos}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); cargar() }}
+        />
+      )}
+
+      {modalIA && (
+        <ModalIA
+          sucursales={sucursales}
+          productos={productos}
+          metodo={metodoIA}
+          sucursalId={sucursalIA || sucursales[0]?.id}
+          onClose={() => setModalIA(false)}
+          onSaved={() => { setModalIA(false); cargar() }}
         />
       )}
     </>

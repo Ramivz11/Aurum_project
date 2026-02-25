@@ -1,4 +1,4 @@
-import { api } from './client'
+import api from './client'
 
 export const productosApi = {
   listar: (params) => api.get('/productos', { params }),
@@ -39,7 +39,7 @@ export const comprasApi = {
   analizarFactura: (file) => {
     const form = new FormData()
     form.append('archivo', file)
-    return api.postForm('/compras/factura/ia', form)
+    return api.post('/compras/factura/ia', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
 }
 

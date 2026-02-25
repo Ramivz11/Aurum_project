@@ -9,6 +9,7 @@ import { Clientes } from './pages/Clientes'
 import { Movimientos } from './pages/Movimientos'
 import { Finanzas } from './pages/Finanzas'
 import { Sucursales } from './pages/Sucursales'
+import { Categorias } from './pages/Categorias'
 import { SucursalProvider } from './context/SucursalContext'
 import './styles/globals.css'
 
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="clientes" element={<Clientes />} />
             <Route path="finanzas" element={<Finanzas />} />
             <Route path="sucursales" element={<Sucursales />} />
+            <Route path="categorias" element={<Categorias />} />
           </Route>
         </Routes>
       </SucursalProvider>

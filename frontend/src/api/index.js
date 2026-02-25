@@ -129,3 +129,23 @@ export const deudasApi = {
   saldar: (id) => api.post(`/deudas/${id}/saldar`, {}),
   eliminar: (id) => api.delete(`/deudas/${id}`),
 }
+
+// ── RECORDATORIOS ──
+export const recordatoriosApi = {
+  listar: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return api.get(`/recordatorios${q ? '?' + q : ''}`)
+  },
+  crear: (data) => api.post('/recordatorios', data),
+  actualizar: (id, data) => api.put(`/recordatorios/${id}`, data),
+  completar: (id) => api.post(`/recordatorios/${id}/completar`, {}),
+  eliminar: (id) => api.delete(`/recordatorios/${id}`),
+}
+
+// ── CATEGORÍAS PRODUCTO ──
+export const categoriasProductoApi = {
+  listar: () => api.get('/categorias-producto'),
+  crear: (data) => api.post('/categorias-producto', data),
+  actualizar: (id, data) => api.put(`/categorias-producto/${id}`, data),
+  eliminar: (id) => api.delete(`/categorias-producto/${id}`),
+}
