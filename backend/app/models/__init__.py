@@ -31,6 +31,12 @@ class TipoDeudaEnum(str, enum.Enum):
     por_pagar = "por_pagar"
 
 
+class PrioridadEnum(str, enum.Enum):
+    alta = "alta"
+    media = "media"
+    baja = "baja"
+
+
 class TipoTransferenciaEnum(str, enum.Enum):
     central_a_sucursal = "central_a_sucursal"
     sucursal_a_central = "sucursal_a_central"
@@ -277,3 +283,24 @@ class Deuda(Base):
     notas = Column(Text)
     saldada = Column(Boolean, default=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ─── RECORDATORIOS ────────────────────────────────────────────────────────────
+
+class Recordatorio(Base):
+    __tablename__ = "recordatorios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    titulo = Column(String(300), nullable=False)
+    descripcion = Column(Text)
+    prioridad = Column(Enum(PrioridadEnum), nullable=False, default=PrioridadEnum.media)
+    completado = Column(Boolean, default=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+    
+    
+class CategoriaProducto(Base):
+    __tablename__ = "categorias_producto"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(100), nullable=False, unique=True)
+    activa = Column(Boolean, default=True)

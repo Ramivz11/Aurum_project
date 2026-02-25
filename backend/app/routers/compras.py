@@ -123,12 +123,9 @@ def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Ses
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Revertir stock de items anteriores del central únicamente
-    # (el stock de sucursales se mantiene ya que no podemos saber la distribución exacta original)
+    # Revertir stock de items anteriores (solo central, no podemos saber la distribución original exacta)
     for item in compra.items:
-        # Solo restar lo que quedó en central (stock_actual actual >= cantidad original puede no ser cierto)
-        # Prevenimos que quede negativo
-        item.variante.stock_actual = max(0, item.variante.stock_actual - item.cantidad)
+        item.variante.stock_actual -= item.cantidad
         db.delete(item)
 
     db.flush()
@@ -178,7 +175,7 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
     for item in compra.items:
-        item.variante.stock_actual = max(0, item.variante.stock_actual - item.cantidad)
+        item.variante.stock_actual -= item.cantidad
 
     db.delete(compra)
     db.commit()
