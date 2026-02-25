@@ -1,9 +1,20 @@
 const BASE_URL = 'https://vivacious-truth-production-b827.up.railway.app'
 
+function buildUrl(path, params) {
+  if (!params || Object.keys(params).length === 0) return `${BASE_URL}${path}`
+  const filtered = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  )
+  const qs = new URLSearchParams(filtered).toString()
+  return `${BASE_URL}${path}${qs ? '?' + qs : ''}`
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
+  const { params, ...fetchOptions } = options
+  const url = buildUrl(path, params)
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', ...fetchOptions.headers },
+    ...fetchOptions,
   })
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: 'Error de red' }))
@@ -14,7 +25,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  get: (path) => request(path),
+  get: (path, options = {}) => request(path, options),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
   put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
   delete: (path) => request(path, { method: 'DELETE' }),

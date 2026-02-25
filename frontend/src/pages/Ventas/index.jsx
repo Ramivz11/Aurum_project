@@ -54,18 +54,20 @@ function ModalVenta({ onClose, onSaved }) {
 
   const total = carrito.reduce((a, i) => a + i.precio_unitario * i.cantidad, 0)
 
-  const submit = async () => {
+  const submit = async (estadoOverride) => {
     if (!form.sucursal_id) return toast.error('Seleccioná una sucursal')
     if (!carrito.length) return toast.error('El carrito está vacío')
     setLoading(true)
+    const estadoFinal = estadoOverride || form.estado
     try {
       await ventasApi.crear({
         ...form,
+        estado: estadoFinal,
         cliente_id: form.cliente_id || null,
         sucursal_id: Number(form.sucursal_id),
         items: carrito.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario }))
       })
-      toast.success(form.estado === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
+      toast.success(estadoFinal === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
       onSaved(); onClose()
     } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
   }
@@ -74,8 +76,8 @@ function ModalVenta({ onClose, onSaved }) {
     <Modal title="Registrar venta" onClose={onClose} size="modal-lg"
       footer={<>
         <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-        <button className="btn btn-ghost" onClick={() => { setForm(f => ({ ...f, estado: 'abierta' })); setTimeout(submit, 50) }}>Guardar como pedido</button>
-        <button className="btn btn-primary" onClick={submit} disabled={loading}>{loading ? 'Registrando...' : `Confirmar ${formatARS(total)}`}</button>
+        <button className="btn btn-ghost" onClick={() => submit('abierta')}>Guardar como pedido</button>
+        <button className="btn btn-primary" onClick={() => submit()} disabled={loading}>{loading ? 'Registrando...' : `Confirmar ${formatARS(total)}`}</button>
       </>}
     >
       <div className="grid-2" style={{ marginBottom: 0 }}>
@@ -182,6 +184,7 @@ function ModalVenta({ onClose, onSaved }) {
 export default function Ventas() {
   const [ventas, setVentas] = useState([])
   const [clientes, setClientes] = useState([])
+  const [sucursales, setSucursales] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [confirm, setConfirm] = useState(null)
@@ -191,10 +194,12 @@ export default function Ventas() {
     setLoading(true)
     Promise.all([
       ventasApi.listar({ estado: filtro || undefined }),
-      clientesApi.listar()
-    ]).then(([v, c]) => {
+      clientesApi.listar(),
+      sucursalesApi.listar()
+    ]).then(([v, c, s]) => {
       setVentas(v.data)
       setClientes(c.data)
+      setSucursales(s.data)
     }).finally(() => setLoading(false))
   }
 
@@ -202,6 +207,8 @@ export default function Ventas() {
 
   // Mapear id → nombre de cliente
   const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.nombre]))
+  // Mapear id → nombre de sucursal
+  const sucursalMap = Object.fromEntries(sucursales.map(s => [s.id, s.nombre]))
 
   const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
   const confirmar = async (id) => {
@@ -230,7 +237,7 @@ export default function Ventas() {
               <td style={{ color: 'var(--text-muted)' }}>{formatDateTime(v.fecha)}</td>
               {/* Nombre real del cliente en lugar de #ID */}
               <td><strong>{v.cliente_id ? (clienteMap[v.cliente_id] || `Cliente #${v.cliente_id}`) : '—'}</strong></td>
-              <td style={{ color: 'var(--text-muted)' }}>#{v.sucursal_id}</td>
+              <td style={{ color: 'var(--text-muted)' }}>{sucursalMap[v.sucursal_id] || `#${v.sucursal_id}`}</td>
               <td><Chip color={METODO_PAGO_COLOR[v.metodo_pago]}>{METODO_PAGO_LABEL[v.metodo_pago]}</Chip></td>
               <td><strong>{formatARS(v.total)}</strong></td>
               <td><Chip color={v.estado === 'confirmada' ? 'green' : v.estado === 'abierta' ? 'gold' : 'red'}>{v.estado}</Chip></td>
