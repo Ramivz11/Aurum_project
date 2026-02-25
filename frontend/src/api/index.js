@@ -93,7 +93,19 @@ export const movimientosApi = {
   },
 }
 
-// ── SUCURSALES ──
+// ── STOCK (con desglose por sucursal) ──
+export const stockApi = {
+  listar: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return api.get(`/stock${q ? '?' + q : ''}`)
+  },
+  ajustarManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
+  transferir: (data) => api.post('/stock/transferencia', data),
+  listarTransferencias: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return api.get(`/stock/transferencias${q ? '?' + q : ''}`)
+  },
+}
 export const sucursalesApi = {
   listar: () => api.get('/sucursales'),
   crear: (data) => api.post('/sucursales', data),
