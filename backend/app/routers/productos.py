@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import Optional, List
 from decimal import Decimal
+from pydantic import BaseModel as PydanticBase
 
 from app.database import get_db
 from app.models import Producto, Variante
@@ -13,6 +14,68 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/productos", tags=["Productos"])
+
+
+# ─── AJUSTE DE PRECIOS POR LOTE (debe ir ANTES de /{producto_id}) ─────────────
+
+@router.post("/lote/precio", response_model=List[VarianteResponse])
+def ajustar_precio_lote(data: AjustePrecioLote, db: Session = Depends(get_db)):
+    """
+    Ajusta el precio de venta de múltiples variantes de un producto.
+
+    Modos:
+    - porcentaje: precio_nuevo = precio_actual * (1 + valor/100)
+    - margen_deseado: precio_nuevo = costo / (1 - valor/100)
+    - precio_fijo: precio_nuevo = valor
+    """
+    query = db.query(Variante).filter(
+        Variante.producto_id == data.producto_id,
+        Variante.activa == True
+    )
+
+    if data.variante_ids:
+        query = query.filter(Variante.id.in_(data.variante_ids))
+
+    variantes = query.all()
+
+    if not variantes:
+        raise HTTPException(status_code=404, detail="No se encontraron variantes para ajustar")
+
+    for variante in variantes:
+        if data.modo == ModoAjustePrecio.porcentaje:
+            factor = 1 + (data.valor / 100)
+            variante.precio_venta = round(variante.precio_venta * factor, 2)
+
+        elif data.modo == ModoAjustePrecio.margen_deseado:
+            if data.valor >= 100:
+                raise HTTPException(status_code=400, detail="El margen no puede ser 100% o más")
+            variante.precio_venta = round(variante.costo / (1 - data.valor / 100), 2)
+
+        elif data.modo == ModoAjustePrecio.precio_fijo:
+            variante.precio_venta = data.valor
+
+    db.commit()
+    for v in variantes:
+        db.refresh(v)
+
+    return variantes
+
+
+# ─── AJUSTE DE STOCK DIRECTO (también antes de /{producto_id}) ────────────────
+
+class StockAjuste(PydanticBase):
+    stock_actual: int
+
+
+@router.put("/variantes/{variante_id}/stock", response_model=VarianteResponse)
+def ajustar_stock(variante_id: int, data: StockAjuste, db: Session = Depends(get_db)):
+    variante = db.query(Variante).filter(Variante.id == variante_id).first()
+    if not variante:
+        raise HTTPException(status_code=404, detail="Variante no encontrada")
+    variante.stock_actual = data.stock_actual
+    db.commit()
+    db.refresh(variante)
+    return variante
 
 
 # ─── PRODUCTOS ───────────────────────────────────────────────────────────────
@@ -71,7 +134,7 @@ def crear_producto(data: ProductoCreate, db: Session = Depends(get_db)):
         imagen_url=data.imagen_url,
     )
     db.add(producto)
-    db.flush()  # para tener el id antes del commit
+    db.flush()
 
     for v in data.variantes:
         variante = Variante(
@@ -112,7 +175,6 @@ def eliminar_producto(producto_id: int, db: Session = Depends(get_db)):
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    # Soft delete: no borramos de la DB para preservar historial
     producto.activo = False
     for v in producto.variantes:
         v.activa = False
@@ -168,67 +230,3 @@ def eliminar_variante(variante_id: int, db: Session = Depends(get_db)):
 
     variante.activa = False
     db.commit()
-
-
-# ─── AJUSTE DE PRECIOS POR LOTE ──────────────────────────────────────────────
-
-@router.post("/lote/precio", response_model=List[VarianteResponse])
-def ajustar_precio_lote(data: AjustePrecioLote, db: Session = Depends(get_db)):
-    """
-    Ajusta el precio de venta de múltiples variantes de un producto.
-
-    Modos:
-    - porcentaje: precio_nuevo = precio_actual * (1 + valor/100)
-    - margen_deseado: precio_nuevo = costo / (1 - valor/100)
-    - precio_fijo: precio_nuevo = valor
-    """
-    query = db.query(Variante).filter(
-        Variante.producto_id == data.producto_id,
-        Variante.activa == True
-    )
-
-    if data.variante_ids:
-        query = query.filter(Variante.id.in_(data.variante_ids))
-
-    variantes = query.all()
-
-    if not variantes:
-        raise HTTPException(status_code=404, detail="No se encontraron variantes para ajustar")
-
-    for variante in variantes:
-        if data.modo == ModoAjustePrecio.porcentaje:
-            factor = 1 + (data.valor / 100)
-            variante.precio_venta = round(variante.precio_venta * factor, 2)
-
-        elif data.modo == ModoAjustePrecio.margen_deseado:
-            if data.valor >= 100:
-                raise HTTPException(status_code=400, detail="El margen no puede ser 100% o más")
-            variante.precio_venta = round(variante.costo / (1 - data.valor / 100), 2)
-
-        elif data.modo == ModoAjustePrecio.precio_fijo:
-            variante.precio_venta = data.valor
-
-    db.commit()
-    for v in variantes:
-        db.refresh(v)
-
-    return variantes
-
-
-# ─── AJUSTE DE STOCK DIRECTO ─────────────────────────────────────────────────
-
-from pydantic import BaseModel as PydanticBase
-
-class StockAjuste(PydanticBase):
-    stock_actual: int
-
-
-@router.put("/variantes/{variante_id}/stock", response_model=VarianteResponse)
-def ajustar_stock(variante_id: int, data: StockAjuste, db: Session = Depends(get_db)):
-    variante = db.query(Variante).filter(Variante.id == variante_id).first()
-    if not variante:
-        raise HTTPException(status_code=404, detail="Variante no encontrada")
-    variante.stock_actual = data.stock_actual
-    db.commit()
-    db.refresh(variante)
-    return variante

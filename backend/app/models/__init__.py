@@ -53,6 +53,16 @@ class Sucursal(Base):
     stocks = relationship("StockSucursal", back_populates="sucursal")
 
 
+# ─── CATEGORÍAS DE PRODUCTO ──────────────────────────────────────────────────
+
+class CategoriaProducto(Base):
+    __tablename__ = "categorias_producto"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(100), nullable=False, unique=True)
+    activa = Column(Boolean, default=True)
+
+
 # ─── CATEGORÍAS DE GASTO ─────────────────────────────────────────────────────
 
 class CategoriaGasto(Base):

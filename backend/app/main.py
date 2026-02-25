@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.routers import productos, ventas, compras, clientes, finanzas, deudas, stock
 from app.routers.movimientos_sucursales import movimientos_router, sucursales_router
+from app.routers import categorias_producto
 
 # Crear tablas al iniciar (en producción usar Alembic)
 Base.metadata.create_all(bind=engine)
@@ -22,7 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # Registrar routers
+app.include_router(categorias_producto.router)  # antes de productos para evitar conflictos
 app.include_router(productos.router)
 app.include_router(ventas.router)
 app.include_router(compras.router)
@@ -43,7 +46,7 @@ def health_check():
 async def seed_data():
     """Carga datos iniciales si la DB está vacía."""
     from app.database import SessionLocal
-    from app.models import Sucursal, CategoriaGasto
+    from app.models import Sucursal, CategoriaGasto, CategoriaProducto
 
     db = SessionLocal()
     try:
@@ -56,6 +59,14 @@ async def seed_data():
             categorias = ["Publicidad", "Envío", "Alquiler", "Otros"]
             for nombre in categorias:
                 db.add(CategoriaGasto(nombre=nombre))
+
+        if not db.query(CategoriaProducto).first():
+            cats_producto = [
+                "Proteína", "Creatina", "Pre-workout", "Aminoácidos",
+                "Vitaminas", "Colágeno", "Magnesio", "Otro"
+            ]
+            for nombre in cats_producto:
+                db.add(CategoriaProducto(nombre=nombre))
 
         db.commit()
     finally:
