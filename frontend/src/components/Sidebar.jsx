@@ -17,8 +17,6 @@ const NAV = [
   { label: 'Gestión', items: [
     { to: '/clientes', icon: '◯', label: 'Clientes' },
     { to: '/finanzas', icon: '◇', label: 'Finanzas' },
-    { to: '/sucursales', icon: '⬙', label: 'Sucursales' },
-    { to: '/categorias', icon: '⊞', label: 'Categorías' },
   ]},
 ]
 
