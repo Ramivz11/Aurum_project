@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ventasApi, clientesApi, sucursalesApi, productosApi } from '../api'
 import { useToast } from '../components/Toast'
 import { useSucursal } from '../context/SucursalContext'
@@ -58,6 +58,7 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
   const [notas, setNotas] = useState(venta?.notas || '')
   const [items, setItems] = useState(venta?.items?.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario })) || [])
   const [busqProd, setBusqProd] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showNuevoCliente, setShowNuevoCliente] = useState(false)
 
@@ -66,9 +67,12 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
     label: `${p.nombre} — ${[v.sabor, v.tamanio].filter(Boolean).join(' · ')}`,
     marca: p.marca,
     nombre_producto: p.nombre,
+    searchText: [p.nombre, p.marca, v.sabor, v.tamanio].filter(Boolean).join(' ').toLowerCase(),
   })) || [])
 
-  const filtradas = variantesFlat.filter(v => v.label.toLowerCase().includes(busqProd.toLowerCase()))
+  const filtradas = busqProd
+    ? variantesFlat.filter(v => v.searchText.includes(busqProd.toLowerCase()))
+    : variantesFlat
 
   const addItem = (variante) => {
     setItems(prev => {
@@ -77,6 +81,7 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
       return [...prev, { variante_id: variante.id, cantidad: 1, precio_unitario: Number(variante.precio_venta) }]
     })
     setBusqProd('')
+    setShowDropdown(false)
   }
 
   const setItemField = (i, k, v) => setItems(prev => prev.map((x, j) => j === i ? { ...x, [k]: v } : x))
@@ -168,20 +173,59 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
           <div className="form-group">
             <label className="form-label">Agregar producto</label>
             <div style={{ position: 'relative' }}>
-              <input className="form-input" placeholder="Buscar producto..." value={busqProd} onChange={e => setBusqProd(e.target.value)} />
-              {busqProd && filtradas.length > 0 && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
-                  {filtradas.slice(0, 8).map(v => (
+              <input
+                className="form-input"
+                placeholder="Buscar por nombre, marca, sabor..."
+                value={busqProd}
+                onChange={e => { setBusqProd(e.target.value); setShowDropdown(true) }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                autoComplete="off"
+              />
+              {showDropdown && filtradas.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 10, zIndex: 50, maxHeight: 260, overflowY: 'auto',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                  {filtradas.slice(0, 10).map(v => (
                     <div key={v.id}
-                      style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}
+                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
                       onMouseDown={() => addItem(v)}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <span>{v.label}</span>
-                      <span style={{ color: 'var(--gold-light)' }}>{fmt(v.precio_venta)}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {v.nombre_producto}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {v.marca && <span style={{ color: 'var(--gold-light)' }}>🏷 {v.marca}</span>}
+                          {v.tamanio && <span>⚖ {v.tamanio}</span>}
+                          {v.sabor && <span>✦ {v.sabor}</span>}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold-light)', whiteSpace: 'nowrap' }}>
+                        ${Number(v.precio_venta || 0).toLocaleString('es-AR')}
+                      </div>
                     </div>
                   ))}
+                  {filtradas.length > 10 && (
+                    <div style={{ padding: '8px 14px', fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>
+                      {filtradas.length - 10} más — seguí escribiendo para filtrar
+                    </div>
+                  )}
+                </div>
+              )}
+              {showDropdown && filtradas.length === 0 && busqProd && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 10, zIndex: 50, padding: '14px', textAlign: 'center',
+                  color: 'var(--text-muted)', fontSize: 13,
+                }}>
+                  No se encontraron productos
                 </div>
               )}
             </div>

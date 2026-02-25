@@ -338,14 +338,26 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && !analizando && onClose()}>
       <div className="modal">
         <div className="modal-header">
           <div className="modal-title">✨ Cargar factura con IA</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose} disabled={analizando}>✕</button>
         </div>
         <div className="modal-body">
-          <div className="ia-banner">
+          {analizando ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ fontSize: 48, marginBottom: 16, animation: 'spin 1.5s linear infinite', display: 'inline-block' }}>⚙️</div>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 16, fontWeight: 700, color: 'var(--gold-light)', marginBottom: 8 }}>
+                Analizando factura...
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                Gemini está leyendo el documento. Esto puede tardar unos segundos.
+              </div>
+            </div>
+          ) : (
+            <>
+            <div className="ia-banner">
             <div className="ia-banner-icon">🧾</div>
             <div className="ia-banner-text">
               <div className="ia-banner-title">Gemini analiza tu factura</div>
@@ -373,12 +385,16 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
             <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
               onChange={e => setArchivo(e.target.files[0] || null)} />
           </div>
+            </>
+          )}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={analizar} disabled={!archivo || analizando}>
-            {analizando ? '⏳ Analizando...' : '✨ Analizar con IA'}
-          </button>
+          <button className="btn btn-ghost" onClick={onClose} disabled={analizando}>Cancelar</button>
+          {!analizando && (
+            <button className="btn btn-primary" onClick={analizar} disabled={!archivo}>
+              ✨ Analizar con IA
+            </button>
+          )}
         </div>
       </div>
     </div>
