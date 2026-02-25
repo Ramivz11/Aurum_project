@@ -380,15 +380,33 @@ export default function Stock() {
   const [modalLote, setModalLote] = useState(null)
   const [modalTransferencia, setModalTransferencia] = useState(null) // variante
 
-  // Sync filtro con sucursal del sidebar
-  useEffect(() => {
-    if (sucursalActual) setFiltroSucursal(sucursalActual.id)
-  }, [sucursalActual?.id])
+  // Sin auto-filtro: el usuario elige desde el selector del topbar
 
   const cargar = () => {
     setLoading(true)
-    stockApi.listar({ busqueda: busqueda || undefined, categoria: categoria || undefined })
-      .then(setProductos)
+    const params = {}
+    if (busqueda) params.busqueda = busqueda
+    if (categoria) params.categoria = categoria
+    stockApi.listar(params)
+      .then(data => {
+        if (!Array.isArray(data)) throw new Error('formato inesperado')
+        setProductos(data)
+      })
+      .catch(() => {
+        // Fallback al endpoint viejo si el nuevo no está disponible aún
+        productosApi.listar(params).then(data => {
+          const normalizado = (Array.isArray(data) ? data : []).map(p => ({
+            ...p,
+            variantes: (p.variantes || []).map(v => ({
+              ...v,
+              stock_central: v.stock_actual ?? 0,
+              stock_total: v.stock_actual ?? 0,
+              stocks_sucursal: [],
+            }))
+          }))
+          setProductos(normalizado)
+        }).catch(() => setProductos([]))
+      })
       .finally(() => setLoading(false))
   }
 
