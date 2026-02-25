@@ -225,12 +225,18 @@ class CompraResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FacturaItemIA(BaseModel):
+    """Item detectado por IA — incluye descripcion original y datos editables"""
+    descripcion: Optional[str] = None
+    cantidad: int = Field(..., gt=0)
+    costo_unitario: Decimal = Field(..., ge=0)
+
 class FacturaIAResponse(BaseModel):
     """Lo que devuelve la IA antes de confirmar la compra"""
-    items_detectados: List[CompraItemCreate]
+    items_detectados: List[FacturaItemIA]
     proveedor_detectado: Optional[str] = None
     total_detectado: Optional[Decimal] = None
-    confianza: float = Field(..., ge=0, le=1)
+    confianza: float = Field(default=0.5, ge=0, le=1)
 
 
 # ─── GASTOS ──────────────────────────────────────────────────────────────────
