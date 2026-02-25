@@ -362,3 +362,89 @@ class ResumenPeriodo(BaseModel):
     cantidad_ventas: int
     ticket_promedio: Decimal
     producto_mas_vendido: Optional[str] = None
+
+
+# ─── STOCK POR SUCURSAL ──────────────────────────────────────────────────────
+
+class StockSucursalResponse(BaseModel):
+    sucursal_id: int
+    sucursal_nombre: str
+    cantidad: int
+
+    class Config:
+        from_attributes = True
+
+class VarianteConStockResponse(BaseModel):
+    """Variante con stock desglosado por sucursal"""
+    id: int
+    producto_id: int
+    sabor: Optional[str]
+    tamanio: Optional[str]
+    sku: Optional[str]
+    costo: Decimal
+    precio_venta: Decimal
+    stock_central: int           # depósito central
+    stock_total: int             # suma de todo (central + sucursales)
+    stock_minimo: int
+    activa: bool
+    creado_en: datetime
+    stocks_sucursal: List[StockSucursalResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class ProductoConStockResponse(BaseModel):
+    id: int
+    nombre: str
+    marca: Optional[str]
+    categoria: Optional[str]
+    imagen_url: Optional[str]
+    activo: bool
+    creado_en: datetime
+    variantes: List[VarianteConStockResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ─── DISTRIBUCIÓN EN COMPRA ──────────────────────────────────────────────────
+
+class DistribucionSucursal(BaseModel):
+    sucursal_id: int
+    cantidad: int = Field(..., ge=0)
+
+class CompraItemConDistribucion(BaseModel):
+    variante_id: int
+    cantidad: int = Field(..., gt=0)
+    costo_unitario: Decimal = Field(..., gt=0)
+    distribucion: List[DistribucionSucursal] = []  # si vacío, va todo a central
+
+class CompraCreateConDistribucion(BaseModel):
+    proveedor: Optional[str] = None
+    sucursal_id: int
+    metodo_pago: MetodoPago
+    notas: Optional[str] = None
+    items: List[CompraItemConDistribucion] = Field(..., min_length=1)
+
+
+# ─── TRANSFERENCIAS ──────────────────────────────────────────────────────────
+
+class TransferenciaCreate(BaseModel):
+    variante_id: int
+    cantidad: int = Field(..., gt=0)
+    sucursal_origen_id: Optional[int] = None   # None = central
+    sucursal_destino_id: Optional[int] = None  # None = central
+    notas: Optional[str] = None
+
+class TransferenciaResponse(BaseModel):
+    id: int
+    variante_id: int
+    tipo: str
+    sucursal_origen_id: Optional[int]
+    sucursal_destino_id: Optional[int]
+    cantidad: int
+    notas: Optional[str]
+    fecha: datetime
+
+    class Config:
+        from_attributes = True

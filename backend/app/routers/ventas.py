@@ -6,27 +6,74 @@ from datetime import datetime
 from decimal import Decimal
 
 from app.database import get_db
-from app.models import Venta, VentaItem, Variante, EstadoVentaEnum
+from app.models import Venta, VentaItem, Variante, StockSucursal, EstadoVentaEnum
 from app.schemas import VentaCreate, VentaUpdate, VentaResponse
 
 router = APIRouter(prefix="/ventas", tags=["Ventas"])
 
 
+def _get_stock_disponible(db: Session, variante_id: int, sucursal_id: int) -> int:
+    """Stock disponible en una sucursal específica."""
+    ss = db.query(StockSucursal).filter(
+        StockSucursal.variante_id == variante_id,
+        StockSucursal.sucursal_id == sucursal_id
+    ).first()
+    return ss.cantidad if ss else 0
+
+
+def _descontar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
+    """Descuenta stock de una sucursal. Si no hay suficiente, intenta del central."""
+    ss = db.query(StockSucursal).filter(
+        StockSucursal.variante_id == variante_id,
+        StockSucursal.sucursal_id == sucursal_id
+    ).first()
+    disponible_sucursal = ss.cantidad if ss else 0
+
+    if disponible_sucursal >= cantidad:
+        ss.cantidad -= cantidad
+    else:
+        # No hay suficiente en sucursal, intentar combinar con central
+        variante = db.query(Variante).filter(Variante.id == variante_id).first()
+        faltante = cantidad - disponible_sucursal
+        if (disponible_sucursal + variante.stock_actual) < cantidad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Stock insuficiente. En sucursal: {disponible_sucursal}, en central: {variante.stock_actual}, solicitado: {cantidad}"
+            )
+        if ss:
+            ss.cantidad = 0
+        variante.stock_actual -= faltante
+
+
+def _restaurar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
+    """Devuelve stock a la sucursal al eliminar/revertir una venta."""
+    ss = db.query(StockSucursal).filter(
+        StockSucursal.variante_id == variante_id,
+        StockSucursal.sucursal_id == sucursal_id
+    ).first()
+    if ss:
+        ss.cantidad += cantidad
+    else:
+        ss = StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=cantidad)
+        db.add(ss)
+
+
 def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):
-    """Crea los items, descuenta stock y calcula el total."""
     total = Decimal("0")
     for item_data in items_data:
         variante = db.query(Variante).filter(Variante.id == item_data.variante_id).first()
         if not variante:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Variante {item_data.variante_id} no encontrada"
-            )
-        if variante.stock_actual < item_data.cantidad:
+            raise HTTPException(status_code=404, detail=f"Variante {item_data.variante_id} no encontrada")
+
+        # Verificar stock disponible (sucursal + central)
+        disponible_sucursal = _get_stock_disponible(db, item_data.variante_id, venta.sucursal_id)
+        disponible_total = disponible_sucursal + variante.stock_actual
+
+        if venta.estado == EstadoVentaEnum.confirmada and disponible_total < item_data.cantidad:
             raise HTTPException(
                 status_code=400,
-                detail=f"Stock insuficiente para '{variante.sabor or variante.tamanio}'. "
-                       f"Disponible: {variante.stock_actual}, solicitado: {item_data.cantidad}"
+                detail=f"Stock insuficiente para variante {item_data.variante_id}. "
+                       f"En sucursal: {disponible_sucursal}, en central: {variante.stock_actual}, solicitado: {item_data.cantidad}"
             )
 
         subtotal = item_data.precio_unitario * item_data.cantidad
@@ -41,9 +88,8 @@ def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):
         )
         db.add(item)
 
-        # Solo descuenta stock si la venta se confirma (no si queda abierta)
         if venta.estado == EstadoVentaEnum.confirmada:
-            variante.stock_actual -= item_data.cantidad
+            _descontar_stock_sucursal(db, item_data.variante_id, venta.sucursal_id, item_data.cantidad)
 
     venta.total = total
 
@@ -59,7 +105,6 @@ def listar_ventas(
     db: Session = Depends(get_db)
 ):
     query = db.query(Venta)
-
     if estado:
         query = query.filter(Venta.estado == estado)
     if sucursal_id:
@@ -72,15 +117,12 @@ def listar_ventas(
         query = query.filter(Venta.fecha >= fecha_desde)
     if fecha_hasta:
         query = query.filter(Venta.fecha <= fecha_hasta)
-
     return query.order_by(Venta.fecha.desc()).all()
 
 
 @router.get("/pedidos-abiertos", response_model=List[VentaResponse])
 def listar_pedidos_abiertos(db: Session = Depends(get_db)):
-    return db.query(Venta).filter(
-        Venta.estado == EstadoVentaEnum.abierta
-    ).order_by(Venta.fecha.desc()).all()
+    return db.query(Venta).filter(Venta.estado == EstadoVentaEnum.abierta).order_by(Venta.fecha.desc()).all()
 
 
 @router.get("/{venta_id}", response_model=VentaResponse)
@@ -102,7 +144,6 @@ def crear_venta(data: VentaCreate, db: Session = Depends(get_db)):
     )
     db.add(venta)
     db.flush()
-
     _calcular_y_guardar_venta(db, venta, data.items)
     db.commit()
     db.refresh(venta)
@@ -111,23 +152,14 @@ def crear_venta(data: VentaCreate, db: Session = Depends(get_db)):
 
 @router.post("/{venta_id}/confirmar", response_model=VentaResponse)
 def confirmar_pedido(venta_id: int, db: Session = Depends(get_db)):
-    """Confirma un pedido abierto: descuenta stock y cambia estado."""
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     if venta.estado != EstadoVentaEnum.abierta:
         raise HTTPException(status_code=400, detail="Solo se pueden confirmar pedidos abiertos")
 
-    # Descontar stock
     for item in venta.items:
-        variante = item.variante
-        if variante.stock_actual < item.cantidad:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Stock insuficiente para confirmar. Variante {variante.id}: "
-                       f"disponible {variante.stock_actual}, necesario {item.cantidad}"
-            )
-        variante.stock_actual -= item.cantidad
+        _descontar_stock_sucursal(db, item.variante_id, venta.sucursal_id, item.cantidad)
 
     venta.estado = EstadoVentaEnum.confirmada
     db.commit()
@@ -141,16 +173,12 @@ def actualizar_venta(venta_id: int, data: VentaUpdate, db: Session = Depends(get
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     if venta.estado == EstadoVentaEnum.confirmada:
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede editar una venta confirmada. Eliminala y volvé a crearla."
-        )
+        raise HTTPException(status_code=400, detail="No se puede editar una venta confirmada.")
 
     for campo, valor in data.model_dump(exclude_unset=True, exclude={"items"}).items():
         setattr(venta, campo, valor)
 
     if data.items is not None:
-        # Borrar items anteriores
         for item in venta.items:
             db.delete(item)
         db.flush()
@@ -167,10 +195,9 @@ def eliminar_venta(venta_id: int, db: Session = Depends(get_db)):
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    # Si estaba confirmada, devolver stock
     if venta.estado == EstadoVentaEnum.confirmada:
         for item in venta.items:
-            item.variante.stock_actual += item.cantidad
+            _restaurar_stock_sucursal(db, item.variante_id, venta.sucursal_id, item.cantidad)
 
     db.delete(venta)
     db.commit()

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import productos, ventas, compras, clientes, finanzas, deudas
+from app.routers import productos, ventas, compras, clientes, finanzas, deudas, stock
 from app.routers.movimientos_sucursales import movimientos_router, sucursales_router
 
 # Crear tablas al iniciar (en producción usar Alembic)
@@ -29,6 +29,7 @@ app.include_router(compras.router)
 app.include_router(clientes.router)
 app.include_router(finanzas.router)
 app.include_router(deudas.router)
+app.include_router(stock.router)
 app.include_router(movimientos_router)
 app.include_router(sucursales_router)
 

@@ -4,11 +4,32 @@ from typing import Optional, List
 from decimal import Decimal
 
 from app.database import get_db
-from app.models import Compra, CompraItem, Variante
-from app.schemas import CompraCreate, CompraResponse, FacturaIAResponse
+from app.models import Compra, CompraItem, Variante, StockSucursal, Transferencia, TipoTransferenciaEnum
+from app.schemas import CompraCreate, CompraCreateConDistribucion, CompraResponse, FacturaIAResponse
 from app.services.ia_facturas import procesar_factura_con_ia
 
 router = APIRouter(prefix="/compras", tags=["Compras"])
+
+
+def _sumar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
+    ss = db.query(StockSucursal).filter(
+        StockSucursal.variante_id == variante_id,
+        StockSucursal.sucursal_id == sucursal_id
+    ).first()
+    if ss:
+        ss.cantidad += cantidad
+    else:
+        ss = StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=cantidad)
+        db.add(ss)
+
+
+def _restar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
+    ss = db.query(StockSucursal).filter(
+        StockSucursal.variante_id == variante_id,
+        StockSucursal.sucursal_id == sucursal_id
+    ).first()
+    if ss:
+        ss.cantidad = max(0, ss.cantidad - cantidad)
 
 
 @router.get("", response_model=List[CompraResponse])
@@ -34,7 +55,7 @@ def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=CompraResponse, status_code=201)
-def registrar_compra(data: CompraCreate, db: Session = Depends(get_db)):
+def registrar_compra(data: CompraCreateConDistribucion, db: Session = Depends(get_db)):
     compra = Compra(
         proveedor=data.proveedor,
         sucursal_id=data.sucursal_id,
@@ -48,10 +69,7 @@ def registrar_compra(data: CompraCreate, db: Session = Depends(get_db)):
     for item_data in data.items:
         variante = db.query(Variante).filter(Variante.id == item_data.variante_id).first()
         if not variante:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Variante {item_data.variante_id} no encontrada"
-            )
+            raise HTTPException(status_code=404, detail=f"Variante {item_data.variante_id} no encontrada")
 
         subtotal = item_data.costo_unitario * item_data.cantidad
         total += subtotal
@@ -64,12 +82,34 @@ def registrar_compra(data: CompraCreate, db: Session = Depends(get_db)):
             subtotal=subtotal,
         )
         db.add(item)
-
-        # Sumar al stock
-        variante.stock_actual += item_data.cantidad
-
-        # Actualizar costo de la variante con el último precio de compra
         variante.costo = item_data.costo_unitario
+
+        # Distribuir stock
+        total_distribuido = sum(d.cantidad for d in item_data.distribucion)
+        if total_distribuido > item_data.cantidad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La distribución ({total_distribuido}) supera la cantidad comprada ({item_data.cantidad})"
+            )
+
+        # Lo que va a central = total - distribuido a sucursales
+        a_central = item_data.cantidad - total_distribuido
+        if a_central > 0:
+            variante.stock_actual += a_central
+
+        # Distribuir a sucursales
+        for dist in item_data.distribucion:
+            if dist.cantidad > 0:
+                _sumar_stock_sucursal(db, variante.id, dist.sucursal_id, dist.cantidad)
+                # Registrar transferencia
+                db.add(Transferencia(
+                    variante_id=variante.id,
+                    tipo=TipoTransferenciaEnum.central_a_sucursal,
+                    sucursal_origen_id=None,
+                    sucursal_destino_id=dist.sucursal_id,
+                    cantidad=dist.cantidad,
+                    notas=f"Distribución de compra #{compra.id}",
+                ))
 
     compra.total = total
     db.commit()
@@ -78,19 +118,18 @@ def registrar_compra(data: CompraCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{compra_id}", response_model=CompraResponse)
-def actualizar_compra(compra_id: int, data: CompraCreate, db: Session = Depends(get_db)):
+def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Session = Depends(get_db)):
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Revertir stock de los items anteriores
+    # Revertir stock de items anteriores (solo central, no podemos saber la distribución original exacta)
     for item in compra.items:
         item.variante.stock_actual -= item.cantidad
         db.delete(item)
 
     db.flush()
 
-    # Actualizar campos
     compra.proveedor = data.proveedor
     compra.metodo_pago = data.metodo_pago
     compra.notas = data.notas
@@ -112,8 +151,16 @@ def actualizar_compra(compra_id: int, data: CompraCreate, db: Session = Depends(
             subtotal=subtotal,
         )
         db.add(item)
-        variante.stock_actual += item_data.cantidad
         variante.costo = item_data.costo_unitario
+
+        total_distribuido = sum(d.cantidad for d in item_data.distribucion)
+        a_central = item_data.cantidad - total_distribuido
+        if a_central > 0:
+            variante.stock_actual += a_central
+
+        for dist in item_data.distribucion:
+            if dist.cantidad > 0:
+                _sumar_stock_sucursal(db, variante.id, dist.sucursal_id, dist.cantidad)
 
     compra.total = total
     db.commit()
@@ -127,7 +174,6 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Revertir stock
     for item in compra.items:
         item.variante.stock_actual -= item.cantidad
 
@@ -139,24 +185,14 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
 
 @router.post("/factura/ia", response_model=FacturaIAResponse)
 async def analizar_factura_con_ia(
-    archivo: UploadFile = File(..., description="Foto o PDF de la factura"),
+    archivo: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    """
-    Recibe una imagen o PDF de factura y usa IA para detectar
-    productos, cantidades y precios. Retorna un preview editable
-    ANTES de confirmar la compra.
-    """
     if not archivo.content_type.startswith(("image/", "application/pdf")):
-        raise HTTPException(
-            status_code=400,
-            detail="Solo se aceptan imágenes (JPG, PNG) o PDF"
-        )
-
+        raise HTTPException(status_code=400, detail="Solo se aceptan imágenes o PDF")
     contenido = await archivo.read()
     try:
         resultado = await procesar_factura_con_ia(contenido, archivo.content_type)
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
-    
     return resultado

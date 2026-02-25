@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Numeric, Boolean, DateTime,
-    ForeignKey, Enum, Text, func
+    ForeignKey, Enum, Text, func, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 import enum
@@ -31,6 +31,12 @@ class TipoDeudaEnum(str, enum.Enum):
     por_pagar = "por_pagar"
 
 
+class TipoTransferenciaEnum(str, enum.Enum):
+    central_a_sucursal = "central_a_sucursal"
+    sucursal_a_central = "sucursal_a_central"
+    entre_sucursales = "entre_sucursales"
+
+
 # ─── SUCURSALES ───────────────────────────────────────────────────────────────
 
 class Sucursal(Base):
@@ -44,6 +50,7 @@ class Sucursal(Base):
     ventas = relationship("Venta", back_populates="sucursal")
     compras = relationship("Compra", back_populates="sucursal")
     gastos = relationship("Gasto", back_populates="sucursal")
+    stocks = relationship("StockSucursal", back_populates="sucursal")
 
 
 # ─── CATEGORÍAS DE GASTO ─────────────────────────────────────────────────────
@@ -66,7 +73,7 @@ class Producto(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(200), nullable=False)
     marca = Column(String(100))
-    categoria = Column(String(100))  # proteina, creatina, otro
+    categoria = Column(String(100))
     imagen_url = Column(String(500))
     activo = Column(Boolean, default=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
@@ -81,12 +88,12 @@ class Variante(Base):
     id = Column(Integer, primary_key=True, index=True)
     producto_id = Column(Integer, ForeignKey("productos.id"), nullable=False)
     sabor = Column(String(100))
-    tamanio = Column(String(100))  # 1kg, 2kg, 30 servicios, etc.
+    tamanio = Column(String(100))
     sku = Column(String(100), unique=True)
     costo = Column(Numeric(12, 2), nullable=False, default=0)
     precio_venta = Column(Numeric(12, 2), nullable=False, default=0)
-    stock_actual = Column(Integer, default=0)
-    stock_minimo = Column(Integer, default=0)  # para alertas de stock bajo
+    stock_actual = Column(Integer, default=0)   # stock en depósito central
+    stock_minimo = Column(Integer, default=0)
     activa = Column(Boolean, default=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
     actualizado_en = Column(DateTime(timezone=True), onupdate=func.now())
@@ -94,6 +101,45 @@ class Variante(Base):
     producto = relationship("Producto", back_populates="variantes")
     items_venta = relationship("VentaItem", back_populates="variante")
     items_compra = relationship("CompraItem", back_populates="variante")
+    stocks_sucursal = relationship("StockSucursal", back_populates="variante", cascade="all, delete-orphan")
+    transferencias_origen = relationship("Transferencia", foreign_keys="Transferencia.variante_id", back_populates="variante")
+
+
+# ─── STOCK POR SUCURSAL ───────────────────────────────────────────────────────
+
+class StockSucursal(Base):
+    """Stock de una variante en una sucursal específica."""
+    __tablename__ = "stock_sucursal"
+
+    id = Column(Integer, primary_key=True, index=True)
+    variante_id = Column(Integer, ForeignKey("variantes.id"), nullable=False)
+    sucursal_id = Column(Integer, ForeignKey("sucursales.id"), nullable=False)
+    cantidad = Column(Integer, default=0, nullable=False)
+
+    __table_args__ = (UniqueConstraint("variante_id", "sucursal_id", name="uq_variante_sucursal"),)
+
+    variante = relationship("Variante", back_populates="stocks_sucursal")
+    sucursal = relationship("Sucursal", back_populates="stocks")
+
+
+# ─── TRANSFERENCIAS ───────────────────────────────────────────────────────────
+
+class Transferencia(Base):
+    """Movimiento de stock entre central y sucursales, o entre sucursales."""
+    __tablename__ = "transferencias"
+
+    id = Column(Integer, primary_key=True, index=True)
+    variante_id = Column(Integer, ForeignKey("variantes.id"), nullable=False)
+    tipo = Column(Enum(TipoTransferenciaEnum), nullable=False)
+    sucursal_origen_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)   # null = central
+    sucursal_destino_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)  # null = central
+    cantidad = Column(Integer, nullable=False)
+    notas = Column(Text)
+    fecha = Column(DateTime(timezone=True), server_default=func.now())
+
+    variante = relationship("Variante", foreign_keys=[variante_id], back_populates="transferencias_origen")
+    sucursal_origen = relationship("Sucursal", foreign_keys=[sucursal_origen_id])
+    sucursal_destino = relationship("Sucursal", foreign_keys=[sucursal_destino_id])
 
 
 # ─── CLIENTES ─────────────────────────────────────────────────────────────────
@@ -150,11 +196,11 @@ class Compra(Base):
     __tablename__ = "compras"
 
     id = Column(Integer, primary_key=True, index=True)
-    proveedor = Column(String(200))  # no obligatorio
+    proveedor = Column(String(200))
     sucursal_id = Column(Integer, ForeignKey("sucursales.id"), nullable=False)
     fecha = Column(DateTime(timezone=True), server_default=func.now())
     metodo_pago = Column(Enum(MetodoPagoEnum), nullable=False)
-    factura_url = Column(String(500))  # para el módulo de IA
+    factura_url = Column(String(500))
     notas = Column(Text)
     total = Column(Numeric(12, 2), default=0)
 
