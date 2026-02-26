@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from typing import Optional, List
@@ -189,6 +189,7 @@ def comparar_sucursales(
 def actualizar_sucursal(sucursal_id: int, data: SucursalUpdate, db: Session = Depends(get_db)):
     sucursal = db.query(Sucursal).filter(Sucursal.id == sucursal_id).first()
     if not sucursal:
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
     sucursal.nombre = data.nombre
     db.commit()
@@ -200,6 +201,7 @@ def actualizar_sucursal(sucursal_id: int, data: SucursalUpdate, db: Session = De
 def eliminar_sucursal(sucursal_id: int, db: Session = Depends(get_db)):
     sucursal = db.query(Sucursal).filter(Sucursal.id == sucursal_id).first()
     if not sucursal:
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
     sucursal.activa = False
     db.commit()

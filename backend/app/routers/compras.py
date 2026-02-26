@@ -123,13 +123,9 @@ def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Ses
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Revertir stock de items anteriores: central y todas las sucursales
+    # Revertir stock de items anteriores (solo central, no podemos saber la distribución original exacta)
     for item in compra.items:
-        # Revertir central
-        item.variante.stock_actual = max(0, item.variante.stock_actual - item.cantidad)
-        # Revertir sucursales (descontar lo distribuido)
-        for ss in item.variante.stocks_sucursal:
-            ss.cantidad = max(0, ss.cantidad - item.cantidad)
+        item.variante.stock_actual -= item.cantidad
         db.delete(item)
 
     db.flush()
@@ -179,11 +175,7 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
     for item in compra.items:
-        # Revertir stock central
-        item.variante.stock_actual = max(0, item.variante.stock_actual - item.cantidad)
-        # Revertir stock en sucursales
-        for ss in item.variante.stocks_sucursal:
-            ss.cantidad = max(0, ss.cantidad - item.cantidad)
+        item.variante.stock_actual -= item.cantidad
 
     db.delete(compra)
     db.commit()
@@ -191,7 +183,7 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
 
 # ─── MÓDULO IA ────────────────────────────────────────────────────────────────
 
-@router.post("/ia/factura", response_model=FacturaIAResponse)
+@router.post("/factura/ia", response_model=FacturaIAResponse)
 async def analizar_factura_con_ia(
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db)
