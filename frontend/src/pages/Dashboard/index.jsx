@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { finanzasApi, ventasApi, clientesApi } from '../../api'
 import { StatCard, Loading, formatARS, formatDateTime } from '../../components/ui'
+import { useToast } from '../../components/Toast'
 
 export default function Dashboard() {
   const [liquidez, setLiquidez] = useState(null)
@@ -9,6 +10,7 @@ export default function Dashboard() {
   const [pedidos, setPedidos] = useState([])
   const [clientes, setClientes] = useState({})
   const [loading, setLoading] = useState(true)
+  const toast = useToast()
 
   useEffect(() => {
     Promise.all([
@@ -17,20 +19,25 @@ export default function Dashboard() {
       finanzasApi.productosTop({ limite: 5 }),
       ventasApi.pedidosAbiertos(),
       clientesApi.listar(),
-    ]).then(([liq, ana, top, ped, cli]) => {
-      setLiquidez(liq.data)
-      setAnalisis(ana.data)
-      setTopProductos(top.data)
-      setPedidos(ped.data)
-      // Mapa id → nombre para lookup rápido
-      const mapa = {}
-      ;(cli.data || []).forEach(c => {
-        mapa[c.id] = c.nombre
-        mapa[String(c.id)] = c.nombre
+    ])
+      .then(([liq, ana, top, ped, cli]) => {
+        setLiquidez(liq.data)
+        setAnalisis(ana.data)
+        setTopProductos(top.data)
+        setPedidos(ped.data)
+        // Mapa id → nombre para lookup rápido
+        const mapa = {}
+        ;(cli.data || []).forEach(c => {
+          mapa[c.id] = c.nombre
+          mapa[String(c.id)] = c.nombre
+        })
+        setClientes(mapa)
       })
-      setClientes(mapa)
-    }).finally(() => setLoading(false))
-  }, [])
+      .catch(() => {
+        toast('No se pudo cargar el dashboard', 'error')
+      })
+      .finally(() => setLoading(false))
+  }, [toast])
 
   if (loading) return <div className="page-content"><Loading /></div>
 

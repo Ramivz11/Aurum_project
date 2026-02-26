@@ -73,7 +73,7 @@ export function Movimientos() {
                     Variante: {resumen.producto_top.variante || '—'}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Peso: {resumen.producto_top.peso || resumen.producto_top.tamanio || '—'}
+                    Peso: {resumen.producto_top.tamanio || '—'}
                   </div>
                 </div>
               ) : (

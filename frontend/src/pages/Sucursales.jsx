@@ -234,6 +234,8 @@ export function Sucursales() {
 
   useEffect(() => { cargar() }, [])
 
+  const comparacionValida = comparacion.filter(data => data?.sucursal?.id)
+
   const eliminar = async (sucursal) => {
     try {
       await sucursalesApi.eliminar(sucursal.id)
@@ -251,14 +253,12 @@ export function Sucursales() {
     </div>
 
     <div className="page-content">
-      {loading ? <Loading /> : comparacion.length === 0 ? (
+      {loading ? <Loading /> : comparacionValida.length === 0 ? (
         <EmptyState icon="🏪" text="No hay sucursales activas." action={
           <button className="btn btn-primary" onClick={() => setModal('nueva')}>+ Crear primera sucursal</button>
         } />
       ) : (
-        comparacion
-          .filter(data => data?.sucursal?.id)
-          .map(data => (
+        comparacionValida.map(data => (
           <SucursalCard
             key={data.sucursal.id}
             data={data}
