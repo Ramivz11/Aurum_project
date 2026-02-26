@@ -24,7 +24,10 @@ export default function Dashboard() {
       setPedidos(ped.data)
       // Mapa id → nombre para lookup rápido
       const mapa = {}
-      ;(cli.data || []).forEach(c => { mapa[c.id] = c.nombre })
+      ;(cli.data || []).forEach(c => {
+        mapa[c.id] = c.nombre
+        mapa[String(c.id)] = c.nombre
+      })
       setClientes(mapa)
     }).finally(() => setLoading(false))
   }, [])
@@ -76,8 +79,7 @@ export default function Dashboard() {
                 <span style={{ fontSize:18 }}>🛒</span>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:500 }}>
-                    {p.cliente_id ? (clientes[p.cliente_id] || `Cliente #${p.cliente_id}`) : "Sin cliente"}
-                  </div>
+                    {p.cliente_nombre || (p.cliente_id ? (clientes[p.cliente_id] || clientes[String(p.cliente_id)] || `Cliente #${p.cliente_id}`) : "Sin cliente")}                  </div>
                   <div style={{ fontSize:11, color:"var(--text-muted)" }}>{p.items?.length||0} productos</div>
                 </div>
                 <div style={{ textAlign:"right" }}>
