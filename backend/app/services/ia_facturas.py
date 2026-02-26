@@ -129,7 +129,7 @@ Reglas:
 # ─── Modelos Gemini ───────────────────────────────────────────────────────────
 
 GEMINI_MODELS = [
-    "gemini-1.5-flash",       # Mas estable y economico para OCR
+    "gemini-2.0-flash",       # Mas estable y economico para OCR
 ]
 
 
