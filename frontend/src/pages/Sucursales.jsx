@@ -1,27 +1,28 @@
 import { useState, useEffect } from 'react'
-import toast from 'react-hot-toast'
 import { sucursalesApi, stockApi } from '../api/services'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS } from '../components/ui'
+import { useToast } from '../components/Toast'
 
 // ─── Modal crear/editar sucursal ──────────────────────────────────────────────
 function ModalSucursal({ sucursal, onClose, onSaved }) {
+  const toast = useToast()
   const [nombre, setNombre] = useState(sucursal?.nombre || '')
   const [loading, setLoading] = useState(false)
 
   const guardar = async () => {
-    if (!nombre.trim()) return toast.error('El nombre es obligatorio')
+    if (!nombre.trim()) return toast('El nombre es obligatorio', 'error')
     setLoading(true)
     try {
       if (sucursal) {
         await sucursalesApi.actualizar(sucursal.id, { nombre: nombre.trim() })
-        toast.success('Sucursal actualizada')
+        toast('Sucursal actualizada')
       } else {
         await sucursalesApi.crear({ nombre: nombre.trim() })
-        toast.success('Sucursal creada')
+        toast('Sucursal creada')
       }
       onSaved()
       onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+    } catch (e) { toast(e.response?.data?.detail || 'Error', 'error') } finally { setLoading(false) }
   }
 
   return (
@@ -52,6 +53,7 @@ function ModalSucursal({ sucursal, onClose, onSaved }) {
 
 // ─── Card de sucursal con dashboard ──────────────────────────────────────────
 function SucursalCard({ data, onEdit, onEliminar }) {
+  const toast = useToast()
   const { sucursal, ventas_total, ticket_promedio, unidades_vendidas, porcentaje_del_total, rentabilidad } = data
   const [stockOpen, setStockOpen] = useState(false)
   const [stock, setStock] = useState([])
@@ -73,7 +75,7 @@ function SucursalCard({ data, onEdit, onEliminar }) {
         a + (p.variantes?.reduce((b, v) => b + (v.stock_actual || 0), 0) || 0), 0)
       setStockTotal({ global: totalGlobal, sucursal: totalSuc })
       setStockOpen(true)
-    } catch { toast.error('Error al cargar stock') } finally { setLoadingStock(false) }
+    } catch { toast('Error al cargar stock', 'error') } finally { setLoadingStock(false) }
   }
 
   const margen = ventas_total > 0 ? ((Number(rentabilidad) / Number(ventas_total)) * 100).toFixed(1) : 0
@@ -216,9 +218,10 @@ function SucursalCard({ data, onEdit, onEliminar }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export function Sucursales() {
+  const toast = useToast()
   const [comparacion, setComparacion] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null)   // null | 'nueva' | sucursal object
+  const [modal, setModal] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
   const cargar = async () => {
@@ -226,7 +229,7 @@ export function Sucursales() {
     try {
       const r = await sucursalesApi.comparacion()
       setComparacion(r.data)
-    } catch { toast.error('Error al cargar sucursales') } finally { setLoading(false) }
+    } catch { toast('Error al cargar sucursales', 'error') } finally { setLoading(false) }
   }
 
   useEffect(() => { cargar() }, [])
@@ -234,9 +237,9 @@ export function Sucursales() {
   const eliminar = async (sucursal) => {
     try {
       await sucursalesApi.eliminar(sucursal.id)
-      toast.success('Sucursal eliminada')
+      toast('Sucursal eliminada')
       cargar()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+    } catch (e) { toast(e.response?.data?.detail || 'Error', 'error') }
   }
 
   return (<>
