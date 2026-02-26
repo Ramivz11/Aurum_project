@@ -8,12 +8,6 @@ const METODOS = ['efectivo', 'transferencia', 'tarjeta']
 const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chip-gray' }
 const ESTADO_CHIP = { confirmada: 'chip-green', abierta: 'chip-gold', cancelada: 'chip-red' }
 
-const FILTROS = [
-  { key: 'todas',      label: 'Ventas totales',  icon: '◈' },
-  { key: 'abierta',    label: 'Ventas abiertas', icon: '⬤' },
-  { key: 'confirmada', label: 'Ventas cerradas', icon: '✓' },
-]
-
 function ModalNuevoCliente({ onClose, onCreated }) {
   const toast = useToast()
   const [form, setForm] = useState({ nombre: '', ubicacion: '', telefono: '' })
@@ -131,7 +125,12 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
                   <option value="">Sin cliente</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
-                <button className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={() => setShowNuevoCliente(v => !v)}>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ whiteSpace: 'nowrap' }}
+                  onClick={() => setShowNuevoCliente(v => !v)}
+                  title="Crear cliente nuevo"
+                >
                   {showNuevoCliente ? '✕' : '+ Nuevo'}
                 </button>
               </div>
@@ -219,6 +218,16 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
                   )}
                 </div>
               )}
+              {showDropdown && filtradas.length === 0 && busqProd && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 10, zIndex: 50, padding: '14px', textAlign: 'center',
+                  color: 'var(--text-muted)', fontSize: 13,
+                }}>
+                  No se encontraron productos
+                </div>
+              )}
             </div>
           </div>
 
@@ -264,26 +273,29 @@ export default function Ventas() {
   const toast = useToast()
   const { sucursalActual, sucursales } = useSucursal()
   const [ventas, setVentas] = useState([])
+  const [pedidos, setPedidos] = useState([])
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
-  const [filtroEstado, setFiltroEstado] = useState('todas')
+  const [verPedidos, setVerPedidos] = useState(false)
   const [filtroSucursal, setFiltroSucursal] = useState('')
 
   const cargar = () => {
     setLoading(true)
     Promise.all([
-      ventasApi.listar({}),
+      ventasApi.listar({ estado: 'confirmada' }),
+      ventasApi.pedidosAbiertos(),
       clientesApi.listar(),
       productosApi.listar(),
-    ]).then(([v, c, pr]) => {
-      setVentas(v); setClientes(c); setProductos(pr)
+    ]).then(([v, p, c, pr]) => {
+      setVentas(v); setPedidos(p); setClientes(c); setProductos(pr)
     }).finally(() => setLoading(false))
   }
 
   useEffect(() => { cargar() }, [])
 
+  // Auto-set filtro when sucursal changes
   useEffect(() => {
     if (sucursalActual) setFiltroSucursal(String(sucursalActual.id))
   }, [sucursalActual?.id])
@@ -299,33 +311,26 @@ export default function Ventas() {
     catch (e) { toast(e.message, 'error') }
   }
 
-  // Contadores para los badges
-  const totalAbiertas = ventas.filter(v => v.estado === 'abierta').length
-  const totalCerradas = ventas.filter(v => v.estado === 'confirmada').length
-
-  // Filtrado
-  let lista = filtroEstado === 'todas' ? ventas
-    : ventas.filter(v => v.estado === filtroEstado)
-  if (filtroSucursal) lista = lista.filter(v => String(v.sucursal_id) === filtroSucursal)
+  const base = verPedidos ? pedidos : ventas
+  const lista = filtroSucursal
+    ? base.filter(v => String(v.sucursal_id) === filtroSucursal)
+    : base
 
   const getNombreSucursal = (id) => sucursales.find(s => s.id === id)?.nombre || `#${id}`
   const getNombreCliente = (id) => clientes.find(c => c.id === id)?.nombre || `#${id}`
-
-  const tituloActual = FILTROS.find(f => f.key === filtroEstado)?.label || 'Ventas'
 
   return (
     <>
       <div className="topbar">
         <div className="page-title">
           Ventas
-          {filtroSucursal && sucursalActual && (
+          {sucursalActual && filtroSucursal && (
             <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 10 }}>
               — {getNombreSucursal(Number(filtroSucursal))}
             </span>
           )}
         </div>
         <div className="topbar-actions">
-          {/* Selector de sucursal */}
           <select
             className="form-select"
             style={{ width: 'auto', padding: '9px 14px' }}
@@ -335,25 +340,9 @@ export default function Ventas() {
             <option value="">Todas las sucursales</option>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
-
-          {/* Filtros de estado — 3 opciones */}
-          <div className="ventas-filtros">
-            {FILTROS.map(f => {
-              const count = f.key === 'abierta' ? totalAbiertas : f.key === 'confirmada' ? totalCerradas : ventas.length
-              return (
-                <button
-                  key={f.key}
-                  className={`btn btn-sm ventas-filtro-btn ${filtroEstado === f.key ? 'ventas-filtro-active' : 'btn-ghost'}`}
-                  onClick={() => setFiltroEstado(f.key)}
-                >
-                  <span className="ventas-filtro-icon">{f.icon}</span>
-                  <span className="ventas-filtro-label">{f.label}</span>
-                  {count > 0 && <span className={`ventas-filtro-count ${filtroEstado === f.key ? 'ventas-filtro-count--active' : ''}`}>{count}</span>}
-                </button>
-              )
-            })}
-          </div>
-
+          <button className={`btn ${verPedidos ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setVerPedidos(v => !v)}>
+            Pedidos abiertos {pedidos.length > 0 && `(${pedidos.length})`}
+          </button>
           <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar venta</button>
         </div>
       </div>
@@ -361,8 +350,7 @@ export default function Ventas() {
       <div className="content page-enter">
         <div className="card">
           <div className="card-header">
-            <span className="card-title">{tituloActual}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{lista.length} registro{lista.length !== 1 ? 's' : ''}</span>
+            <span className="card-title">{verPedidos ? 'Pedidos abiertos' : 'Ventas confirmadas'}</span>
           </div>
           {loading ? <div className="loading">Cargando...</div> : (
             <div className="table-wrap">

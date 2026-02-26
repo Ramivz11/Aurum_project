@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { movimientosApi, clientesApi } from '../api'
+import { movimientosApi } from '../api'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chip-gray' }
@@ -8,29 +8,13 @@ export function Movimientos() {
   const [ventas, setVentas] = useState([])
   const [compras, setCompras] = useState([])
   const [resumen, setResumen] = useState(null)
-  const [clientes, setClientes] = useState({})
   const [tipo, setTipo] = useState('todos')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([
-      movimientosApi.ventas(),
-      movimientosApi.compras(),
-      movimientosApi.resumen(),
-      clientesApi.listar(),
-    ])
-      .then(([v, c, r, cli]) => {
-        setVentas(v || [])
-        setCompras(c || [])
-        setResumen(r || null)
-        const mapa = {}
-        ;(cli || []).forEach(cl => {
-          mapa[cl.id] = cl.nombre
-          mapa[String(cl.id)] = cl.nombre
-        })        
-        setClientes(mapa)
-      })
+    Promise.all([movimientosApi.ventas(), movimientosApi.compras(), movimientosApi.resumen()])
+      .then(([v, c, r]) => { setVentas(v); setCompras(c); setResumen(r) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -63,22 +47,9 @@ export function Movimientos() {
             </div>
             <div className="stat-card">
               <div className="stat-label">Producto más vendido</div>
-              {resumen.producto_top ? (
-                <>
-                  <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_top.nombre}</div>
-                  {resumen.producto_top.marca && (
-                    <div style={{ fontSize: 12, color: 'var(--gold-light)', marginTop: 2 }}>{resumen.producto_top.marca}</div>
-                  )}
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-
-                  </div>
-                  </>
-              ) : (
-                <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_mas_vendido || '—'}</div>
-              
-              )}
+              <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_mas_vendido || '—'}</div>
             </div>
-            </div>
+          </div>
         )}
         <div className="card">
           <div className="card-header"><span className="card-title">Listado de movimientos</span></div>
@@ -92,7 +63,7 @@ export function Movimientos() {
                     <tr key={`${m._tipo}-${m.id}-${i}`}>
                       <td><span className={`chip ${m._tipo === 'venta' ? 'chip-green' : 'chip-red'}`}>{m._tipo === 'venta' ? '↑ Venta' : '↓ Compra'}</span></td>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{m.cliente_nombre || (m.cliente_id ? (clientes[m.cliente_id] || clientes[String(m.cliente_id)] || `Cliente #${m.cliente_id}`) : m.proveedor || '—')}</td>
+                      <td>{m.cliente_id ? `Cliente #${m.cliente_id}` : m.proveedor || '—'}</td>
                       <td><span className={`chip ${CHIP[m.metodo_pago]}`}>{m.metodo_pago}</span></td>
                       <td><strong>{fmt(m.total)}</strong></td>
                     </tr>
@@ -105,4 +76,4 @@ export function Movimientos() {
       </div>
     </>
   )
-} 
+}

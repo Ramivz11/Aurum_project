@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { finanzasApi, ventasApi, clientesApi } from '../../api'
+import { finanzasApi, ventasApi } from '../../api/services'
 import { StatCard, Loading, formatARS, formatDateTime } from '../../components/ui'
 
 export default function Dashboard() {
@@ -7,7 +7,6 @@ export default function Dashboard() {
   const [analisis, setAnalisis] = useState(null)
   const [topProductos, setTopProductos] = useState([])
   const [pedidos, setPedidos] = useState([])
-  const [clientes, setClientes] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -16,19 +15,11 @@ export default function Dashboard() {
       finanzasApi.analisisMes(),
       finanzasApi.productosTop({ limite: 5 }),
       ventasApi.pedidosAbiertos(),
-      clientesApi.listar(),
-    ]).then(([liq, ana, top, ped, cli]) => {
+    ]).then(([liq, ana, top, ped]) => {
       setLiquidez(liq.data)
       setAnalisis(ana.data)
       setTopProductos(top.data)
       setPedidos(ped.data)
-      // Mapa id → nombre para lookup rápido
-      const mapa = {}
-      ;(cli.data || []).forEach(c => {
-        mapa[c.id] = c.nombre
-        mapa[String(c.id)] = c.nombre
-      })
-      setClientes(mapa)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -78,8 +69,7 @@ export default function Dashboard() {
               <div key={p.id} style={{ background:"var(--surface2)", border:"1px solid rgba(201,168,76,0.2)", borderLeft:"3px solid var(--gold)", borderRadius:8, padding:"12px 14px", marginBottom:8, display:"flex", gap:12, alignItems:"center" }}>
                 <span style={{ fontSize:18 }}>🛒</span>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:500 }}>
-                    {p.cliente_nombre || (p.cliente_id ? (clientes[p.cliente_id] || clientes[String(p.cliente_id)] || `Cliente #${p.cliente_id}`) : "Sin cliente")}                  </div>
+                  <div style={{ fontSize:13, fontWeight:500 }}>{p.cliente_id ? `Cliente #${p.cliente_id}` : "Sin cliente"}</div>
                   <div style={{ fontSize:11, color:"var(--text-muted)" }}>{p.items?.length||0} productos</div>
                 </div>
                 <div style={{ textAlign:"right" }}>

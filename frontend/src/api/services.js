@@ -39,9 +39,8 @@ export const comprasApi = {
   analizarFactura: (file) => {
     const form = new FormData()
     form.append('archivo', file)
-    return api.post('/compras/ia/factura', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return api.post('/compras/factura/ia', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
-  diagnosticoIA: () => api.get('/compras/ia/diagnostico'),
 }
 
 export const clientesApi = {
@@ -69,15 +68,9 @@ export const movimientosApi = {
   compras: (params) => api.get('/movimientos/compras', { params }),
 }
 
-export const stockApi = {
-  listar: (params) => api.get('/stock', { params }),
-}
-
 export const sucursalesApi = {
   listar: () => api.get('/sucursales'),
   crear: (data) => api.post('/sucursales', data),
-  actualizar: (id, data) => api.put(`/sucursales/${id}`, data),
-  eliminar: (id) => api.delete(`/sucursales/${id}`),
   comparacion: (params) => api.get('/sucursales/comparacion', { params }),
 }
 

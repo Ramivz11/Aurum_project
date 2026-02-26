@@ -41,7 +41,6 @@ export const comprasApi = {
   actualizar: (id, data) => api.put(`/compras/${id}`, data),
   eliminar: (id) => api.delete(`/compras/${id}`),
   analizarFactura: (formData) => api.postForm('/compras/ia/factura', formData),
-  diagnosticoIA: () => api.get('/compras/ia/diagnostico'),
 }
 
 // ── CLIENTES ──

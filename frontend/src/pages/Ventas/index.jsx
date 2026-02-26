@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useToast } from '../components/Toast'
-import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../../api'
+import toast from 'react-hot-toast'
+import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../../api/services'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
 
 function ModalVenta({ onClose, onSaved }) {
-  const toast = useToast()
   const [sucursales, setSucursales] = useState([])
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
@@ -48,16 +47,16 @@ function ModalVenta({ onClose, onSaved }) {
   }
 
   const crearCliente = async () => {
-    if (!formCliente.nombre) return toast('El nombre es obligatorio', 'error')
+    if (!formCliente.nombre) return toast.error('El nombre es obligatorio')
     const { data } = await clientesApi.crear(formCliente)
-    setClientes(c => [...c, data]); setForm(f => ({ ...f, cliente_id: data.id })); setNuevoCliente(null); toast('Cliente creado')
+    setClientes(c => [...c, data]); setForm(f => ({ ...f, cliente_id: data.id })); setNuevoCliente(null); toast.success('Cliente creado')
   }
 
   const total = carrito.reduce((a, i) => a + i.precio_unitario * i.cantidad, 0)
 
   const submit = async (estadoOverride) => {
-    if (!form.sucursal_id) return toast('Seleccioná una sucursal', 'error')
-    if (!carrito.length) return toast('El carrito está vacío', 'error')
+    if (!form.sucursal_id) return toast.error('Seleccioná una sucursal')
+    if (!carrito.length) return toast.error('El carrito está vacío')
     setLoading(true)
     const estadoFinal = estadoOverride || form.estado
     try {
@@ -68,9 +67,9 @@ function ModalVenta({ onClose, onSaved }) {
         sucursal_id: Number(form.sucursal_id),
         items: carrito.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario }))
       })
-      toast(estadoFinal === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
+      toast.success(estadoFinal === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
       onSaved(); onClose()
-    } catch (e) { toast(e.response?.data?.detail || 'Error') } finally { setLoading(false, 'error') }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
   }
 
   return (
@@ -183,7 +182,6 @@ function ModalVenta({ onClose, onSaved }) {
 }
 
 export default function Ventas() {
-  const toast = useToast()
   const [ventas, setVentas] = useState([])
   const [clientes, setClientes] = useState([])
   const [sucursales, setSucursales] = useState([])
@@ -191,7 +189,6 @@ export default function Ventas() {
   const [modal, setModal] = useState(false)
   const [confirm, setConfirm] = useState(null)
   const [filtro, setFiltro] = useState('')
-  const [filtroOpen, setFiltroOpen] = useState(false)
 
   const cargar = () => {
     setLoading(true)
@@ -213,50 +210,21 @@ export default function Ventas() {
   // Mapear id → nombre de sucursal
   const sucursalMap = Object.fromEntries(sucursales.map(s => [s.id, s.nombre]))
 
-  const eliminar = async (id) => { await ventasApi.eliminar(id); toast('Eliminada'); cargar() }
+  const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
   const confirmar = async (id) => {
-    try { await ventasApi.confirmar(id); toast('Confirmado'); cargar() }
-    catch (e) { toast(e.response?.data?.detail || 'Error', 'error') }
+    try { await ventasApi.confirmar(id); toast.success('Confirmado'); cargar() }
+    catch (e) { toast.error(e.response?.data?.detail || 'Error') }
   }
 
   return (<>
     <div className="topbar">
       <div className="page-title">Ventas</div>
       <div className="topbar-actions">
-        {/* Dropdown filtro estado */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => setFiltroOpen(v => !v)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            {filtro === '' ? '📋 Todas' : filtro === 'abierta' ? '⬤ Abiertas' : '✓ Cerradas'}
-            <span style={{ fontSize: 10, opacity: 0.6 }}>▼</span>
+        {['', 'abierta', 'confirmada'].map(e => (
+          <button key={e} className={`btn btn-sm ${filtro === e ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFiltro(e)}>
+            {e === '' ? 'Todas' : e === 'abierta' ? 'Pedidos abiertos' : 'Confirmadas'}
           </button>
-          {filtroOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, zIndex: 100, marginTop: 4,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 10, overflow: 'hidden', minWidth: 150,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
-            }}>
-              {[['', '📋 Todas'], ['abierta', '⬤ Abiertas'], ['confirmada', '✓ Cerradas']].map(([val, label]) => (
-                <button key={val}
-                  onClick={() => { setFiltro(val); setFiltroOpen(false) }}
-                  style={{
-                    display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left',
-                    background: filtro === val ? 'var(--gold-dim)' : 'transparent',
-                    color: filtro === val ? 'var(--gold-light)' : 'var(--text)',
-                    border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: filtro === val ? 600 : 400,
-                    borderBottom: val !== 'confirmada' ? '1px solid var(--border)' : 'none'
-                  }}
-                  onMouseEnter={e => { if (filtro !== val) e.currentTarget.style.background = 'var(--surface2)' }}
-                  onMouseLeave={e => { if (filtro !== val) e.currentTarget.style.background = 'transparent' }}
-                >{label}</button>
-              ))}
-            </div>
-          )}
-        </div>
+        ))}
         <button className="btn btn-primary" onClick={() => setModal(true)}>+ Registrar venta</button>
       </div>
     </div>

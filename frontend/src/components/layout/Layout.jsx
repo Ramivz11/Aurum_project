@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { sucursalesApi } from '../../api'
+import { sucursalesApi } from '../../api/services'
 
 const NAV = [
   { section:'Principal', items:[

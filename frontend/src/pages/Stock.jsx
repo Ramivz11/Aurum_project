@@ -431,14 +431,6 @@ export default function Stock() {
     ? sucursales.find(s => s.id === filtroSucursal)?.nombre
     : null
 
-  // KPI stats
-  const totalUnidades = productosFiltrados.reduce((acc, p) =>
-    acc + (p.variantes?.filter(v => v.activa).reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0) || 0), 0)
-  const stockBajoCount = productosFiltrados.filter(p =>
-    p.variantes?.some(v => v.activa && (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
-  ).length
-  const getInitials = (nombre) => (nombre || '').substring(0, 2).toUpperCase()
-
   return (
     <>
       <div className="topbar">
@@ -464,93 +456,45 @@ export default function Stock() {
       </div>
 
       <div className="content page-enter">
-        {/* KPI Strip */}
-        {!loading && productosFiltrados.length > 0 && (
-          <div className="stock-kpi-strip">
-            <div className="stock-kpi-item">
-              <span className="stock-kpi-num">{productosFiltrados.length}</span>
-              <span className="stock-kpi-label">Productos</span>
-            </div>
-            <div className="stock-kpi-divider" />
-            <div className="stock-kpi-item">
-              <span className="stock-kpi-num">{totalUnidades.toLocaleString('es-AR')}</span>
-              <span className="stock-kpi-label">Unidades</span>
-            </div>
-            <div className="stock-kpi-divider" />
-            <div className="stock-kpi-item">
-              <span className="stock-kpi-num" style={{ color: stockBajoCount > 0 ? 'var(--red)' : 'inherit' }}>
-                {stockBajoCount}
-              </span>
-              <span className="stock-kpi-label">Stock bajo</span>
-            </div>
-            <div className="stock-kpi-divider" />
-            <div className="stock-kpi-item">
-              <span className="stock-kpi-num">{categorias.length}</span>
-              <span className="stock-kpi-label">Categorías</span>
-            </div>
-          </div>
-        )}
-
         {loading
           ? <div className="loading">Cargando...</div>
           : productosFiltrados.length === 0
           ? <div className="empty">{filtroSucursal ? 'Sin stock en esta sucursal.' : 'No hay productos.'}</div>
           : (
-            <div className="stock-cards-grid">
-              {productosFiltrados.map(prod => {
-                const variantesActivas = prod.variantes?.filter(v => v.activa) || []
-                const hasBajoStock = variantesActivas.some(v =>
-                  (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo
-                )
-                const initials = getInitials(prod.nombre)
-
-                return (
-                  <div key={prod.id} className={`stock-prod-card${hasBajoStock ? ' stock-prod-card--alerta' : ''}`}>
-                    {/* Cabecera del producto */}
-                    <div className="stock-prod-header">
-                      <div className="stock-prod-avatar">{initials}</div>
-                      <div className="stock-prod-info">
-                        <div className="stock-prod-nombre">{prod.nombre}</div>
-                        {prod.marca && <div className="stock-prod-marca">{prod.marca}</div>}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                        {prod.categoria && (
-                          <span className="chip chip-blue" style={{ fontSize: 10 }}>{prod.categoria}</span>
-                        )}
-                        {hasBajoStock && (
-                          <span className="chip chip-red" style={{ fontSize: 10 }}>⚠ Stock bajo</span>
+            <div className="grid-2">
+              {productosFiltrados.map(prod => (
+                <div className="card" key={prod.id} style={{ height: 'fit-content' }}>
+                  <div className="card-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 18 }}>{getEmoji(prod.categoria)}</span>
+                      <div>
+                        <span style={{ fontWeight: 500, fontSize: 13.5 }}>{prod.nombre}</span>
+                        {prod.marca && (
+                          <span style={{ fontWeight: 500, fontSize: 13.5, color: 'var(--text-muted)', marginLeft: 6 }}>· {prod.marca}</span>
                         )}
                       </div>
                     </div>
-
-                    {/* Acciones */}
-                    <div className="stock-prod-actions">
-                      <button className="btn btn-ghost btn-sm" onClick={() => setModalLote(prod)}>
-                        <span style={{ fontSize: 11 }}>◇</span> Precios
-                      </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setModalLote(prod)}>Precios</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => setModal(prod)}>Editar</button>
                       <button className="btn btn-danger btn-sm" onClick={() => eliminar(prod.id)}>✕</button>
                     </div>
-
-                    {/* Variantes */}
-                    <div className="stock-variantes">
-                      {variantesActivas.length > 0
-                        ? variantesActivas.map(v => (
-                          <VarianteRow
-                            key={v.id}
-                            variante={v}
-                            sucursales={sucursales}
-                            filtroSucursal={filtroSucursal || null}
-                            onTransferir={(variante) => setModalTransferencia(variante)}
-                            onSaved={cargar}
-                          />
-                        ))
-                        : <div style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: 12 }}>Sin variantes activas</div>
-                      }
-                    </div>
                   </div>
-                )
-              })}
+                  {prod.variantes?.filter(v => v.activa).length > 0
+                    ? prod.variantes.filter(v => v.activa).map(v => (
+                      <VarianteRow
+                        key={v.id}
+                        variante={v}
+                        sucursales={sucursales}
+                        filtroSucursal={filtroSucursal || null}
+                        onTransferir={(variante) => setModalTransferencia(variante)}
+                        onSaved={cargar}
+                      />
+                    ))
+                    : <div className="empty">Sin variantes</div>
+                  }
+                </div>
+              ))}
             </div>
           )
         }

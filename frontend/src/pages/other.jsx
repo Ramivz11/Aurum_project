@@ -1,6 +1,6 @@
 // ── MOVIMIENTOS ──────────────────────────────────────────────────────────────
 import { useState, useEffect } from 'react'
-import { movimientosApi } from '../../api'
+import { movimientosApi } from '../../api/services'
 import { Loading, EmptyState, Chip, StatCard, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
 
 export function Movimientos() {
@@ -87,9 +87,9 @@ export function Movimientos() {
 }
 
 // ── CLIENTES ─────────────────────────────────────────────────────────────────
-import { clientesApi } from '../../api'
+import { clientesApi } from '../../api/services'
 import { Modal, ConfirmDialog } from '../../components/ui'
-import { useToast } from '../components/Toast'
+import toast from 'react-hot-toast'
 
 export function Clientes() {
   const [clientes, setClientes] = useState([])
@@ -112,23 +112,23 @@ export function Clientes() {
   useEffect(() => { cargar() }, [busqueda])
 
   const guardar = async () => {
-    if (!form.nombre.trim()) return toast('El nombre es obligatorio', 'error')
+    if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
     try {
       if (modal?.id) {
         await clientesApi.actualizar(modal.id, form)
-        toast('Cliente actualizado')
+        toast.success('Cliente actualizado')
       } else {
         await clientesApi.crear(form)
-        toast('Cliente creado')
+        toast.success('Cliente creado')
       }
       setModal(null)
       cargar()
-    } catch { toast('Error al guardar', 'error') }
+    } catch { toast.error('Error al guardar') }
   }
 
   const eliminar = async (id) => {
     await clientesApi.eliminar(id)
-    toast('Cliente eliminado')
+    toast.success('Cliente eliminado')
     cargar()
   }
 
@@ -221,7 +221,7 @@ export function Clientes() {
 }
 
 // ── FINANZAS ─────────────────────────────────────────────────────────────────
-import { finanzasApi } from '../../api'
+import { finanzasApi } from '../../api/services'
 
 export function Finanzas() {
   const [liquidez, setLiquidez] = useState(null)
@@ -252,19 +252,19 @@ export function Finanzas() {
   useEffect(() => { cargar() }, [])
 
   const guardarGasto = async () => {
-    if (!formGasto.concepto || !formGasto.monto) return toast('Completá los campos obligatorios', 'error')
+    if (!formGasto.concepto || !formGasto.monto) return toast.error('Completá los campos obligatorios')
     try {
       await finanzasApi.crearGasto({ ...formGasto, monto: Number(formGasto.monto), categoria_id: formGasto.categoria_id || null })
-      toast('Gasto registrado'); setModalGasto(false); cargar()
-    } catch { toast('Error al registrar', 'error') }
+      toast.success('Gasto registrado'); setModalGasto(false); cargar()
+    } catch { toast.error('Error al registrar') }
   }
 
   const guardarAjuste = async () => {
-    if (!formAjuste.monto_nuevo) return toast('Ingresá el monto', 'error')
+    if (!formAjuste.monto_nuevo) return toast.error('Ingresá el monto')
     try {
       await finanzasApi.ajustarSaldo({ ...formAjuste, monto_nuevo: Number(formAjuste.monto_nuevo) })
-      toast('Saldo ajustado'); setModalAjuste(false); cargar()
-    } catch { toast('Error al ajustar', 'error') }
+      toast.success('Saldo ajustado'); setModalAjuste(false); cargar()
+    } catch { toast.error('Error al ajustar') }
   }
 
   if (loading) return <div className="page-content"><Loading /></div>
@@ -414,7 +414,7 @@ export function Finanzas() {
 }
 
 // ── SUCURSALES ────────────────────────────────────────────────────────────────
-import { sucursalesApi, deudasApi } from '../../api'
+import { sucursalesApi, deudasApi } from '../../api/services'
 
 export function Sucursales() {
   const [comparacion, setComparacion] = useState([])
@@ -437,16 +437,16 @@ export function Sucursales() {
   useEffect(() => { cargar() }, [])
 
   const guardarDeuda = async () => {
-    if (!formDeuda.cliente_proveedor || !formDeuda.monto) return toast('Completá los campos', 'error')
+    if (!formDeuda.cliente_proveedor || !formDeuda.monto) return toast.error('Completá los campos')
     try {
       await deudasApi.crear({ ...formDeuda, monto: Number(formDeuda.monto) })
-      toast('Deuda registrada'); setModalDeuda(false); cargar()
-    } catch { toast('Error al registrar', 'error') }
+      toast.success('Deuda registrada'); setModalDeuda(false); cargar()
+    } catch { toast.error('Error al registrar') }
   }
 
   const saldar = async (id) => {
     await deudasApi.saldar(id)
-    toast('Deuda saldada')
+    toast.success('Deuda saldada')
     cargar()
   }
 
