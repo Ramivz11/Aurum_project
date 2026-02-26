@@ -1,7 +1,9 @@
-import base64
 import json
 from decimal import Decimal
-import httpx
+
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError, ClientError
 
 from app.config import settings
 from app.schemas import FacturaIAResponse, FacturaItemIA
@@ -35,84 +37,16 @@ Reglas:
 
 # Modelos a intentar en orden de preferencia
 GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-2.0-flash-exp",
 ]
-
-
-async def _llamar_gemini(model: str, imagen_b64: str, mime_type: str, api_key: str) -> dict:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "inline_data": {
-                            "mime_type": mime_type,
-                            "data": imagen_b64
-                        }
-                    },
-                    {
-                        "text": PROMPT_FACTURA
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 2000,
-        }
-    }
-
-    async with httpx.AsyncClient(timeout=90) as client:
-        response = await client.post(url, json=payload)
-        
-        if response.status_code == 404:
-            raise Exception(f"Modelo {model} no disponible")
-        if response.status_code == 429:
-            raise Exception("Límite de requests de Gemini alcanzado. Esperá unos segundos e intentá de nuevo.")
-        if response.status_code == 400:
-            detail = response.json().get("error", {}).get("message", "Request inválido")
-            raise Exception(f"Error 400: {detail}")
-        if response.status_code == 403:
-            raise Exception("API Key de Gemini inválida o sin permisos. Verificá la variable GEMINI_API_KEY en Railway.")
-        if not response.is_success:
-            raise Exception(f"Gemini respondió con error {response.status_code}: {response.text[:300]}")
-        
-        return response.json()
-
-
-def _extraer_texto(data: dict) -> str:
-    """Extrae el texto de la respuesta de Gemini, manejando bloqueos de seguridad."""
-    candidates = data.get("candidates", [])
-    if not candidates:
-        # Verificar si fue bloqueado por seguridad
-        prompt_feedback = data.get("promptFeedback", {})
-        block_reason = prompt_feedback.get("blockReason")
-        if block_reason:
-            raise Exception(f"La solicitud fue bloqueada por Gemini: {block_reason}. Intentá con una imagen más clara.")
-        raise Exception(f"Respuesta de Gemini sin candidatos: {str(data)[:200]}")
-    
-    candidate = candidates[0]
-    
-    # Verificar finish reason
-    finish_reason = candidate.get("finishReason", "")
-    if finish_reason == "SAFETY":
-        raise Exception("La imagen fue bloqueada por filtros de seguridad. Intentá con otra imagen.")
-    if finish_reason == "RECITATION":
-        raise Exception("Error de recitación en Gemini. Intentá de nuevo.")
-    
-    try:
-        return candidate["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError):
-        raise Exception(f"Formato de respuesta inesperado: {str(data)[:300]}")
 
 
 def _limpiar_json(texto: str) -> str:
     """Limpia markdown y extrae JSON puro."""
     texto = texto.strip()
-    # Eliminar bloques de código markdown
     if "```" in texto:
         partes = texto.split("```")
         for parte in partes:
@@ -121,24 +55,67 @@ def _limpiar_json(texto: str) -> str:
                 parte = parte[4:].strip()
             if parte.startswith("{") and parte.endswith("}"):
                 return parte
-        # Fallback: tomar la parte entre los primeros ```
         if len(partes) > 1:
             parte = partes[1].strip()
             if parte.startswith("json"):
                 parte = parte[4:].strip()
             return parte
-    
-    # Si empieza con { directamente
     if texto.startswith("{"):
         return texto
-    
-    # Buscar el primer { y el último }
     inicio = texto.find("{")
     fin = texto.rfind("}")
     if inicio != -1 and fin != -1 and fin > inicio:
         return texto[inicio:fin+1]
-    
     return texto
+
+
+def _parsear_resultado(texto: str, model: str) -> FacturaIAResponse:
+    """Parsea el JSON devuelto por Gemini y lo convierte en FacturaIAResponse."""
+    texto_limpio = _limpiar_json(texto)
+    try:
+        datos = json.loads(texto_limpio)
+    except json.JSONDecodeError as e:
+        raise Exception(
+            f"La IA no devolvió JSON válido ({model}): {str(e)}. "
+            f"Respuesta: {texto_limpio[:300]}"
+        )
+
+    items = []
+    for item in datos.get("items", []):
+        cantidad = item.get("cantidad", 1)
+        precio = item.get("precio_unitario", 0)
+        try:
+            cantidad = max(1, int(float(str(cantidad))))
+            precio = Decimal(str(precio)) if precio else Decimal("0")
+        except Exception:
+            cantidad = 1
+            precio = Decimal("0")
+
+        items.append(FacturaItemIA(
+            descripcion=item.get("descripcion") or "Producto sin nombre",
+            cantidad=cantidad,
+            costo_unitario=precio,
+        ))
+
+    if not items:
+        raise Exception(
+            "La IA no detectó ningún producto. "
+            "Intentá con una imagen más clara o mejor iluminada."
+        )
+
+    total = None
+    if datos.get("total"):
+        try:
+            total = Decimal(str(datos["total"]))
+        except Exception:
+            pass
+
+    return FacturaIAResponse(
+        items_detectados=items,
+        proveedor_detectado=datos.get("proveedor"),
+        total_detectado=total,
+        confianza=float(datos.get("confianza", 0.5)),
+    )
 
 
 async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> FacturaIAResponse:
@@ -148,77 +125,87 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
             "Agregá la variable de entorno GEMINI_API_KEY en Railway con tu clave de Google AI Studio."
         )
 
-    imagen_b64 = base64.standard_b64encode(contenido).decode("utf-8")
-
     # Normalizar mime type
-    if content_type == "application/pdf":
-        mime_type = "application/pdf"
-    elif content_type in ("image/jpg", "image/jpeg"):
-        mime_type = "image/jpeg"
-    elif content_type == "image/png":
-        mime_type = "image/png"
-    elif content_type == "image/webp":
-        mime_type = "image/webp"
-    else:
-        mime_type = content_type
+    mime_map = {
+        "image/jpg": "image/jpeg",
+        "image/jpeg": "image/jpeg",
+        "image/png": "image/png",
+        "image/webp": "image/webp",
+        "application/pdf": "application/pdf",
+    }
+    mime_type = mime_map.get(content_type, content_type)
 
-    # Intentar con cada modelo
+    # Crear cliente con la API key
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
     ultimo_error = None
     for model in GEMINI_MODELS:
         try:
-            data = await _llamar_gemini(model, imagen_b64, mime_type, settings.GEMINI_API_KEY)
-            texto = _extraer_texto(data)
-            texto_limpio = _limpiar_json(texto)
-            
-            try:
-                datos = json.loads(texto_limpio)
-            except json.JSONDecodeError as e:
-                raise Exception(f"La IA no devolvió JSON válido ({model}): {str(e)}. Respuesta: {texto_limpio[:300]}")
-            
-            # Parsear items
-            items = []
-            for item in datos.get("items", []):
-                cantidad = item.get("cantidad", 1)
-                precio = item.get("precio_unitario", 0)
-                try:
-                    cantidad = max(1, int(float(str(cantidad))))
-                    precio = Decimal(str(precio)) if precio else Decimal("0")
-                except Exception:
-                    cantidad = 1
-                    precio = Decimal("0")
-
-                items.append(
-                    FacturaItemIA(
-                        descripcion=item.get("descripcion") or "Producto sin nombre",
-                        cantidad=cantidad,
-                        costo_unitario=precio,
-                    )
-                )
-
-            if not items:
-                raise Exception("La IA no detectó ningún producto. Intentá con una imagen más clara o mejor iluminada.")
-
-            total = None
-            if datos.get("total"):
-                try:
-                    total = Decimal(str(datos["total"]))
-                except Exception:
-                    pass
-
-            return FacturaIAResponse(
-                items_detectados=items,
-                proveedor_detectado=datos.get("proveedor"),
-                total_detectado=total,
-                confianza=float(datos.get("confianza", 0.5)),
+            response = await client.aio.models.generate_content(
+                model=model,
+                contents=[
+                    types.Part.from_bytes(data=contenido, mime_type=mime_type),
+                    PROMPT_FACTURA,
+                ],
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    max_output_tokens=2000,
+                ),
             )
 
-        except Exception as e:
-            ultimo_error = e
-            error_msg = str(e)
-            # Si es error de autenticación o límite, no intentar otros modelos
-            if any(x in error_msg for x in ["inválida", "permisos", "API Key", "alcanzado", "bloqueada"]):
-                break
-            # Si es 404 (modelo no disponible), intentar el siguiente
+            # Verificar si fue bloqueado
+            if not response.candidates:
+                feedback = getattr(response, "prompt_feedback", None)
+                block = getattr(feedback, "block_reason", None) if feedback else None
+                if block:
+                    raise Exception(
+                        f"La solicitud fue bloqueada por Gemini: {block}. "
+                        "Intentá con una imagen más clara."
+                    )
+                raise Exception("Gemini no devolvió respuesta. Intentá de nuevo.")
+
+            candidate = response.candidates[0]
+            finish = getattr(candidate, "finish_reason", None)
+            if finish and str(finish) == "SAFETY":
+                raise Exception(
+                    "La imagen fue bloqueada por filtros de seguridad. "
+                    "Intentá con otra imagen."
+                )
+
+            texto = response.text
+            return _parsear_resultado(texto, model)
+
+        except ClientError as e:
+            # Errores del cliente: API key inválida, modelo no disponible, etc.
+            msg = str(e)
+            if "API_KEY" in msg or "PERMISSION" in msg or "403" in msg:
+                raise Exception(
+                    "API Key de Gemini inválida o sin permisos. "
+                    "Verificá la variable GEMINI_API_KEY en Railway."
+                )
+            if "404" in msg or "not found" in msg.lower():
+                ultimo_error = Exception(f"Modelo {model} no disponible")
+                continue  # Probar el siguiente modelo
+            if "429" in msg or "QUOTA" in msg:
+                raise Exception(
+                    "Límite de requests de Gemini alcanzado. "
+                    "Esperá unos segundos e intentá de nuevo."
+                )
+            ultimo_error = Exception(f"Error en {model}: {msg}")
             continue
 
-    raise Exception(str(ultimo_error) if ultimo_error else "Error desconocido al procesar la factura")
+        except APIError as e:
+            ultimo_error = Exception(f"Error de API Gemini ({model}): {str(e)}")
+            continue
+
+        except Exception as e:
+            msg = str(e)
+            # Errores fatales: no seguir probando modelos
+            if any(x in msg for x in ["inválida", "permisos", "API Key", "alcanzado", "bloqueada"]):
+                raise
+            ultimo_error = e
+            continue
+
+    raise Exception(
+        str(ultimo_error) if ultimo_error else "Error desconocido al procesar la factura"
+    )
