@@ -222,7 +222,7 @@ export default function Ventas() {
       <div className="topbar-actions">
         {['', 'abierta', 'confirmada'].map(e => (
           <button key={e} className={`btn btn-sm ${filtro === e ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFiltro(e)}>
-            {e === '' ? 'Todas' : e === 'abierta' ? 'Pedidos abiertos' : 'Confirmadas'}
+            {e === '' ? 'Todas' : e === 'abierta' ? '⬤ Abiertas' : '✓ Cerradas'}
           </button>
         ))}
         <button className="btn btn-primary" onClick={() => setModal(true)}>+ Registrar venta</button>

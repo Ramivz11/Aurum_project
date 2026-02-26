@@ -39,7 +39,7 @@ export const comprasApi = {
   analizarFactura: (file) => {
     const form = new FormData()
     form.append('archivo', file)
-    return api.post('/compras/factura/ia', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return api.post('/compras/ia/factura', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
 }
 

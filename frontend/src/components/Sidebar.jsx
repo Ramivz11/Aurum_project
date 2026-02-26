@@ -69,7 +69,7 @@ function ModalSucursal({ sucursal, onClose, onSaved }) {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen, onClose }) {
   const [pedidosAbiertos, setPedidosAbiertos] = useState(0)
   const [sucursalesOpen, setSucursalesOpen] = useState(true)
   const [editando, setEditando] = useState(null)
@@ -80,10 +80,15 @@ export default function Sidebar() {
   }, [])
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${mobileOpen ? ' sidebar-mobile-open' : ''}`}>
       <div className="sidebar-logo">
-        <div className="logo-text">AURUM</div>
-        <div className="logo-sub">Gestión de suplementos</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div className="logo-text">AURUM</div>
+            <div className="logo-sub">Gestión de suplementos</div>
+          </div>
+          <button className="sidebar-close-btn" onClick={onClose}>✕</button>
+        </div>
       </div>
 
       <nav className="sidebar-nav">
@@ -96,11 +101,13 @@ export default function Sidebar() {
                 to={item.to}
                 end={item.to === '/'}
                 className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                onClick={onClose}
               >
                 <span className="nav-icon">{item.icon}</span>
                 {item.label}
                 {item.badge === 'pedidos' && pedidosAbiertos > 0 && (
                   <span className="nav-badge">{pedidosAbiertos}</span>
+                )}
                 )}
               </NavLink>
             ))}
