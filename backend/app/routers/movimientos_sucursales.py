@@ -8,8 +8,6 @@ from datetime import datetime
 from app.database import get_db
 from app.models import Venta, Compra, VentaItem, Sucursal
 from pydantic import BaseModel
-from sqlalchemy.orm import joinedload
-from app.models import Cliente
 from app.schemas import (
     VentaResponse, CompraResponse, ResumenPeriodo, ProductoMasVendido,
     SucursalCreate, SucursalResponse, SucursalComparacionResponse
@@ -53,7 +51,7 @@ def resumen_periodo(
     total = sum(v.total for v in ventas)
     cantidad = len(ventas)
 
-    # Producto más vendido - track full details by variante_id
+    # Producto más vendido
     conteo = {}
     for venta in ventas:
         for item in venta.items:
@@ -114,10 +112,9 @@ def movimientos_ventas(
         query = query.filter(Venta.cliente_id == cliente_id)
 
     ventas = query.order_by(Venta.fecha.desc()).all()
-    # Populate cliente_nombre manually
     resultado = []
     for v in ventas:
-        d = {
+        resultado.append({
             "id": v.id,
             "cliente_id": v.cliente_id,
             "cliente_nombre": v.cliente.nombre if v.cliente else None,
@@ -128,8 +125,7 @@ def movimientos_ventas(
             "notas": v.notas,
             "total": v.total,
             "items": v.items,
-        }
-        resultado.append(d)
+        })
     return resultado
 
 
@@ -206,7 +202,7 @@ def comparar_sucursales(
 
         # Rentabilidad = ingresos - costos de los items vendidos
         costo_total = sum(
-            item.variante.costo * item.cantidad
+            (item.variante.costo or Decimal("0")) * item.cantidad
             for v in ventas
             for item in v.items
         )
