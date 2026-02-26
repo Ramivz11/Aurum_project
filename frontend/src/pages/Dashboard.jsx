@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { finanzasApi, ventasApi, recordatoriosApi } from '../api'
+import { finanzasApi, ventasApi, recordatoriosApi, clientesApi } from '../api'
 import { useToast } from '../components/Toast'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
@@ -159,6 +159,7 @@ export default function Dashboard() {
   const [liquidez, setLiquidez] = useState(null)
   const [topProducts, setTopProducts] = useState([])
   const [pedidos, setPedidos] = useState([])
+  const [clientes, setClientes] = useState({})
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
@@ -168,7 +169,16 @@ export default function Dashboard() {
       finanzasApi.liquidez(),
       finanzasApi.productosTop({ limite: 5 }),
       ventasApi.pedidosAbiertos(),
-    ]).then(([a, l, p, pd]) => {
+      clientesApi.listar(),
+    ]).then(([a, l, p, pd, cli]) => {
+      setAnalisis(a); setLiquidez(l); setTopProducts(p); setPedidos(pd)
+
+      const mapa = {}
+      ;(cli || []).forEach((c) => {
+        mapa[c.id] = c.nombre
+        mapa[String(c.id)] = c.nombre
+      })
+      setClientes(mapa)
       setAnalisis(a); setLiquidez(l); setTopProducts(p); setPedidos(pd)
     }).catch(console.error).finally(() => setLoading(false))
   }, [])
@@ -227,8 +237,10 @@ export default function Dashboard() {
                 : pedidos.slice(0, 4).map(p => (
                   <div className="pedido-card" key={p.id} onClick={() => navigate('/ventas')}>
                     <div style={{ fontSize: 20 }}>🛒</div>
+                                          <div style={{ fontSize: 13, fontWeight: 500 }}>
+                        {p.cliente_nombre || (p.cliente_id ? (clientes[p.cliente_id] || clientes[String(p.cliente_id)] || `Cliente #${p.cliente_id}`) : 'Sin cliente')}
+                      </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{p.cliente_id ? `Cliente #${p.cliente_id}` : 'Sin cliente'}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.items?.length || 0} productos</div>
                     </div>
                     <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600, fontSize: 14 }}>{fmt(p.total)}</div></div>

@@ -21,11 +21,11 @@ export function Movimientos() {
       clientesApi.listar(),
     ])
       .then(([v, c, r, cli]) => {
-        setVentas(v.data || [])
-        setCompras(c.data || [])
-        setResumen(r.data)
+        setVentas(v || [])
+        setCompras(c || [])
+        setResumen(r || null)
         const mapa = {}
-        ;(cli.data || []).forEach(cl => {
+        ;(cli || []).forEach(cl => {
           mapa[cl.id] = cl.nombre
           mapa[String(cl.id)] = cl.nombre
         })        
@@ -63,22 +63,21 @@ export function Movimientos() {
             </div>
             <div className="stat-card">
               <div className="stat-label">Producto más vendido</div>
-<div style={{ fontSize: 12, color: 'var(--gold-light)', marginTop: 2 }}>
-                    {resumen.producto_top.marca || 'Sin marca'}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  </div>
+              {resumen.producto_top ? (
+                <>
+                  <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_top.nombre}</div>
                   {resumen.producto_top.marca && (
                     <div style={{ fontSize: 12, color: 'var(--gold-light)', marginTop: 2 }}>{resumen.producto_top.marca}</div>
                   )}
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {[resumen.producto_top.variante, resumen.producto_top.tamanio].filter(Boolean).join(' · ')}
-                    Peso: {resumen.producto_top.peso || resumen.producto_top.tamanio || '—'}
+
                   </div>
-                </div>
+                  </>
               ) : (
                 <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_mas_vendido || '—'}</div>
-              )
+              
+              )}
+            </div>
             </div>
         )}
         <div className="card">
