@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models import Venta, Compra, VentaItem, Sucursal
 from pydantic import BaseModel
 from app.schemas import (
-    VentaResponse, CompraResponse, ResumenPeriodo,
+    VentaResponse, CompraResponse, ResumenPeriodo, ProductoMasVendido,
     SucursalCreate, SucursalResponse, SucursalComparacionResponse
 )
 
@@ -44,26 +44,48 @@ def resumen_periodo(
             total_ventas=Decimal("0"),
             cantidad_ventas=0,
             ticket_promedio=Decimal("0"),
-            producto_mas_vendido=None
+            producto_mas_vendido=None,
+            producto_top=None
         )
 
     total = sum(v.total for v in ventas)
     cantidad = len(ventas)
 
-    # Producto más vendido
-    conteo = {}
+    # Producto más vendido - track full details by variante_id
+    conteo = {}  # variante_id -> {cantidad, nombre, marca, sabor, tamanio}
     for venta in ventas:
         for item in venta.items:
-            nombre = item.variante.producto.nombre
-            conteo[nombre] = conteo.get(nombre, 0) + item.cantidad
+            vid = item.variante_id
+            if vid not in conteo:
+                prod = item.variante.producto
+                conteo[vid] = {
+                    "cantidad": 0,
+                    "nombre": prod.nombre,
+                    "marca": prod.marca,
+                    "sabor": item.variante.sabor,
+                    "tamanio": item.variante.tamanio,
+                }
+            conteo[vid]["cantidad"] += item.cantidad
 
-    mas_vendido = max(conteo, key=conteo.get) if conteo else None
+    producto_top = None
+    mas_vendido = None
+    if conteo:
+        top = max(conteo.values(), key=lambda x: x["cantidad"])
+        mas_vendido = top["nombre"]
+        producto_top = ProductoMasVendido(
+            nombre=top["nombre"],
+            marca=top["marca"],
+            variante=top["sabor"],
+            tamanio=top["tamanio"],
+            cantidad=top["cantidad"],
+        )
 
     return ResumenPeriodo(
         total_ventas=total,
         cantidad_ventas=cantidad,
         ticket_promedio=round(total / cantidad, 2),
-        producto_mas_vendido=mas_vendido
+        producto_mas_vendido=mas_vendido,
+        producto_top=producto_top
     )
 
 
