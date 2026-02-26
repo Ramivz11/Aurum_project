@@ -174,7 +174,6 @@ class VentaUpdate(BaseModel):
 class VentaResponse(BaseModel):
     id: int
     cliente_id: Optional[int]
-    cliente_nombre: Optional[str] = None
     sucursal_id: int
     fecha: datetime
     metodo_pago: MetodoPago
@@ -364,19 +363,11 @@ class MovimientoFiltros(BaseModel):
     metodo_pago: Optional[MetodoPago] = None
     cliente_id: Optional[int] = None
 
-class ProductoMasVendido(BaseModel):
-    nombre: str
-    marca: Optional[str] = None
-    variante: Optional[str] = None
-    tamanio: Optional[str] = None
-    cantidad: int
-
 class ResumenPeriodo(BaseModel):
     total_ventas: Decimal
     cantidad_ventas: int
     ticket_promedio: Decimal
     producto_mas_vendido: Optional[str] = None
-    producto_top: Optional[ProductoMasVendido] = None
 
 
 # ─── STOCK POR SUCURSAL ──────────────────────────────────────────────────────

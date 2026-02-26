@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models import Venta, Compra, VentaItem, Sucursal
 from pydantic import BaseModel
 from app.schemas import (
-    VentaResponse, CompraResponse, ResumenPeriodo, ProductoMasVendido,
+    VentaResponse, CompraResponse, ResumenPeriodo,
     SucursalCreate, SucursalResponse, SucursalComparacionResponse
 )
 
@@ -44,8 +44,7 @@ def resumen_periodo(
             total_ventas=Decimal("0"),
             cantidad_ventas=0,
             ticket_promedio=Decimal("0"),
-            producto_mas_vendido=None,
-            producto_top=None
+            producto_mas_vendido=None
         )
 
     total = sum(v.total for v in ventas)
@@ -55,37 +54,16 @@ def resumen_periodo(
     conteo = {}
     for venta in ventas:
         for item in venta.items:
-            vid = item.variante_id
-            if vid not in conteo:
-                prod = item.variante.producto
-                conteo[vid] = {
-                    "cantidad": 0,
-                    "nombre": prod.nombre,
-                    "marca": prod.marca,
-                    "sabor": item.variante.sabor,
-                    "tamanio": item.variante.tamanio,
-                }
-            conteo[vid]["cantidad"] += item.cantidad
+            nombre = item.variante.producto.nombre
+            conteo[nombre] = conteo.get(nombre, 0) + item.cantidad
 
-    producto_top = None
-    mas_vendido = None
-    if conteo:
-        top = max(conteo.values(), key=lambda x: x["cantidad"])
-        mas_vendido = top["nombre"]
-        producto_top = ProductoMasVendido(
-            nombre=top["nombre"],
-            marca=top["marca"],
-            variante=top["sabor"],
-            tamanio=top["tamanio"],
-            cantidad=top["cantidad"],
-        )
+    mas_vendido = max(conteo, key=conteo.get) if conteo else None
 
     return ResumenPeriodo(
         total_ventas=total,
         cantidad_ventas=cantidad,
         ticket_promedio=round(total / cantidad, 2),
-        producto_mas_vendido=mas_vendido,
-        producto_top=producto_top
+        producto_mas_vendido=mas_vendido
     )
 
 
@@ -111,22 +89,7 @@ def movimientos_ventas(
     if cliente_id:
         query = query.filter(Venta.cliente_id == cliente_id)
 
-    ventas = query.order_by(Venta.fecha.desc()).all()
-    resultado = []
-    for v in ventas:
-        resultado.append({
-            "id": v.id,
-            "cliente_id": v.cliente_id,
-            "cliente_nombre": v.cliente.nombre if v.cliente else None,
-            "sucursal_id": v.sucursal_id,
-            "fecha": v.fecha,
-            "metodo_pago": v.metodo_pago,
-            "estado": v.estado,
-            "notas": v.notas,
-            "total": v.total,
-            "items": v.items,
-        })
-    return resultado
+    return query.order_by(Venta.fecha.desc()).all()
 
 
 @movimientos_router.get("/compras", response_model=List[CompraResponse])
@@ -202,7 +165,7 @@ def comparar_sucursales(
 
         # Rentabilidad = ingresos - costos de los items vendidos
         costo_total = sum(
-            (item.variante.costo or Decimal("0")) * item.cantidad
+            item.variante.costo * item.cantidad
             for v in ventas
             for item in v.items
         )
