@@ -10,12 +10,16 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
   const [preview, setPreview] = useState(null)
   const [analizando, setAnalizando] = useState(false)
   const [resultado, setResultado] = useState(null)
+  const [error, setError] = useState(null)
+  const [diagnosData, setDiagnosData] = useState(null)
+  const [diagnosLoading, setDiagnosLoading] = useState(false)
   const inputRef = useRef()
 
   const handleFile = (file) => {
     if (!file) return
     setArchivo(file)
     setResultado(null)
+    setError(null)
     if (file.type.startsWith('image/')) {
       const url = URL.createObjectURL(file)
       setPreview(url)
@@ -27,14 +31,27 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
   const analizar = async () => {
     if (!archivo) return toast.error('Seleccioná un archivo primero')
     setAnalizando(true)
+    setError(null)
     try {
       const r = await comprasApi.analizarFactura(archivo)
       setResultado(r.data)
       toast.success(`✓ ${r.data.items_detectados?.length || 0} productos detectados`)
     } catch (e) {
       const msg = e.response?.data?.detail || e.message || 'Error al analizar'
-      toast.error(msg)
+      setError(msg)
+      toast.error('No se pudo analizar la factura')
     } finally { setAnalizando(false) }
+  }
+
+  const diagnostico = async () => {
+    setDiagnosLoading(true)
+    setDiagnosData(null)
+    try {
+      const r = await comprasApi.diagnosticoIA()
+      setDiagnosData(r.data)
+    } catch (e) {
+      toast.error('Error al hacer diagnóstico: ' + (e.response?.data?.detail || e.message))
+    } finally { setDiagnosLoading(false) }
   }
 
   return (
@@ -43,7 +60,7 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
         resultado
           ? <><button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
               <button className="btn btn-primary" onClick={() => { onFacturaCargada(resultado); onClose() }}>
-                Usar estos datos
+                Usar estos datos → abrir compra
               </button></>
           : <><button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
               <button className="btn btn-primary" onClick={analizar} disabled={!archivo || analizando}>
@@ -89,6 +106,61 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
           {archivo && !preview && (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
               📄 {archivo.name} ({(archivo.size / 1024).toFixed(0)} KB)
+            </div>
+          )}
+
+          {/* Error con detalle */}
+          {error && (
+            <div style={{ marginTop: 16, padding: 14, background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.3)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--red)', marginBottom: 6, fontSize: 13 }}>Error al procesar la factura</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{error}</div>
+                </div>
+              </div>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={diagnostico}
+                disabled={diagnosLoading}
+                style={{ marginTop: 12, fontSize: 12 }}
+              >
+                {diagnosLoading ? '⏳ Verificando...' : '🔧 Diagnosticar problema'}
+              </button>
+            </div>
+          )}
+
+          {/* Resultado diagnóstico */}
+          {diagnosData && (
+            <div style={{ marginTop: 12, padding: 14, background: 'var(--surface2)', borderRadius: 10, fontSize: 12 }}>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                {diagnosData.estado === 'ok' ? '✅ Configuración OK' : '❌ Problema detectado'}
+              </div>
+              {diagnosData.problema && (
+                <div style={{ color: 'var(--red)', marginBottom: 6 }}>{diagnosData.problema}</div>
+              )}
+              {diagnosData.solucion && (
+                <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>💡 {diagnosData.solucion}</div>
+              )}
+              {diagnosData.api_key_preview && (
+                <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>
+                  🔑 API Key: <code style={{ color: 'var(--gold-light)' }}>{diagnosData.api_key_preview}</code>
+                </div>
+              )}
+              {diagnosData.modelos && (
+                <div>
+                  {diagnosData.modelos.map(m => (
+                    <div key={m.modelo} style={{ padding: '3px 0', color: 'var(--text-muted)' }}>
+                      <strong style={{ color: 'var(--text)' }}>{m.modelo}:</strong> {m.estado}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {diagnosData.conclusion && (
+                <div style={{ marginTop: 8, fontWeight: 600, color: diagnosData.estado === 'ok' ? 'var(--green)' : 'var(--red)' }}>
+                  {diagnosData.conclusion}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -143,6 +215,167 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
   )
 }
 
+// ─── Modal: Registrar compra (con soporte para pre-llenado desde IA) ──────────
+
+function ModalCompra({ onClose, onSaved, datosIA }) {
+  const [sucursales, setSucursales] = useState([])
+  const [productos, setProductos] = useState([])
+  const [form, setForm] = useState({
+    proveedor: datosIA?.proveedor_detectado || '',
+    sucursal_id: '',
+    metodo_pago: 'efectivo',
+    notas: ''
+  })
+  const [items, setItems] = useState(
+    datosIA?.items_detectados?.length
+      ? datosIA.items_detectados.map(it => ({
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          costo_unitario: Number(it.costo_unitario) || 0,
+          variante_id: ''
+        }))
+      : [{ descripcion: '', cantidad: 1, costo_unitario: 0, variante_id: '' }]
+  )
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    Promise.all([sucursalesApi.listar(), productosApi.listar()])
+      .then(([s, p]) => { setSucursales(s.data); setProductos(p.data) })
+  }, [])
+
+  // Aplanar variantes para el select de matching
+  const variantes = productos.flatMap(p =>
+    (p.variantes || []).map(v => ({
+      id: v.id,
+      label: [p.nombre, p.marca, v.sabor, v.tamanio].filter(Boolean).join(' · ')
+    }))
+  )
+
+  const addItem = () => setItems(v => [...v, { descripcion: '', cantidad: 1, costo_unitario: 0, variante_id: '' }])
+  const rmItem = (i) => setItems(v => v.filter((_, idx) => idx !== i))
+  const upItem = (i, f, val) => setItems(arr => arr.map((item, idx) => idx === i ? { ...item, [f]: val } : item))
+
+  const total = items.reduce((a, i) => a + (Number(i.costo_unitario) || 0) * (Number(i.cantidad) || 0), 0)
+
+  const submit = async () => {
+    if (!form.sucursal_id) return toast.error('Seleccioná una sucursal')
+    if (!items.length) return toast.error('Agregá al menos un ítem')
+    const itemsSinVariante = items.filter(i => !i.variante_id)
+    if (itemsSinVariante.length) {
+      return toast.error(`Asigná una variante a: ${itemsSinVariante.map(i => i.descripcion || 'ítem').join(', ')}`)
+    }
+    setLoading(true)
+    try {
+      await comprasApi.crear({
+        ...form,
+        sucursal_id: Number(form.sucursal_id),
+        items: items.map(i => ({
+          variante_id: Number(i.variante_id),
+          cantidad: Number(i.cantidad),
+          costo_unitario: Number(i.costo_unitario)
+        }))
+      })
+      toast.success('Compra registrada y stock actualizado ✓')
+      onSaved(); onClose()
+    } catch (e) { toast.error(e.response?.data?.detail || 'Error al registrar') } finally { setLoading(false) }
+  }
+
+  return (
+    <Modal title={datosIA ? '🤖 Confirmar compra desde factura IA' : 'Registrar compra'} onClose={onClose} size="modal-lg"
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary" onClick={submit} disabled={loading}>
+          {loading ? 'Registrando...' : `Confirmar compra — ${formatARS(total)}`}
+        </button>
+      </>}
+    >
+      {datosIA && (
+        <div style={{ padding: '10px 14px', background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          🤖 Datos pre-cargados desde la factura. <strong>Asigná la variante</strong> correspondiente a cada ítem y confirmá.
+        </div>
+      )}
+
+      <div className="grid-2" style={{ marginBottom: 0 }}>
+        <div className="form-group">
+          <label className="input-label">Proveedor</label>
+          <input className="input" value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))} placeholder="Nombre del proveedor..." />
+        </div>
+        <div className="form-group">
+          <label className="input-label">Sucursal *</label>
+          <select className="input" value={form.sucursal_id} onChange={e => setForm(f => ({ ...f, sucursal_id: e.target.value }))}>
+            <option value="">Seleccionar...</option>
+            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="input-label">Método de pago</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['efectivo', 'transferencia', 'tarjeta'].map(m => (
+            <button key={m} className={`btn btn-sm ${form.metodo_pago === m ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setForm(f => ({ ...f, metodo_pago: m }))}>{METODO_PAGO_LABEL[m]}</button>
+          ))}
+        </div>
+      </div>
+
+      <hr className="divider" />
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <label className="input-label" style={{ margin: 0 }}>Ítems de la compra</label>
+        <button className="btn btn-ghost btn-sm" onClick={addItem}>+ Agregar ítem</button>
+      </div>
+
+      {items.map((item, i) => (
+        <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, marginBottom: 10 }}>
+          <div className="grid-2" style={{ marginBottom: 8 }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="input-label">Descripción (de la factura)</label>
+              <input className="input" value={item.descripcion}
+                onChange={e => upItem(i, 'descripcion', e.target.value)}
+                placeholder="Nombre como aparece en la factura" />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="input-label">
+                Variante del sistema
+                {!item.variante_id && <span style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
+              </label>
+              <select className="input" value={item.variante_id}
+                onChange={e => upItem(i, 'variante_id', e.target.value)}
+                style={{ borderColor: !item.variante_id ? 'rgba(220,60,60,0.5)' : '' }}>
+                <option value="">— Seleccionar variante —</option>
+                {variantes.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="input-label">Cantidad</label>
+              <input className="input" type="number" min="1" value={item.cantidad}
+                onChange={e => upItem(i, 'cantidad', e.target.value)} />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="input-label">Costo unitario $</label>
+              <input className="input" type="number" min="0" value={item.costo_unitario}
+                onChange={e => upItem(i, 'costo_unitario', e.target.value)} />
+            </div>
+            {items.length > 1 && (
+              <button className="btn btn-danger btn-sm" onClick={() => rmItem(i)}>✕</button>
+            )}
+          </div>
+          <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+            Subtotal: <strong style={{ color: 'var(--gold-light)' }}>{formatARS(item.costo_unitario * item.cantidad)}</strong>
+          </div>
+        </div>
+      ))}
+
+      <div style={{ textAlign: 'right', marginTop: 8, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--gold-light)' }}>
+        Total: {formatARS(total)}
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function Compras() {
@@ -150,6 +383,7 @@ export default function Compras() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [modalIA, setModalIA] = useState(false)
+  const [datosIA, setDatosIA] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
   const cargar = () => { setLoading(true); comprasApi.listar().then(r => setCompras(r.data)).finally(() => setLoading(false)) }
@@ -157,9 +391,10 @@ export default function Compras() {
 
   const eliminar = async (id) => { await comprasApi.eliminar(id); toast.success('Eliminada, stock revertido'); cargar() }
 
+  // Cuando la IA detecta los ítems, cierra el modal IA y abre directamente el modal de compra pre-llenado
   const handleFacturaCargada = (resultado) => {
-    toast.success('Datos cargados. Revisá y confirmá la compra.')
-    // Aquí se podría pre-llenar el modal de nueva compra con los datos
+    setDatosIA(resultado)
+    setModal(true)
   }
 
   return (<>
@@ -169,7 +404,7 @@ export default function Compras() {
         <button className="btn btn-ghost" onClick={() => setModalIA(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>🤖</span> Cargar con IA
         </button>
-        <button className="btn btn-primary" onClick={() => setModal(true)}>+ Registrar compra</button>
+        <button className="btn btn-primary" onClick={() => { setDatosIA(null); setModal(true) }}>+ Registrar compra</button>
       </div>
     </div>
 
@@ -181,14 +416,14 @@ export default function Compras() {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Carga inteligente de facturas</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              Subí una foto o PDF de tu factura y la IA detecta automáticamente los productos, cantidades y precios.
+              Subí una foto o PDF de tu factura — la IA detecta los productos y los carga automáticamente. Solo tenés que asignar la variante y confirmar.
             </div>
           </div>
           <button className="btn btn-primary" onClick={() => setModalIA(true)}>Subir factura</button>
         </div>
       </div>
 
-      {loading ? <Loading /> : compras.length === 0 ? <EmptyState icon="↓" text="Sin compras registradas." /> : (
+      {loading ? <Loading /> : compras.length === 0 ? <EmptyState icon="🛒" text="Sin compras registradas." /> : (
         <div className="card"><div className="table-wrap"><table>
           <thead><tr><th>Fecha</th><th>Proveedor</th><th>Sucursal</th><th>Pago</th><th>Total</th><th></th></tr></thead>
           <tbody>{compras.map(c => (
@@ -206,6 +441,7 @@ export default function Compras() {
     </div>
 
     {modalIA && <ModalIAFactura onClose={() => setModalIA(false)} onFacturaCargada={handleFacturaCargada} />}
+    {modal && <ModalCompra onClose={() => { setModal(false); setDatosIA(null) }} onSaved={cargar} datosIA={datosIA} />}
     {confirm && <ConfirmDialog message={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
   </>)
 }

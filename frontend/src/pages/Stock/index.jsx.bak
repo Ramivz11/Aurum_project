@@ -329,7 +329,6 @@ export default function Stock() {
   const [modalLote, setModalLote] = useState(null)
   const [modalCats, setModalCats] = useState(false)
   const [confirm, setConfirm] = useState(null)
-  const [catDropOpen, setCatDropOpen] = useState(false)
 
   const cargarCategorias = () => categoriasProductoApi.listar().then(r => setCategorias(r.data))
   const cargar = () => {
@@ -353,58 +352,14 @@ export default function Stock() {
           <span className="search-icon">⌕</span>
           <input className="search-input" placeholder="Buscar producto..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
-        {/* Dropdown categorías con orden: Todas → cats normales → Otros → + Nueva */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => setCatDropOpen(v => !v)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-          >
-            🏷️ {categoria === '' ? 'Todas las categorías' : categoria}
-            <span style={{ fontSize: 10, opacity: 0.6 }}>▼</span>
-          </button>
-          {catDropOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, zIndex: 100, marginTop: 4,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 10, overflow: 'hidden', minWidth: 200,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)', maxHeight: 320, overflowY: 'auto'
-            }}>
-              {/* 1. Todas */}
-              {[['', 'Todas las categorías'], ...categorias
-                .filter(c => c.nombre.toLowerCase() !== 'otros')
-                .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                .map(c => [c.nombre, c.nombre]),
-                // Penúltimo: Otros si existe
-                ...categorias.filter(c => c.nombre.toLowerCase() === 'otros').map(c => [c.nombre, c.nombre])
-              ].map(([val, label], idx, arr) => (
-                <button key={val}
-                  onClick={() => { setCategoria(val); setCatDropOpen(false) }}
-                  style={{
-                    display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left',
-                    background: categoria === val ? 'var(--gold-dim)' : 'transparent',
-                    color: categoria === val ? 'var(--gold-light)' : 'var(--text)',
-                    border: 'none', cursor: 'pointer', fontSize: 13,
-                    fontWeight: categoria === val ? 600 : 400,
-                    borderBottom: '1px solid var(--border)'
-                  }}
-                  onMouseEnter={e => { if (categoria !== val) e.currentTarget.style.background = 'var(--surface2)' }}
-                  onMouseLeave={e => { if (categoria !== val) e.currentTarget.style.background = 'transparent' }}
-                >{val === '' ? '📋 ' : ''}{label}</button>
-              ))}
-              {/* Último: + Nueva categoría */}
-              <button
-                onClick={() => { setCatDropOpen(false); setModalCats(true) }}
-                style={{
-                  display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left',
-                  background: 'transparent', color: 'var(--gold-light)',
-                  border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--gold-dim)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >⊞ Gestionar categorías</button>
-            </div>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+          <select className="input" style={{ width: 'auto', borderRadius: '8px 0 0 8px', borderRight: 'none' }}
+            value={categoria} onChange={e => setCategoria(e.target.value)}>
+            <option value="">Todas las categorías</option>
+            {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+          </select>
+          <button className="btn btn-ghost" onClick={() => setModalCats(true)} title="Gestionar categorías"
+            style={{ borderRadius: '0 8px 8px 0', borderLeft: '1px solid var(--border)', padding: '0 10px', height: '100%', fontSize: 14, color: 'var(--text-muted)' }}>⊞</button>
         </div>
         {/* Vista toggle */}
         <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>

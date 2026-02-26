@@ -41,6 +41,7 @@ export const comprasApi = {
     form.append('archivo', file)
     return api.post('/compras/ia/factura', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
+  diagnosticoIA: () => api.get('/compras/ia/diagnostico'),
 }
 
 export const clientesApi = {

@@ -6,17 +6,17 @@ import { useToast } from './Toast'
 
 const NAV = [
   { label: 'Principal', items: [
-    { to: '/', icon: '🏠', label: 'Dashboard' },
-    { to: '/stock', icon: '📦', label: 'Stock' },
+    { to: '/', icon: '◈', label: 'Dashboard' },
+    { to: '/stock', icon: '⬡', label: 'Stock' },
   ]},
   { label: 'Operaciones', items: [
-    { to: '/ventas', icon: '📈', label: 'Ventas', badge: 'pedidos' },
-    { to: '/compras', icon: '🛒', label: 'Compras' },
-    { to: '/movimientos', icon: '🔄', label: 'Movimientos' },
+    { to: '/ventas', icon: '↑', label: 'Ventas', badge: 'pedidos' },
+    { to: '/compras', icon: '↓', label: 'Compras' },
+    { to: '/movimientos', icon: '⇄', label: 'Movimientos' },
   ]},
   { label: 'Gestión', items: [
-    { to: '/clientes', icon: '👥', label: 'Clientes' },
-    { to: '/finanzas', icon: '💰', label: 'Finanzas' },
+    { to: '/clientes', icon: '◯', label: 'Clientes' },
+    { to: '/finanzas', icon: '◇', label: 'Finanzas' },
   ]},
 ]
 
