@@ -78,9 +78,8 @@ export function Movimientos() {
                 </div>
               ) : (
                 <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_mas_vendido || '—'}</div>
-              )}
+              )
             </div>
-          </div>
         )}
         <div className="card">
           <div className="card-header"><span className="card-title">Listado de movimientos</span></div>
