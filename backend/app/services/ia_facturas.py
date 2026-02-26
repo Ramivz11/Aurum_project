@@ -1,3 +1,4 @@
+import asyncio
 import json
 from decimal import Decimal
 
@@ -35,11 +36,12 @@ Reglas:
 - NO incluyas texto antes ni después del JSON
 """
 
-# Modelos a intentar en orden de preferencia
+# Modelos en orden de preferencia — todos soportan visión multimodal
 GEMINI_MODELS = [
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
     "gemini-1.5-pro",
 ]
 
@@ -125,7 +127,6 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
             "Agregá la variable de entorno GEMINI_API_KEY en Railway con tu clave de Google AI Studio."
         )
 
-    # Normalizar mime type
     mime_map = {
         "image/jpg": "image/jpeg",
         "image/jpeg": "image/jpeg",
@@ -135,12 +136,17 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
     }
     mime_type = mime_map.get(content_type, content_type)
 
-    # Crear cliente con la API key
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     ultimo_error = None
-    for model in GEMINI_MODELS:
+    hubo_rate_limit = False
+
+    for i, model in enumerate(GEMINI_MODELS):
         try:
+            # Si el modelo anterior devolvió rate limit, esperar antes de reintentar
+            if hubo_rate_limit and i > 0:
+                await asyncio.sleep(5)
+
             response = await client.aio.models.generate_content(
                 model=model,
                 contents=[
@@ -153,7 +159,6 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
                 ),
             )
 
-            # Verificar si fue bloqueado
             if not response.candidates:
                 feedback = getattr(response, "prompt_feedback", None)
                 block = getattr(feedback, "block_reason", None) if feedback else None
@@ -172,25 +177,30 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
                     "Intentá con otra imagen."
                 )
 
-            texto = response.text
-            return _parsear_resultado(texto, model)
+            return _parsear_resultado(response.text, model)
 
         except ClientError as e:
-            # Errores del cliente: API key inválida, modelo no disponible, etc.
             msg = str(e)
+
             if "API_KEY" in msg or "PERMISSION" in msg or "403" in msg:
                 raise Exception(
                     "API Key de Gemini inválida o sin permisos. "
                     "Verificá la variable GEMINI_API_KEY en Railway."
                 )
+
             if "404" in msg or "not found" in msg.lower():
                 ultimo_error = Exception(f"Modelo {model} no disponible")
-                continue  # Probar el siguiente modelo
-            if "429" in msg or "QUOTA" in msg:
-                raise Exception(
-                    "Límite de requests de Gemini alcanzado. "
-                    "Esperá unos segundos e intentá de nuevo."
+                continue
+
+            if "429" in msg or "QUOTA" in msg or "RESOURCE_EXHAUSTED" in msg:
+                # Rate limit: marcar y probar siguiente modelo
+                hubo_rate_limit = True
+                ultimo_error = Exception(
+                    f"Límite de requests alcanzado en {model}. "
+                    "Considerá usar una API key de pago en Google AI Studio para mayor volumen."
                 )
+                continue
+
             ultimo_error = Exception(f"Error en {model}: {msg}")
             continue
 
@@ -200,11 +210,18 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
 
         except Exception as e:
             msg = str(e)
-            # Errores fatales: no seguir probando modelos
-            if any(x in msg for x in ["inválida", "permisos", "API Key", "alcanzado", "bloqueada"]):
+            if any(x in msg for x in ["inválida", "permisos", "API Key", "bloqueada"]):
                 raise
             ultimo_error = e
             continue
+
+    # Si todos fueron rate limit, dar mensaje claro
+    if hubo_rate_limit:
+        raise Exception(
+            "Se alcanzó el límite de requests en todos los modelos disponibles. "
+            "La clave gratuita de Google AI Studio permite ~15 requests por minuto. "
+            "Esperá 1 minuto e intentá de nuevo, o usá una API key de pago."
+        )
 
     raise Exception(
         str(ultimo_error) if ultimo_error else "Error desconocido al procesar la factura"
