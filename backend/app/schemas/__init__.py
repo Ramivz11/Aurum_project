@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
@@ -182,14 +182,6 @@ class VentaResponse(BaseModel):
     notas: Optional[str]
     total: Decimal
     items: List[VentaItemResponse] = []
-
-    @model_validator(mode='before')
-    @classmethod
-    def populate_cliente_nombre(cls, data):
-        if hasattr(data, 'cliente') and data.cliente:
-            if not getattr(data, 'cliente_nombre', None):
-                object.__setattr__(data, 'cliente_nombre', data.cliente.nombre)
-        return data
 
     class Config:
         from_attributes = True

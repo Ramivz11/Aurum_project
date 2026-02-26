@@ -8,6 +8,8 @@ from datetime import datetime
 from app.database import get_db
 from app.models import Venta, Compra, VentaItem, Sucursal
 from pydantic import BaseModel
+from sqlalchemy.orm import joinedload
+from app.models import Cliente
 from app.schemas import (
     VentaResponse, CompraResponse, ResumenPeriodo, ProductoMasVendido,
     SucursalCreate, SucursalResponse, SucursalComparacionResponse
@@ -52,7 +54,7 @@ def resumen_periodo(
     cantidad = len(ventas)
 
     # Producto más vendido - track full details by variante_id
-    conteo = {}  # variante_id -> {cantidad, nombre, marca, sabor, tamanio}
+    conteo = {}
     for venta in ventas:
         for item in venta.items:
             vid = item.variante_id
@@ -111,7 +113,24 @@ def movimientos_ventas(
     if cliente_id:
         query = query.filter(Venta.cliente_id == cliente_id)
 
-    return query.order_by(Venta.fecha.desc()).all()
+    ventas = query.order_by(Venta.fecha.desc()).all()
+    # Populate cliente_nombre manually
+    resultado = []
+    for v in ventas:
+        d = {
+            "id": v.id,
+            "cliente_id": v.cliente_id,
+            "cliente_nombre": v.cliente.nombre if v.cliente else None,
+            "sucursal_id": v.sucursal_id,
+            "fecha": v.fecha,
+            "metodo_pago": v.metodo_pago,
+            "estado": v.estado,
+            "notas": v.notas,
+            "total": v.total,
+            "items": v.items,
+        }
+        resultado.append(d)
+    return resultado
 
 
 @movimientos_router.get("/compras", response_model=List[CompraResponse])
