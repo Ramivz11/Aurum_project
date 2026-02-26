@@ -40,7 +40,7 @@ export const comprasApi = {
   crear: (data) => api.post('/compras', data),
   actualizar: (id, data) => api.put(`/compras/${id}`, data),
   eliminar: (id) => api.delete(`/compras/${id}`),
-  analizarFactura: (formData) => api.postForm('/compras/ia/factura', formData),
+  analizarFactura: (formData) => api.postForm('/compras/factura/ia', formData),
 }
 
 // ── CLIENTES ──

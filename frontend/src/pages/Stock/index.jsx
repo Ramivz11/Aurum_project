@@ -241,30 +241,11 @@ export default function Stock() {
           <span className="search-icon">⌕</span>
           <input className="search-input" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
-          <select
-            className="input"
-            style={{ width: 'auto', borderRadius: '8px 0 0 8px', borderRight: 'none' }}
-            value={categoria}
-            onChange={e => setCategoria(e.target.value)}
-          >
-            <option value="">Todas las categorías</option>
-            {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
-          </select>
-          <button
-            className="btn btn-ghost"
-            onClick={() => setModalCats(true)}
-            title="Gestionar categorías"
-            style={{
-              borderRadius: '0 8px 8px 0',
-              borderLeft: '1px solid var(--border)',
-              padding: '0 10px',
-              height: '100%',
-              fontSize: 14,
-              color: 'var(--text-muted)',
-            }}
-          >⊞</button>
-        </div>
+        <select className="input" style={{ width: 'auto' }} value={categoria} onChange={e => setCategoria(e.target.value)}>
+          <option value="">Todas las categorías</option>
+          {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+        </select>
+        <button className="btn btn-ghost" onClick={() => setModalCats(true)}>Categorías</button>
         <button className="btn btn-primary" onClick={() => setModalProd({})}>+ Nuevo producto</button>
       </div>
     </div>
