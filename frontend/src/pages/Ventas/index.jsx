@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import toast from 'react-hot-toast'
-import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../../api/services'
+import { useToast } from '../components/Toast'
+import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../../api'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
 
 function ModalVenta({ onClose, onSaved }) {
+  const toast = useToast()
   const [sucursales, setSucursales] = useState([])
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
@@ -47,16 +48,16 @@ function ModalVenta({ onClose, onSaved }) {
   }
 
   const crearCliente = async () => {
-    if (!formCliente.nombre) return toast.error('El nombre es obligatorio')
+    if (!formCliente.nombre) return toast('El nombre es obligatorio', 'error')
     const { data } = await clientesApi.crear(formCliente)
-    setClientes(c => [...c, data]); setForm(f => ({ ...f, cliente_id: data.id })); setNuevoCliente(null); toast.success('Cliente creado')
+    setClientes(c => [...c, data]); setForm(f => ({ ...f, cliente_id: data.id })); setNuevoCliente(null); toast('Cliente creado')
   }
 
   const total = carrito.reduce((a, i) => a + i.precio_unitario * i.cantidad, 0)
 
   const submit = async (estadoOverride) => {
-    if (!form.sucursal_id) return toast.error('Seleccioná una sucursal')
-    if (!carrito.length) return toast.error('El carrito está vacío')
+    if (!form.sucursal_id) return toast('Seleccioná una sucursal', 'error')
+    if (!carrito.length) return toast('El carrito está vacío', 'error')
     setLoading(true)
     const estadoFinal = estadoOverride || form.estado
     try {
@@ -67,9 +68,9 @@ function ModalVenta({ onClose, onSaved }) {
         sucursal_id: Number(form.sucursal_id),
         items: carrito.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario }))
       })
-      toast.success(estadoFinal === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
+      toast(estadoFinal === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
       onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+    } catch (e) { toast(e.response?.data?.detail || 'Error') } finally { setLoading(false, 'error') }
   }
 
   return (
@@ -182,6 +183,7 @@ function ModalVenta({ onClose, onSaved }) {
 }
 
 export default function Ventas() {
+  const toast = useToast()
   const [ventas, setVentas] = useState([])
   const [clientes, setClientes] = useState([])
   const [sucursales, setSucursales] = useState([])
@@ -211,10 +213,10 @@ export default function Ventas() {
   // Mapear id → nombre de sucursal
   const sucursalMap = Object.fromEntries(sucursales.map(s => [s.id, s.nombre]))
 
-  const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
+  const eliminar = async (id) => { await ventasApi.eliminar(id); toast('Eliminada'); cargar() }
   const confirmar = async (id) => {
-    try { await ventasApi.confirmar(id); toast.success('Confirmado'); cargar() }
-    catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+    try { await ventasApi.confirmar(id); toast('Confirmado'); cargar() }
+    catch (e) { toast(e.response?.data?.detail || 'Error', 'error') }
   }
 
   return (<>

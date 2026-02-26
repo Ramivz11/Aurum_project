@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import toast from 'react-hot-toast'
-import { productosApi, categoriasProductoApi } from '../../api/services'
+import { useToast } from '../components/Toast'
+import { productosApi, categoriasProductoApi } from '../../api'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS } from '../../components/ui'
 
 // ─── Modal: Gestionar categorías ─────────────────────────────────────────────
 
 function ModalCategorias({ onClose }) {
+  const toast = useToast()
   const [categorias, setCategorias] = useState([])
   const [nueva, setNueva] = useState('')
   const [editando, setEditando] = useState(null)
@@ -15,23 +16,23 @@ function ModalCategorias({ onClose }) {
   useEffect(() => { cargar() }, [])
 
   const crear = async () => {
-    if (!nueva.trim()) return toast.error('Ingresá un nombre')
+    if (!nueva.trim()) return toast('Ingresá un nombre', 'error')
     try {
       await categoriasProductoApi.crear({ nombre: nueva.trim() })
-      setNueva(''); cargar(); toast.success('Categoría creada')
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+      setNueva(''); cargar(); toast('Categoría creada')
+    } catch (e) { toast(e.response?.data?.detail || 'Error', 'error') }
   }
 
   const guardarEdicion = async () => {
-    if (!editando?.nombre.trim()) return toast.error('El nombre no puede estar vacío')
+    if (!editando?.nombre.trim()) return toast('El nombre no puede estar vacío', 'error')
     try {
       await categoriasProductoApi.actualizar(editando.id, { nombre: editando.nombre.trim() })
-      setEditando(null); cargar(); toast.success('Actualizado')
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+      setEditando(null); cargar(); toast('Actualizado')
+    } catch (e) { toast(e.response?.data?.detail || 'Error', 'error') }
   }
 
   const eliminar = async (id) => {
-    await categoriasProductoApi.eliminar(id); cargar(); toast.success('Eliminada')
+    await categoriasProductoApi.eliminar(id); cargar(); toast('Eliminada')
   }
 
   return (
@@ -73,6 +74,7 @@ function ModalCategorias({ onClose }) {
 // ─── Modal: Crear / editar producto ──────────────────────────────────────────
 
 function ModalProducto({ producto, categorias, onClose, onSaved }) {
+  const toast = useToast()
   const isEdit = !!producto?.id
   const [form, setForm] = useState({
     nombre: producto?.nombre || '',
@@ -92,13 +94,13 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
   const upVar = (i, f, v) => setVariantes(arr => arr.map((item, idx) => idx === i ? { ...item, [f]: v } : item))
 
   const submit = async () => {
-    if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
+    if (!form.nombre.trim()) return toast('El nombre es obligatorio', 'error')
     setLoading(true)
     try {
-      if (isEdit) { await productosApi.actualizar(producto.id, form); toast.success('Actualizado') }
-      else { await productosApi.crear({ ...form, variantes }); toast.success('Creado') }
+      if (isEdit) { await productosApi.actualizar(producto.id, form); toast('Actualizado') }
+      else { await productosApi.crear({ ...form, variantes }); toast('Creado') }
       onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+    } catch (e) { toast(e.response?.data?.detail || 'Error') } finally { setLoading(false, 'error') }
   }
 
   return (
@@ -147,18 +149,19 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
 // ─── Modal: Ajuste de precios por lote ───────────────────────────────────────
 
 function ModalLote({ producto, onClose, onSaved }) {
+  const toast = useToast()
   const [modo, setModo] = useState('porcentaje')
   const [valor, setValor] = useState('')
   const [loading, setLoading] = useState(false)
   const modos = [{ key: 'porcentaje', label: '+/- %' }, { key: 'margen_deseado', label: 'Margen %' }, { key: 'precio_fijo', label: 'Precio fijo $' }]
 
   const aplicar = async () => {
-    if (!valor) return toast.error('Ingresá un valor')
+    if (!valor) return toast('Ingresá un valor', 'error')
     setLoading(true)
     try {
       await productosApi.ajustarPrecioLote({ producto_id: producto.id, modo, valor: parseFloat(valor) })
-      toast.success('Precios actualizados'); onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+      toast('Precios actualizados'); onSaved(); onClose()
+    } catch (e) { toast(e.response?.data?.detail || 'Error') } finally { setLoading(false, 'error') }
   }
 
   return (
@@ -319,6 +322,7 @@ function ProductCard({ p, onEdit, onLote, onEliminar }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function Stock() {
+  const toast = useToast()
   const [productos, setProductos] = useState([])
   const [categorias, setCategorias] = useState([])
   const [loading, setLoading] = useState(true)
@@ -453,7 +457,7 @@ export default function Stock() {
             <ProductCard key={p.id} p={p}
               onEdit={setModalProd}
               onLote={setModalLote}
-              onEliminar={(p) => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: async () => { await productosApi.eliminar(p.id); toast.success('Eliminado'); cargar() } })}
+              onEliminar={(p) => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: async () => { await productosApi.eliminar(p.id); toast('Eliminado'); cargar() } })}
             />
           ))}
         </div>
@@ -482,7 +486,7 @@ export default function Stock() {
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                     <button className="btn btn-ghost btn-xs" onClick={() => setModalLote(p)}>Precios</button>
                     <button className="btn btn-ghost btn-xs" onClick={() => setModalProd(p)}>Editar</button>
-                    <button className="btn btn-danger btn-xs" onClick={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: async () => { await productosApi.eliminar(p.id); toast.success('Eliminado'); cargar() } })}>✕</button>
+                    <button className="btn btn-danger btn-xs" onClick={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: async () => { await productosApi.eliminar(p.id); toast('Eliminado'); cargar() } })}>✕</button>
                   </div>
                 </td>
               </tr>

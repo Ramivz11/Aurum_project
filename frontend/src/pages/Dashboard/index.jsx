@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { finanzasApi, ventasApi, clientesApi } from '../../api/services'
+import { finanzasApi, ventasApi, clientesApi } from '../../api'
 import { StatCard, Loading, formatARS, formatDateTime } from '../../components/ui'
 
 export default function Dashboard() {

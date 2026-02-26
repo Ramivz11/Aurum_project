@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import toast from 'react-hot-toast'
-import { comprasApi, productosApi, sucursalesApi } from '../../api/services'
+import { comprasApi, productosApi, sucursalesApi } from '../../api'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDate, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
+import { useToast } from '../../components/Toast'
 
 // ─── Modal: Cargar factura con IA ─────────────────────────────────────────────
 
 function ModalIAFactura({ onClose, onFacturaCargada }) {
+  const toast = useToast()
   const [archivo, setArchivo] = useState(null)
   const [preview, setPreview] = useState(null)
   const [analizando, setAnalizando] = useState(false)
@@ -21,25 +22,25 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
     setResultado(null)
     setError(null)
     if (file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file)
-      setPreview(url)
+      setPreview(URL.createObjectURL(file))
     } else {
       setPreview(null)
     }
   }
 
   const analizar = async () => {
-    if (!archivo) return toast.error('Seleccioná un archivo primero')
+    if (!archivo) return toast('Seleccioná un archivo primero', 'error')
     setAnalizando(true)
     setError(null)
     try {
-      const r = await comprasApi.analizarFactura(archivo)
-      setResultado(r.data)
-      toast.success(`✓ ${r.data.items_detectados?.length || 0} productos detectados`)
+      const formData = new FormData()
+      formData.append('archivo', archivo)
+      const r = await comprasApi.analizarFactura(formData)
+      setResultado(r)
+      toast(`✓ ${r.items_detectados?.length || 0} productos detectados`)
     } catch (e) {
-      const msg = e.response?.data?.detail || e.message || 'Error al analizar'
-      setError(msg)
-      toast.error('No se pudo analizar la factura')
+      setError(e.message || 'Error al analizar')
+      toast('No se pudo analizar la factura', 'error')
     } finally { setAnalizando(false) }
   }
 
@@ -48,9 +49,9 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
     setDiagnosData(null)
     try {
       const r = await comprasApi.diagnosticoIA()
-      setDiagnosData(r.data)
+      setDiagnosData(r)
     } catch (e) {
-      toast.error('Error al hacer diagnóstico: ' + (e.response?.data?.detail || e.message))
+      toast('Error al hacer diagnóstico: ' + e.message, 'error')
     } finally { setDiagnosLoading(false) }
   }
 
@@ -74,7 +75,6 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
             Subí una foto o PDF de tu factura y la IA detectará automáticamente los productos, cantidades y precios.
           </p>
 
-          {/* Drop zone */}
           <div
             onClick={() => inputRef.current?.click()}
             onDragOver={e => e.preventDefault()}
@@ -94,9 +94,7 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
                 <div style={{ fontSize: 14, fontWeight: 500, color: archivo ? 'var(--gold-light)' : 'var(--text)' }}>
                   {archivo ? archivo.name : 'Hacé clic o arrastrá tu factura aquí'}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Formatos: JPG, PNG, PDF
-                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Formatos: JPG, PNG, PDF</div>
               </>
             )}
             <input ref={inputRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }}
@@ -109,7 +107,6 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
             </div>
           )}
 
-          {/* Error con detalle */}
           {error && (
             <div style={{ marginTop: 16, padding: 14, background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.3)', borderRadius: 10 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -119,43 +116,29 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{error}</div>
                 </div>
               </div>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={diagnostico}
-                disabled={diagnosLoading}
-                style={{ marginTop: 12, fontSize: 12 }}
-              >
+              <button className="btn btn-ghost btn-sm" onClick={diagnostico} disabled={diagnosLoading} style={{ marginTop: 12, fontSize: 12 }}>
                 {diagnosLoading ? '⏳ Verificando...' : '🔧 Diagnosticar problema'}
               </button>
             </div>
           )}
 
-          {/* Resultado diagnóstico */}
           {diagnosData && (
             <div style={{ marginTop: 12, padding: 14, background: 'var(--surface2)', borderRadius: 10, fontSize: 12 }}>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>
                 {diagnosData.estado === 'ok' ? '✅ Configuración OK' : '❌ Problema detectado'}
               </div>
-              {diagnosData.problema && (
-                <div style={{ color: 'var(--red)', marginBottom: 6 }}>{diagnosData.problema}</div>
-              )}
-              {diagnosData.solucion && (
-                <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>💡 {diagnosData.solucion}</div>
-              )}
+              {diagnosData.problema && <div style={{ color: 'var(--red)', marginBottom: 6 }}>{diagnosData.problema}</div>}
+              {diagnosData.solucion && <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>💡 {diagnosData.solucion}</div>}
               {diagnosData.api_key_preview && (
                 <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>
                   🔑 API Key: <code style={{ color: 'var(--gold-light)' }}>{diagnosData.api_key_preview}</code>
                 </div>
               )}
-              {diagnosData.modelos && (
-                <div>
-                  {diagnosData.modelos.map(m => (
-                    <div key={m.modelo} style={{ padding: '3px 0', color: 'var(--text-muted)' }}>
-                      <strong style={{ color: 'var(--text)' }}>{m.modelo}:</strong> {m.estado}
-                    </div>
-                  ))}
+              {diagnosData.modelos?.map(m => (
+                <div key={m.modelo} style={{ padding: '3px 0', color: 'var(--text-muted)' }}>
+                  <strong style={{ color: 'var(--text)' }}>{m.modelo}:</strong> {m.estado}
                 </div>
-              )}
+              ))}
               {diagnosData.conclusion && (
                 <div style={{ marginTop: 8, fontWeight: 600, color: diagnosData.estado === 'ok' ? 'var(--green)' : 'var(--red)' }}>
                   {diagnosData.conclusion}
@@ -175,9 +158,7 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
               <div style={{ width: 60, height: 4, background: 'var(--surface3)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{ width: `${(resultado.confianza || 0) * 100}%`, height: '100%', background: 'var(--green)', borderRadius: 2 }} />
               </div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {((resultado.confianza || 0) * 100).toFixed(0)}% confianza
-              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{((resultado.confianza || 0) * 100).toFixed(0)}% confianza</span>
             </div>
           </div>
 
@@ -206,7 +187,8 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
             </table>
           </div>
 
-          <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }} onClick={() => { setResultado(null); setArchivo(null); setPreview(null) }}>
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }}
+            onClick={() => { setResultado(null); setArchivo(null); setPreview(null) }}>
             ← Cargar otra factura
           </button>
         </div>
@@ -215,9 +197,10 @@ function ModalIAFactura({ onClose, onFacturaCargada }) {
   )
 }
 
-// ─── Modal: Registrar compra (con soporte para pre-llenado desde IA) ──────────
+// ─── Modal: Registrar compra ──────────────────────────────────────────────────
 
 function ModalCompra({ onClose, onSaved, datosIA }) {
+  const toast = useToast()
   const [sucursales, setSucursales] = useState([])
   const [productos, setProductos] = useState([])
   const [form, setForm] = useState({
@@ -240,10 +223,9 @@ function ModalCompra({ onClose, onSaved, datosIA }) {
 
   useEffect(() => {
     Promise.all([sucursalesApi.listar(), productosApi.listar()])
-      .then(([s, p]) => { setSucursales(s.data); setProductos(p.data) })
+      .then(([s, p]) => { setSucursales(s); setProductos(p) })
   }, [])
 
-  // Aplanar variantes para el select de matching
   const variantes = productos.flatMap(p =>
     (p.variantes || []).map(v => ({
       id: v.id,
@@ -254,16 +236,13 @@ function ModalCompra({ onClose, onSaved, datosIA }) {
   const addItem = () => setItems(v => [...v, { descripcion: '', cantidad: 1, costo_unitario: 0, variante_id: '' }])
   const rmItem = (i) => setItems(v => v.filter((_, idx) => idx !== i))
   const upItem = (i, f, val) => setItems(arr => arr.map((item, idx) => idx === i ? { ...item, [f]: val } : item))
-
   const total = items.reduce((a, i) => a + (Number(i.costo_unitario) || 0) * (Number(i.cantidad) || 0), 0)
 
   const submit = async () => {
-    if (!form.sucursal_id) return toast.error('Seleccioná una sucursal')
-    if (!items.length) return toast.error('Agregá al menos un ítem')
-    const itemsSinVariante = items.filter(i => !i.variante_id)
-    if (itemsSinVariante.length) {
-      return toast.error(`Asigná una variante a: ${itemsSinVariante.map(i => i.descripcion || 'ítem').join(', ')}`)
-    }
+    if (!form.sucursal_id) return toast('Seleccioná una sucursal', 'error')
+    if (!items.length) return toast('Agregá al menos un ítem', 'error')
+    const sinVariante = items.filter(i => !i.variante_id)
+    if (sinVariante.length) return toast(`Asigná una variante a: ${sinVariante.map(i => i.descripcion || 'ítem').join(', ')}`, 'error')
     setLoading(true)
     try {
       await comprasApi.crear({
@@ -275,9 +254,9 @@ function ModalCompra({ onClose, onSaved, datosIA }) {
           costo_unitario: Number(i.costo_unitario)
         }))
       })
-      toast.success('Compra registrada y stock actualizado ✓')
+      toast('Compra registrada y stock actualizado ✓')
       onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error al registrar') } finally { setLoading(false) }
+    } catch (e) { toast(e.message || 'Error al registrar', 'error') } finally { setLoading(false) }
   }
 
   return (
@@ -330,20 +309,16 @@ function ModalCompra({ onClose, onSaved, datosIA }) {
         <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, marginBottom: 10 }}>
           <div className="grid-2" style={{ marginBottom: 8 }}>
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="input-label">Descripción (de la factura)</label>
-              <input className="input" value={item.descripcion}
-                onChange={e => upItem(i, 'descripcion', e.target.value)}
-                placeholder="Nombre como aparece en la factura" />
+              <label className="input-label">Descripción</label>
+              <input className="input" value={item.descripcion} onChange={e => upItem(i, 'descripcion', e.target.value)} placeholder="Nombre en la factura" />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="input-label">
-                Variante del sistema
-                {!item.variante_id && <span style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
+                Variante del sistema {!item.variante_id && <span style={{ color: 'var(--red)' }}>*</span>}
               </label>
-              <select className="input" value={item.variante_id}
-                onChange={e => upItem(i, 'variante_id', e.target.value)}
+              <select className="input" value={item.variante_id} onChange={e => upItem(i, 'variante_id', e.target.value)}
                 style={{ borderColor: !item.variante_id ? 'rgba(220,60,60,0.5)' : '' }}>
-                <option value="">— Seleccionar variante —</option>
+                <option value="">— Seleccionar —</option>
                 {variantes.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
               </select>
             </div>
@@ -351,17 +326,13 @@ function ModalCompra({ onClose, onSaved, datosIA }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="input-label">Cantidad</label>
-              <input className="input" type="number" min="1" value={item.cantidad}
-                onChange={e => upItem(i, 'cantidad', e.target.value)} />
+              <input className="input" type="number" min="1" value={item.cantidad} onChange={e => upItem(i, 'cantidad', e.target.value)} />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="input-label">Costo unitario $</label>
-              <input className="input" type="number" min="0" value={item.costo_unitario}
-                onChange={e => upItem(i, 'costo_unitario', e.target.value)} />
+              <input className="input" type="number" min="0" value={item.costo_unitario} onChange={e => upItem(i, 'costo_unitario', e.target.value)} />
             </div>
-            {items.length > 1 && (
-              <button className="btn btn-danger btn-sm" onClick={() => rmItem(i)}>✕</button>
-            )}
+            {items.length > 1 && <button className="btn btn-danger btn-sm" onClick={() => rmItem(i)}>✕</button>}
           </div>
           <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
             Subtotal: <strong style={{ color: 'var(--gold-light)' }}>{formatARS(item.costo_unitario * item.cantidad)}</strong>
@@ -379,6 +350,7 @@ function ModalCompra({ onClose, onSaved, datosIA }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function Compras() {
+  const toast = useToast()
   const [compras, setCompras] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
@@ -386,12 +358,18 @@ export default function Compras() {
   const [datosIA, setDatosIA] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
-  const cargar = () => { setLoading(true); comprasApi.listar().then(r => setCompras(r.data)).finally(() => setLoading(false)) }
+  const cargar = () => {
+    setLoading(true)
+    comprasApi.listar().then(r => setCompras(r)).finally(() => setLoading(false))
+  }
   useEffect(() => { cargar() }, [])
 
-  const eliminar = async (id) => { await comprasApi.eliminar(id); toast.success('Eliminada, stock revertido'); cargar() }
+  const eliminar = async (id) => {
+    await comprasApi.eliminar(id)
+    toast('Eliminada, stock revertido')
+    cargar()
+  }
 
-  // Cuando la IA detecta los ítems, cierra el modal IA y abre directamente el modal de compra pre-llenado
   const handleFacturaCargada = (resultado) => {
     setDatosIA(resultado)
     setModal(true)
@@ -409,14 +387,13 @@ export default function Compras() {
     </div>
 
     <div className="page-content">
-      {/* Banner IA */}
       <div className="card" style={{ marginBottom: 20, borderColor: 'rgba(201,168,76,0.2)', background: 'rgba(201,168,76,0.04)' }}>
         <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '16px 20px' }}>
           <div style={{ fontSize: 32 }}>🤖</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Carga inteligente de facturas</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              Subí una foto o PDF de tu factura — la IA detecta los productos y los carga automáticamente. Solo tenés que asignar la variante y confirmar.
+              Subí una foto o PDF de tu factura — la IA detecta los productos y los carga automáticamente.
             </div>
           </div>
           <button className="btn btn-primary" onClick={() => setModalIA(true)}>Subir factura</button>
@@ -433,7 +410,8 @@ export default function Compras() {
               <td style={{ color: 'var(--text-muted)' }}>#{c.sucursal_id}</td>
               <td><Chip color={METODO_PAGO_COLOR[c.metodo_pago]}>{METODO_PAGO_LABEL[c.metodo_pago]}</Chip></td>
               <td><strong>{formatARS(c.total)}</strong></td>
-              <td><button className="btn btn-danger btn-xs" onClick={() => setConfirm({ msg: `¿Eliminar compra? Se revertirá el stock.`, fn: () => eliminar(c.id) })}>✕</button></td>
+              <td><button className="btn btn-danger btn-xs"
+                onClick={() => setConfirm({ msg: '¿Eliminar compra? Se revertirá el stock.', fn: () => eliminar(c.id) })}>✕</button></td>
             </tr>
           ))}</tbody>
         </table></div></div>

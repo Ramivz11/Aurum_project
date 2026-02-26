@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { sucursalesApi, stockApi } from '../api/services'
+import { sucursalesApi, stockApi } from '../api'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS } from '../components/ui'
 import { useToast } from '../components/Toast'
 
