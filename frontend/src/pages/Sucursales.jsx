@@ -228,8 +228,12 @@ export function Sucursales() {
     setLoading(true)
     try {
       const r = await sucursalesApi.comparacion()
-      setComparacion(Array.isArray(r.data) ? r.data : [])    } catch { toast('Error al cargar sucursales', 'error') } finally { setLoading(false) }
-  }
+      setComparacion(Array.isArray(r) ? r : [])
+    } catch {
+      toast('Error al cargar sucursales', 'error')
+    } finally {
+      setLoading(false)
+    }}
 
   useEffect(() => { cargar() }, [])
 
