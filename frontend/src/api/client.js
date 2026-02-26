@@ -1,5 +1,4 @@
-const BASE_URL = 'https://vivacious-truth-production-b827.up.railway.app'
-
+const BASE_URL = import.meta.env.VITE_API_URL || '/api'
 function buildUrl(path, params) {
   if (!params || Object.keys(params).length === 0) return `${BASE_URL}${path}`
   const filtered = Object.fromEntries(
