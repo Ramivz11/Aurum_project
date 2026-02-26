@@ -130,7 +130,6 @@ Reglas:
 
 GEMINI_MODELS = [
     "gemini-1.5-flash",       # Mas estable y economico para OCR
-    "gemini-2.0-flash-exp",   # Experimental, puede ser inestable
 ]
 
 
