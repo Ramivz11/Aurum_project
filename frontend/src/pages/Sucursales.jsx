@@ -228,7 +228,7 @@ export function Sucursales() {
     setLoading(true)
     try {
       const r = await sucursalesApi.comparacion()
-      setComparacion(r.data)
+      setComparacion(Array.isArray(r.data) ? r.data : [])
     } catch { toast('Error al cargar sucursales', 'error') } finally { setLoading(false) }
   }
 
@@ -256,7 +256,9 @@ export function Sucursales() {
           <button className="btn btn-primary" onClick={() => setModal('nueva')}>+ Crear primera sucursal</button>
         } />
       ) : (
-        comparacion.map(data => (
+        comparacion
+          .filter(data => data?.sucursal?.id)
+          .map(data => (
           <SucursalCard
             key={data.sucursal.id}
             data={data}
