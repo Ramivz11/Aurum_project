@@ -1,255 +1,285 @@
 import { useState, useEffect } from 'react'
-import { sucursalesApi, deudasApi } from '../api'
-import { useToast } from '../components/Toast'
-import { useSucursal } from '../context/SucursalContext'
+import toast from 'react-hot-toast'
+import { sucursalesApi, stockApi } from '../api/services'
+import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS } from '../components/ui'
 
-const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
-
-function ModalDeuda({ onClose, onSaved }) {
-  const toast = useToast()
-  const [form, setForm] = useState({ tipo: 'por_cobrar', cliente_proveedor: '', monto: '', concepto: '', notas: '' })
-  const [saving, setSaving] = useState(false)
-  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  const save = async () => {
-    if (!form.cliente_proveedor || !form.monto) return toast('Completá los campos obligatorios', 'error')
-    setSaving(true)
-    try {
-      await deudasApi.crear({ ...form, monto: parseFloat(form.monto) })
-      toast('Deuda registrada')
-      onSaved()
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
-  }
-
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">Nueva deuda</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="form-group">
-            <label className="form-label">Tipo</label>
-            <select className="form-select" value={form.tipo} onChange={e => setF('tipo', e.target.value)}>
-              <option value="por_cobrar">Por cobrar</option>
-              <option value="por_pagar">Por pagar</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Cliente / Proveedor *</label>
-            <input className="form-input" value={form.cliente_proveedor} onChange={e => setF('cliente_proveedor', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Monto ($) *</label>
-            <input className="form-input" type="number" value={form.monto} onChange={e => setF('monto', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Concepto</label>
-            <input className="form-input" value={form.concepto} onChange={e => setF('concepto', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Notas</label>
-            <textarea className="form-textarea" value={form.notas} onChange={e => setF('notas', e.target.value)} />
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
+// ─── Modal crear/editar sucursal ──────────────────────────────────────────────
 function ModalSucursal({ sucursal, onClose, onSaved }) {
-  const toast = useToast()
   const [nombre, setNombre] = useState(sucursal?.nombre || '')
-  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const save = async () => {
-    if (!nombre.trim()) return toast('El nombre es obligatorio', 'error')
-    setSaving(true)
+  const guardar = async () => {
+    if (!nombre.trim()) return toast.error('El nombre es obligatorio')
+    setLoading(true)
     try {
       if (sucursal) {
         await sucursalesApi.actualizar(sucursal.id, { nombre: nombre.trim() })
-        toast('Sucursal actualizada')
+        toast.success('Sucursal actualizada')
       } else {
         await sucursalesApi.crear({ nombre: nombre.trim() })
-        toast('Sucursal creada')
+        toast.success('Sucursal creada')
       }
       onSaved()
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
+      onClose()
+    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">{sucursal ? 'Editar sucursal' : 'Nueva sucursal'}</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="form-group">
-            <label className="form-label">Nombre *</label>
-            <input className="form-input" value={nombre} onChange={e => setNombre(e.target.value)}
-              placeholder="Ej: Centro, Norte, Sur..." onKeyDown={e => e.key === 'Enter' && save()} autoFocus />
+    <Modal
+      title={sucursal ? 'Editar sucursal' : 'Nueva sucursal'}
+      onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary" onClick={guardar} disabled={loading}>
+          {loading ? 'Guardando...' : 'Guardar'}
+        </button>
+      </>}
+    >
+      <div className="form-group">
+        <label className="input-label">Nombre *</label>
+        <input
+          className="input"
+          value={nombre}
+          onChange={e => setNombre(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && guardar()}
+          placeholder="Ej: Centro, Norte, Depósito..."
+          autoFocus
+        />
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Card de sucursal con dashboard ──────────────────────────────────────────
+function SucursalCard({ data, onEdit, onEliminar }) {
+  const { sucursal, ventas_total, ticket_promedio, unidades_vendidas, porcentaje_del_total, rentabilidad } = data
+  const [stockOpen, setStockOpen] = useState(false)
+  const [stock, setStock] = useState([])
+  const [loadingStock, setLoadingStock] = useState(false)
+  const [stockTotal, setStockTotal] = useState(null) // stock global para % por sucursal
+
+  const toggleStock = async () => {
+    if (stockOpen) { setStockOpen(false); return }
+    setLoadingStock(true)
+    try {
+      const [sucRes, globalRes] = await Promise.all([
+        stockApi.listar({ sucursal_id: sucursal.id }),
+        stockApi.listar(),
+      ])
+      setStock(sucRes.data || [])
+      const totalGlobal = (globalRes.data || []).reduce((a, p) =>
+        a + (p.variantes?.reduce((b, v) => b + (v.stock_actual || 0), 0) || 0), 0)
+      const totalSuc = (sucRes.data || []).reduce((a, p) =>
+        a + (p.variantes?.reduce((b, v) => b + (v.stock_actual || 0), 0) || 0), 0)
+      setStockTotal({ global: totalGlobal, sucursal: totalSuc })
+      setStockOpen(true)
+    } catch { toast.error('Error al cargar stock') } finally { setLoadingStock(false) }
+  }
+
+  const margen = ventas_total > 0 ? ((Number(rentabilidad) / Number(ventas_total)) * 100).toFixed(1) : 0
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      {/* Header */}
+      <div className="card-header" style={{ paddingBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 22 }}>🏪</span>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16 }}>{sucursal.nombre}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sucursal activa</div>
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-ghost btn-xs" onClick={() => onEdit(sucursal)}>✎ Editar</button>
+          <button className="btn btn-danger btn-xs" onClick={() => onEliminar(sucursal)}>✕</button>
         </div>
+      </div>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px' }}>
+        <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Ventas del mes</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, color: 'var(--gold-light)' }}>{formatARS(ventas_total)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{unidades_vendidas} unidades</div>
+        </div>
+        <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Ticket promedio</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17 }}>{formatARS(ticket_promedio)}</div>
+        </div>
+        <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Rentabilidad</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, color: Number(rentabilidad) > 0 ? 'var(--green)' : 'var(--red)' }}>
+            {formatARS(rentabilidad)}
+          </div>
+          <div style={{ fontSize: 11, color: Number(margen) > 30 ? 'var(--green)' : 'var(--text-muted)', marginTop: 3 }}>{margen}% margen</div>
+        </div>
+        <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>% del total</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, color: 'var(--gold-light)' }}>{porcentaje_del_total}%</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>de las ventas globales</div>
+        </div>
+      </div>
+
+      {/* Barra de % ventas */}
+      {porcentaje_del_total > 0 && (
+        <div style={{ padding: '0 20px 14px' }}>
+          <div style={{ height: 6, background: 'var(--surface3)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.min(100, porcentaje_del_total)}%`, height: '100%', background: 'var(--gold)', borderRadius: 3, transition: 'width 0.6s ease' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Botón stock */}
+      <div style={{ padding: '0 20px 16px' }}>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={toggleStock}
+          disabled={loadingStock}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          {loadingStock ? '⏳' : stockOpen ? '▾' : '▸'}
+          {loadingStock ? 'Cargando stock...' : stockOpen ? 'Ocultar stock' : `Ver stock de ${sucursal.nombre}`}
+        </button>
+
+        {/* Panel de stock desplegable */}
+        {stockOpen && (
+          <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+            {/* % del stock total */}
+            {stockTotal && (
+              <div style={{ padding: '12px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                    Stock en esta sucursal: <strong style={{ color: 'var(--text)' }}>{stockTotal.sucursal} uds</strong>
+                    {' '}de {stockTotal.global} totales
+                  </div>
+                  <div style={{ height: 5, background: 'var(--surface3)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${stockTotal.global > 0 ? Math.min(100, (stockTotal.sucursal / stockTotal.global) * 100) : 0}%`,
+                      height: '100%', background: 'var(--gold)', borderRadius: 3
+                    }} />
+                  </div>
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--gold-light)' }}>
+                  {stockTotal.global > 0 ? ((stockTotal.sucursal / stockTotal.global) * 100).toFixed(1) : 0}%
+                </div>
+              </div>
+            )}
+
+            {/* Lista de productos */}
+            {stock.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                Sin stock registrado en esta sucursal
+              </div>
+            ) : (
+              <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ padding: '8px 14px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>PRODUCTO</th>
+                      <th style={{ padding: '8px 14px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>VARIANTE</th>
+                      <th style={{ padding: '8px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>STOCK</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stock.flatMap(p =>
+                      (p.variantes || []).map(v => (
+                        <tr key={v.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '10px 14px', fontSize: 13 }}>
+                            <div style={{ fontWeight: 500 }}>{p.nombre}</div>
+                            {p.marca && <div style={{ fontSize: 11, color: 'var(--gold-light)' }}>{p.marca}</div>}
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+                            {[v.sabor, v.tamanio].filter(Boolean).join(' · ') || '—'}
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                            <span style={{
+                              fontWeight: 700,
+                              color: v.stock_actual <= (v.stock_minimo || 0) ? 'var(--red)' : 'var(--text)'
+                            }}>{v.stock_actual}</span>
+                            {v.stock_actual <= (v.stock_minimo || 0) && (
+                              <span style={{ fontSize: 10, color: 'var(--red)', marginLeft: 4 }}>⚠ bajo</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
+// ─── Página principal ─────────────────────────────────────────────────────────
 export function Sucursales() {
-  const toast = useToast()
-  const { sucursales, cargarSucursales } = useSucursal()
   const [comparacion, setComparacion] = useState([])
-  const [deudas, setDeudas] = useState([])
-  const [resumenDeudas, setResumenDeudas] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modalDeuda, setModalDeuda] = useState(false)
-  const [modalSucursal, setModalSucursal] = useState(null) // null | 'nuevo' | sucursal
+  const [modal, setModal] = useState(null)   // null | 'nueva' | sucursal object
+  const [confirm, setConfirm] = useState(null)
 
-  const cargar = () => {
+  const cargar = async () => {
     setLoading(true)
-    Promise.all([sucursalesApi.comparacion(), deudasApi.listar(), deudasApi.resumen()])
-      .then(([c, d, r]) => { setComparacion(c); setDeudas(d); setResumenDeudas(r) })
-      .finally(() => setLoading(false))
+    try {
+      const r = await sucursalesApi.comparacion()
+      setComparacion(r.data)
+    } catch { toast.error('Error al cargar sucursales') } finally { setLoading(false) }
   }
 
   useEffect(() => { cargar() }, [])
 
-  const saldar = async (id) => {
-    try { await deudasApi.saldar(id); toast('Deuda saldada'); cargar() }
-    catch (e) { toast(e.message, 'error') }
-  }
-
-  const eliminarDeuda = async (id) => {
-    if (!confirm('¿Eliminar esta deuda?')) return
-    try { await deudasApi.eliminar(id); toast('Deuda eliminada'); cargar() }
-    catch (e) { toast(e.message, 'error') }
-  }
-
-  const eliminarSucursal = async (s) => {
-    if (!confirm(`¿Eliminar "${s.nombre}"? Esta acción no se puede deshacer.`)) return
+  const eliminar = async (sucursal) => {
     try {
-      await sucursalesApi.eliminar(s.id)
-      toast('Sucursal eliminada')
-      cargarSucursales()
+      await sucursalesApi.eliminar(sucursal.id)
+      toast.success('Sucursal eliminada')
       cargar()
-    } catch (e) { toast(e.message, 'error') }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Error') }
   }
 
-  return (
-    <>
-      <div className="topbar">
-        <div className="page-title">Sucursales</div>
-        <div className="topbar-actions">
-          <button className="btn btn-ghost" onClick={() => setModalSucursal('nuevo')}>+ Nueva sucursal</button>
-          <button className="btn btn-primary" onClick={() => setModalDeuda(true)}>+ Nueva deuda</button>
-        </div>
+  return (<>
+    <div className="topbar">
+      <div className="page-title">Sucursales</div>
+      <div className="topbar-actions">
+        <button className="btn btn-primary" onClick={() => setModal('nueva')}>+ Nueva sucursal</button>
       </div>
-      <div className="content page-enter">
+    </div>
 
-        {/* Gestión de sucursales */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><span className="card-title">Gestión de sucursales</span></div>
-          <div style={{ padding: '16px 20px' }}>
-            {sucursales.length === 0 ? (
-              <div className="empty">No hay sucursales. ¡Creá la primera!</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {sucursales.map(s => (
-                  <div key={s.id} style={{
-                    background: 'var(--surface2)', borderRadius: 10, padding: '12px 16px',
-                    display: 'flex', alignItems: 'center', gap: 12, border: '1px solid var(--border)', minWidth: 180
-                  }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontWeight: 500, fontSize: 14 }}>{s.nombre}</span>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setModalSucursal(s)} style={{ padding: '4px 8px' }}>✎</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => eliminarSucursal(s)} style={{ padding: '4px 8px' }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Comparación */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><span className="card-title">Comparación — mes actual</span></div>
-          <div style={{ padding: '16px 20px' }}>
-            {loading ? <div className="loading">Cargando...</div> : comparacion.length === 0 ? <div className="empty">Sin datos</div> : comparacion.map((s, i) => (
-              <div className="suc-card" key={s.sucursal.id}>
-                <div className={`suc-rank${i === 0 ? ' first' : ''}`}>{i + 1}</div>
-                <div className="suc-details">
-                  <div className="suc-name">{s.sucursal.nombre}</div>
-                  <div className="suc-metrics">
-                    <div><div className="suc-metric-val" style={{ color: i === 0 ? 'var(--gold-light)' : 'inherit' }}>{fmt(s.ventas_total)}</div><div className="suc-metric-label">Ventas</div></div>
-                    <div><div className="suc-metric-val">{fmt(s.ticket_promedio)}</div><div className="suc-metric-label">Ticket prom.</div></div>
-                    <div><div className="suc-metric-val">{s.unidades_vendidas}</div><div className="suc-metric-label">Unidades</div></div>
-                    <div><div className="suc-metric-val" style={{ color: 'var(--green)' }}>{fmt(s.rentabilidad)}</div><div className="suc-metric-label">Rentabilidad</div></div>
-                    <div><div className="suc-metric-val">{s.porcentaje_del_total}%</div><div className="suc-metric-label">% del total</div></div>
-                  </div>
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${s.porcentaje_del_total}%`, background: i === 0 ? 'var(--gold)' : i === 1 ? 'var(--blue)' : 'var(--text-dim)' }} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Deudas */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Gestión de deudas</span>
-            {resumenDeudas && (
-              <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-                <span style={{ color: 'var(--green)' }}>↑ Por cobrar: <strong>{fmt(resumenDeudas.por_cobrar)}</strong></span>
-                <span style={{ color: 'var(--red)' }}>↓ Por pagar: <strong>{fmt(resumenDeudas.por_pagar)}</strong></span>
-              </div>
-            )}
-          </div>
-          {deudas.length === 0 ? <div className="empty">Sin deudas pendientes</div> : (
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Tipo</th><th>Cliente/Proveedor</th><th>Monto</th><th>Concepto</th><th></th></tr></thead>
-                <tbody>
-                  {deudas.map(d => (
-                    <tr key={d.id}>
-                      <td><span className={`chip ${d.tipo === 'por_cobrar' ? 'chip-green' : 'chip-red'}`}>{d.tipo === 'por_cobrar' ? 'Por cobrar' : 'Por pagar'}</span></td>
-                      <td><strong>{d.cliente_proveedor}</strong></td>
-                      <td><strong>{fmt(d.monto)}</strong></td>
-                      <td style={{ color: 'var(--text-muted)' }}>{d.concepto || '—'}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => saldar(d.id)}>Saldar</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => eliminarDeuda(d.id)}>✕</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {modalDeuda && <ModalDeuda onClose={() => setModalDeuda(false)} onSaved={() => { setModalDeuda(false); cargar() }} />}
-      {modalSucursal && (
-        <ModalSucursal
-          sucursal={modalSucursal === 'nuevo' ? null : modalSucursal}
-          onClose={() => setModalSucursal(null)}
-          onSaved={() => { setModalSucursal(null); cargarSucursales(); cargar() }}
-        />
+    <div className="page-content">
+      {loading ? <Loading /> : comparacion.length === 0 ? (
+        <EmptyState icon="🏪" text="No hay sucursales activas." action={
+          <button className="btn btn-primary" onClick={() => setModal('nueva')}>+ Crear primera sucursal</button>
+        } />
+      ) : (
+        comparacion.map(data => (
+          <SucursalCard
+            key={data.sucursal.id}
+            data={data}
+            onEdit={(s) => setModal(s)}
+            onEliminar={(s) => setConfirm({
+              msg: `¿Desactivar "${s.nombre}"? No se eliminarán sus datos históricos.`,
+              fn: () => eliminar(s)
+            })}
+          />
+        ))
       )}
-    </>
-  )
+    </div>
+
+    {modal && (
+      <ModalSucursal
+        sucursal={modal === 'nueva' ? null : modal}
+        onClose={() => setModal(null)}
+        onSaved={cargar}
+      />
+    )}
+    {confirm && (
+      <ConfirmDialog
+        message={confirm.msg}
+        onConfirm={() => { confirm.fn(); setConfirm(null) }}
+        onCancel={() => setConfirm(null)}
+      />
+    )}
+  </>)
 }
