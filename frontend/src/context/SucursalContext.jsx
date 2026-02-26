@@ -8,7 +8,8 @@ export function SucursalProvider({ children }) {
   const [sucursalActual, setSucursalActual] = useState(null)
 
   const cargarSucursales = () => {
-    sucursalesApi.listar().then(d => {
+    sucursalesApi.listar().then(r => {
+      const d = r.data || []
       setSucursales(d)
       setSucursalActual(prev => {
         if (prev) {

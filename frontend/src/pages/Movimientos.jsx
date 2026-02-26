@@ -14,7 +14,7 @@ export function Movimientos() {
   useEffect(() => {
     setLoading(true)
     Promise.all([movimientosApi.ventas(), movimientosApi.compras(), movimientosApi.resumen()])
-      .then(([v, c, r]) => { setVentas(v); setCompras(c); setResumen(r) })
+      .then(([v, c, r]) => { setVentas(v.data || []); setCompras(c.data || []); setResumen(r.data) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -47,7 +47,17 @@ export function Movimientos() {
             </div>
             <div className="stat-card">
               <div className="stat-label">Producto más vendido</div>
-              <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_mas_vendido || '—'}</div>
+              {resumen.producto_top ? (
+                <div style={{ marginTop: 4 }}>
+                  <div className="stat-value" style={{ fontSize: 15 }}>{resumen.producto_top.nombre}</div>
+                  {resumen.producto_top.marca && <div style={{ fontSize: 12, color: 'var(--gold-light)', marginTop: 2 }}>{resumen.producto_top.marca}</div>}
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {[resumen.producto_top.variante, resumen.producto_top.tamanio].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+              ) : (
+                <div className="stat-value" style={{ fontSize: 16 }}>{resumen.producto_mas_vendido || '—'}</div>
+              )}
             </div>
           </div>
         )}
@@ -63,7 +73,7 @@ export function Movimientos() {
                     <tr key={`${m._tipo}-${m.id}-${i}`}>
                       <td><span className={`chip ${m._tipo === 'venta' ? 'chip-green' : 'chip-red'}`}>{m._tipo === 'venta' ? '↑ Venta' : '↓ Compra'}</span></td>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{m.cliente_id ? `Cliente #${m.cliente_id}` : m.proveedor || '—'}</td>
+                      <td>{m.cliente_nombre || (m.cliente_id ? `Cliente #${m.cliente_id}` : m.proveedor || '—')}</td>
                       <td><span className={`chip ${CHIP[m.metodo_pago]}`}>{m.metodo_pago}</span></td>
                       <td><strong>{fmt(m.total)}</strong></td>
                     </tr>
