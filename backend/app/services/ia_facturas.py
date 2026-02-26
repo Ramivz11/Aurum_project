@@ -1,7 +1,10 @@
 import asyncio
 import json
-from decimal import Decimal
+import re
+from decimal import Decimal, InvalidOperation
+from typing import Optional
 
+from pydantic import BaseModel, Field, field_validator
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError, ClientError
@@ -10,11 +13,99 @@ from app.config import settings
 from app.schemas import FacturaIAResponse, FacturaItemIA
 
 
-PROMPT_FACTURA = """
-Analizá esta factura o remito de compra de suplementos deportivos.
-Extraé todos los productos con sus cantidades y precios unitarios.
+# ─── Modelos Pydantic para validar la respuesta de Gemini ────────────────────
 
-Respondé ÚNICAMENTE con un JSON válido con este formato exacto, sin texto adicional, sin bloques de código:
+class _ItemFacturaIA(BaseModel):
+    descripcion: str = "Producto sin nombre"
+    cantidad: int = Field(default=1, ge=1)
+    precio_unitario: Decimal = Decimal("0")
+
+    @field_validator("descripcion", mode="before")
+    @classmethod
+    def limpiar_descripcion(cls, v):
+        return str(v).strip() if v else "Producto sin nombre"
+
+    @field_validator("cantidad", mode="before")
+    @classmethod
+    def coerce_cantidad(cls, v):
+        try:
+            return max(1, int(float(str(v))))
+        except (ValueError, TypeError):
+            return 1
+
+    @field_validator("precio_unitario", mode="before")
+    @classmethod
+    def coerce_precio(cls, v):
+        """
+        Maneja todos los formatos de precio que puede devolver la IA:
+          - 15000         -> 15000
+          - 15000.00      -> 15000.00
+          - "15.000,50"   -> 15000.50  (formato ARS: punto de miles, coma decimal)
+          - "15,000.50"   -> 15000.50  (formato ingles)
+          - "$15.000"     -> 15000
+          - None / ""     -> 0
+        """
+        if v is None or v == "":
+            return Decimal("0")
+        texto = str(v).strip().replace("$", "").replace(" ", "")
+        # Formato argentino: punto como miles, coma como decimal -> "15.000,50"
+        if re.match(r"^\d{1,3}(\.\d{3})+(,\d+)?$", texto):
+            texto = texto.replace(".", "").replace(",", ".")
+        # Coma como decimal sin puntos de miles -> "15000,50"
+        elif re.match(r"^\d+(,\d{1,2})$", texto):
+            texto = texto.replace(",", ".")
+        try:
+            result = Decimal(texto)
+            return result if result >= 0 else Decimal("0")
+        except InvalidOperation:
+            return Decimal("0")
+
+
+class _RespuestaFacturaIA(BaseModel):
+    items: list[_ItemFacturaIA] = []
+    proveedor: Optional[str] = None
+    total: Optional[Decimal] = None
+    confianza: float = 0.5
+
+    @field_validator("confianza", mode="before")
+    @classmethod
+    def clamp_confianza(cls, v):
+        try:
+            return max(0.0, min(1.0, float(v)))
+        except (ValueError, TypeError):
+            return 0.5
+
+    @field_validator("total", mode="before")
+    @classmethod
+    def coerce_total(cls, v):
+        if not v:
+            return None
+        texto = str(v).strip().replace("$", "").replace(" ", "")
+        if re.match(r"^\d{1,3}(\.\d{3})+(,\d+)?$", texto):
+            texto = texto.replace(".", "").replace(",", ".")
+        elif re.match(r"^\d+(,\d{1,2})$", texto):
+            texto = texto.replace(",", ".")
+        try:
+            result = Decimal(texto)
+            return result if result > 0 else None
+        except InvalidOperation:
+            return None
+
+    @field_validator("proveedor", mode="before")
+    @classmethod
+    def limpiar_proveedor(cls, v):
+        if not v or str(v).lower() in ("null", "none", ""):
+            return None
+        return str(v).strip()
+
+
+# ─── Prompt ───────────────────────────────────────────────────────────────────
+
+PROMPT_FACTURA = """
+Analiza esta factura o remito de compra de suplementos deportivos.
+Extrae todos los productos con sus cantidades y precios unitarios.
+
+Devuelve un JSON con este formato:
 {
   "items": [
     {
@@ -30,101 +121,64 @@ Respondé ÚNICAMENTE con un JSON válido con este formato exacto, sin texto adi
 
 Reglas:
 - cantidad siempre es entero positivo
-- precio_unitario siempre en ARS (pesos argentinos), sin símbolo $, puede ser 0 si no se ve
-- confianza entre 0 y 1 según qué tan legible está la factura
-- Si no podés leer un dato, usá 0 para el precio o 1 para la cantidad
-- NO incluyas texto antes ni después del JSON
+- precio_unitario en ARS (pesos argentinos), como numero sin simbolo $
+- confianza entre 0 y 1 segun que tan legible esta la factura
+- Si no podes leer un dato, usa 0 para el precio o 1 para la cantidad
 """
 
-# Modelos en orden de preferencia — todos soportan visión multimodal
+# ─── Modelos Gemini ───────────────────────────────────────────────────────────
+
 GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-1.5-pro",
+    "gemini-1.5-flash",       # Mas estable y economico para OCR
+    "gemini-2.0-flash-exp",   # Experimental, puede ser inestable
 ]
 
 
-def _limpiar_json(texto: str) -> str:
-    """Limpia markdown y extrae JSON puro."""
-    texto = texto.strip()
-    if "```" in texto:
-        partes = texto.split("```")
-        for parte in partes:
-            parte = parte.strip()
-            if parte.startswith("json"):
-                parte = parte[4:].strip()
-            if parte.startswith("{") and parte.endswith("}"):
-                return parte
-        if len(partes) > 1:
-            parte = partes[1].strip()
-            if parte.startswith("json"):
-                parte = parte[4:].strip()
-            return parte
-    if texto.startswith("{"):
-        return texto
-    inicio = texto.find("{")
-    fin = texto.rfind("}")
-    if inicio != -1 and fin != -1 and fin > inicio:
-        return texto[inicio:fin+1]
-    return texto
-
+# ─── Parseo con Pydantic ──────────────────────────────────────────────────────
 
 def _parsear_resultado(texto: str, model: str) -> FacturaIAResponse:
-    """Parsea el JSON devuelto por Gemini y lo convierte en FacturaIAResponse."""
-    texto_limpio = _limpiar_json(texto)
     try:
-        datos = json.loads(texto_limpio)
+        datos = json.loads(texto)
     except json.JSONDecodeError as e:
         raise Exception(
-            f"La IA no devolvió JSON válido ({model}): {str(e)}. "
-            f"Respuesta: {texto_limpio[:300]}"
+            f"JSON invalido ({model}): {e}. Respuesta: {texto[:300]}"
         )
 
-    items = []
-    for item in datos.get("items", []):
-        cantidad = item.get("cantidad", 1)
-        precio = item.get("precio_unitario", 0)
-        try:
-            cantidad = max(1, int(float(str(cantidad))))
-            precio = Decimal(str(precio)) if precio else Decimal("0")
-        except Exception:
-            cantidad = 1
-            precio = Decimal("0")
-
-        items.append(FacturaItemIA(
-            descripcion=item.get("descripcion") or "Producto sin nombre",
-            cantidad=cantidad,
-            costo_unitario=precio,
-        ))
-
-    if not items:
+    try:
+        parsed = _RespuestaFacturaIA.model_validate(datos)
+    except Exception as e:
         raise Exception(
-            "La IA no detectó ningún producto. "
-            "Intentá con una imagen más clara o mejor iluminada."
+            f"Error validando estructura de la respuesta ({model}): {e}"
         )
 
-    total = None
-    if datos.get("total"):
-        try:
-            total = Decimal(str(datos["total"]))
-        except Exception:
-            pass
+    if not parsed.items:
+        raise Exception(
+            "La IA no detecto ningun producto. "
+            "Intenta con una imagen mas clara o mejor iluminada."
+        )
 
     return FacturaIAResponse(
-        items_detectados=items,
-        proveedor_detectado=datos.get("proveedor"),
-        total_detectado=total,
-        confianza=float(datos.get("confianza", 0.5)),
+        items_detectados=[
+            FacturaItemIA(
+                descripcion=item.descripcion,
+                cantidad=item.cantidad,
+                costo_unitario=item.precio_unitario,
+            )
+            for item in parsed.items
+        ],
+        proveedor_detectado=parsed.proveedor,
+        total_detectado=parsed.total,
+        confianza=parsed.confianza,
     )
 
+
+# ─── Función principal ────────────────────────────────────────────────────────
 
 async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> FacturaIAResponse:
     if not settings.GEMINI_API_KEY:
         raise Exception(
             "GEMINI_API_KEY no configurada. "
-            "Agregá la variable de entorno GEMINI_API_KEY en Railway con tu clave de Google AI Studio."
+            "Agrega la variable de entorno GEMINI_API_KEY en Railway con tu clave de Google AI Studio."
         )
 
     mime_map = {
@@ -143,7 +197,6 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
 
     for i, model in enumerate(GEMINI_MODELS):
         try:
-            # Si el modelo anterior devolvió rate limit, esperar antes de reintentar
             if hubo_rate_limit and i > 0:
                 await asyncio.sleep(5)
 
@@ -156,6 +209,7 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
                 config=types.GenerateContentConfig(
                     temperature=0.1,
                     max_output_tokens=2000,
+                    response_mime_type="application/json",
                 ),
             )
 
@@ -164,43 +218,38 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
                 block = getattr(feedback, "block_reason", None) if feedback else None
                 if block:
                     raise Exception(
-                        f"La solicitud fue bloqueada por Gemini: {block}. "
-                        "Intentá con una imagen más clara."
+                        f"Solicitud bloqueada por Gemini: {block}. "
+                        "Intenta con una imagen mas clara."
                     )
-                raise Exception("Gemini no devolvió respuesta. Intentá de nuevo.")
+                raise Exception("Gemini no devolvio respuesta. Intenta de nuevo.")
 
             candidate = response.candidates[0]
             finish = getattr(candidate, "finish_reason", None)
             if finish and str(finish) == "SAFETY":
                 raise Exception(
                     "La imagen fue bloqueada por filtros de seguridad. "
-                    "Intentá con otra imagen."
+                    "Intenta con otra imagen."
                 )
 
             return _parsear_resultado(response.text, model)
 
         except ClientError as e:
             msg = str(e)
-
             if "API_KEY" in msg or "PERMISSION" in msg or "403" in msg:
                 raise Exception(
-                    "API Key de Gemini inválida o sin permisos. "
-                    "Verificá la variable GEMINI_API_KEY en Railway."
+                    "API Key de Gemini invalida o sin permisos. "
+                    "Verifica la variable GEMINI_API_KEY en Railway."
                 )
-
             if "404" in msg or "not found" in msg.lower():
                 ultimo_error = Exception(f"Modelo {model} no disponible")
                 continue
-
             if "429" in msg or "QUOTA" in msg or "RESOURCE_EXHAUSTED" in msg:
-                # Rate limit: marcar y probar siguiente modelo
                 hubo_rate_limit = True
                 ultimo_error = Exception(
-                    f"Límite de requests alcanzado en {model}. "
-                    "Considerá usar una API key de pago en Google AI Studio para mayor volumen."
+                    f"Limite de requests alcanzado en {model}. "
+                    "Considera usar una API key de pago en Google AI Studio para mayor volumen."
                 )
                 continue
-
             ultimo_error = Exception(f"Error en {model}: {msg}")
             continue
 
@@ -210,17 +259,16 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
 
         except Exception as e:
             msg = str(e)
-            if any(x in msg for x in ["inválida", "permisos", "API Key", "bloqueada"]):
+            if any(x in msg for x in ["invalida", "permisos", "API Key", "bloqueada"]):
                 raise
             ultimo_error = e
             continue
 
-    # Si todos fueron rate limit, dar mensaje claro
     if hubo_rate_limit:
         raise Exception(
-            "Se alcanzó el límite de requests en todos los modelos disponibles. "
-            "La clave gratuita de Google AI Studio permite ~15 requests por minuto. "
-            "Esperá 1 minuto e intentá de nuevo, o usá una API key de pago."
+            "Se alcanzo el limite de requests en todos los modelos. "
+            "La clave gratuita permite ~15 requests por minuto. "
+            "Espera 1 minuto e intenta de nuevo, o usa una API key de pago."
         )
 
     raise Exception(
