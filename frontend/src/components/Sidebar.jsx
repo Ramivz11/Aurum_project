@@ -1,8 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { ventasApi, sucursalesApi } from '../api'
-import { useSucursal } from '../context/SucursalContext'
-import { useToast } from './Toast'
+import { ventasApi } from '../api'
 
 const NAV = [
   { label: 'Principal', items: [
@@ -20,60 +18,8 @@ const NAV = [
   ]},
 ]
 
-function ModalSucursal({ sucursal, onClose, onSaved }) {
-  const toast = useToast()
-  const [nombre, setNombre] = useState(sucursal?.nombre || '')
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    if (!nombre.trim()) return toast('El nombre es obligatorio', 'error')
-    setSaving(true)
-    try {
-      if (sucursal) {
-        await sucursalesApi.actualizar(sucursal.id, { nombre: nombre.trim() })
-        toast('Sucursal actualizada')
-      } else {
-        await sucursalesApi.crear({ nombre: nombre.trim() })
-        toast('Sucursal creada')
-      }
-      onSaved()
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
-  }
-
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">{sucursal ? 'Editar sucursal' : 'Nueva sucursal'}</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="form-group">
-            <label className="form-label">Nombre *</label>
-            <input
-              className="form-input"
-              value={nombre}
-              onChange={e => setNombre(e.target.value)}
-              placeholder="Ej: Centro, Norte, Sur..."
-              onKeyDown={e => e.key === 'Enter' && save()}
-              autoFocus
-            />
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function Sidebar({ mobileOpen, onClose }) {
   const [pedidosAbiertos, setPedidosAbiertos] = useState(0)
-  const [sucursalesOpen, setSucursalesOpen] = useState(true)
-  const [editando, setEditando] = useState(null)
-  const { sucursales, sucursalActual, setSucursalActual, cargarSucursales } = useSucursal()
 
   useEffect(() => {
     ventasApi.pedidosAbiertos().then(d => setPedidosAbiertos(d.length)).catch(() => {})
@@ -108,53 +54,11 @@ export default function Sidebar({ mobileOpen, onClose }) {
                 {item.badge === 'pedidos' && pedidosAbiertos > 0 && (
                   <span className="nav-badge">{pedidosAbiertos}</span>
                 )}
-                )}
               </NavLink>
             ))}
           </div>
         ))}
-
-        <div style={{ marginTop: 8 }}>
-          <div className="nav-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, cursor: 'pointer' }}
-            onClick={() => setSucursalesOpen(v => !v)}>
-            <span>Sucursales</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <span style={{ transform: sucursalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block', transition: 'transform 0.15s', fontSize: 8 }}>▶</span>
-              <button
-                onClick={e => { e.stopPropagation(); setEditando('nuevo') }}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}
-                title="Nueva sucursal"
-              >+</button>
-            </div>
-          </div>
-          {sucursalesOpen && sucursales.map(s => (
-            <div
-              key={s.id}
-              className={`nav-item${sucursalActual?.id === s.id ? ' active' : ''}`}
-              style={{ cursor: 'pointer', paddingRight: 6 }}
-              onClick={() => setSucursalActual(s)}
-            >
-              <span className="nav-icon" style={{ fontSize: 8 }}>●</span>
-              <span style={{ flex: 1, fontSize: 13 }}>{s.nombre}</span>
-              {sucursalActual?.id === s.id && (
-                <button
-                  onClick={e => { e.stopPropagation(); setEditando(s) }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 11, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
-                  title="Editar"
-                >✎</button>
-              )}
-            </div>
-          ))}
-        </div>
       </nav>
-
-      {editando && (
-        <ModalSucursal
-          sucursal={editando === 'nuevo' ? null : editando}
-          onClose={() => setEditando(null)}
-          onSaved={() => { setEditando(null); cargarSucursales() }}
-        />
-      )}
     </aside>
   )
 }
