@@ -9,7 +9,8 @@ engine = create_engine(
     max_overflow=10,
     pool_pre_ping=True,   # detecta conexiones caídas
     pool_recycle=300,     # recicla conexiones cada 5 min
-)SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
