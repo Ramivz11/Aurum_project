@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { ventasApi, sucursalesApi } from '../api'
 import { useSucursal } from '../context/SucursalContext'
@@ -20,6 +20,13 @@ const NAV = [
     { to: '/sucursales', icon: '⬙', label: 'Sucursales' },
     { to: '/categorias', icon: '⊞', label: 'Categorías' },
   ]},
+]
+
+const BOTTOM_NAV = [
+  { to: '/', icon: '◈', label: 'Inicio' },
+  { to: '/ventas', icon: '↑', label: 'Ventas', badge: 'pedidos' },
+  { to: '/stock', icon: '⬡', label: 'Stock' },
+  { to: '/compras', icon: '↓', label: 'Compras' },
 ]
 
 function ModalSucursal({ sucursal, onClose, onSaved }) {
@@ -64,10 +71,71 @@ function ModalSucursal({ sucursal, onClose, onSaved }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
         </div>
       </div>
     </div>
+  )
+}
+
+function NavContent({ onItemClick, pedidosAbiertos, sucursalesOpen, setSucursalesOpen, setEditando, sucursales, sucursalActual, setSucursalActual }) {
+  return (
+    <nav className="sidebar-nav">
+      {NAV.map(section => (
+        <div key={section.label}>
+          <div className="nav-label">{section.label}</div>
+          {section.items.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+              onClick={onItemClick}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+              {item.badge === 'pedidos' && pedidosAbiertos > 0 && (
+                <span className="nav-badge">{pedidosAbiertos}</span>
+              )}
+            </NavLink>
+          ))}
+        </div>
+      ))}
+
+      <div className="sucursal-section">
+        <div className="sucursal-header" onClick={() => setSucursalesOpen(v => !v)}>
+          <span className="sucursal-title">Sucursales</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={e => { e.stopPropagation(); setEditando('nuevo') }}
+              className="sucursal-add-btn"
+              title="Nueva sucursal"
+            >+</button>
+            <span className={`sucursal-toggle${sucursalesOpen ? ' open' : ''}`}>▶</span>
+          </div>
+        </div>
+        {sucursalesOpen && sucursales.map(s => (
+          <div
+            key={s.id}
+            className={`nav-item${sucursalActual?.id === s.id ? ' active' : ''}`}
+            style={{ cursor: 'pointer', paddingRight: 6 }}
+            onClick={() => { setSucursalActual(s); onItemClick?.() }}
+          >
+            <span className="nav-icon" style={{ fontSize: 7 }}>●</span>
+            <span style={{ flex: 1, fontSize: 13 }}>{s.nombre}</span>
+            {sucursalActual?.id === s.id && (
+              <button
+                onClick={e => { e.stopPropagation(); setEditando(s) }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 11, padding: '2px 4px', borderRadius: 4 }}
+                title="Editar"
+              >✎</button>
+            )}
+          </div>
+        ))}
+      </div>
+    </nav>
   )
 }
 
@@ -75,71 +143,88 @@ export default function Sidebar() {
   const [pedidosAbiertos, setPedidosAbiertos] = useState(0)
   const [sucursalesOpen, setSucursalesOpen] = useState(true)
   const [editando, setEditando] = useState(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const { sucursales, sucursalActual, setSucursalActual, cargarSucursales } = useSucursal()
+  const location = useLocation()
 
   useEffect(() => {
     ventasApi.pedidosAbiertos().then(d => setPedidosAbiertos(d.length)).catch(() => {})
   }, [])
 
+  // Cerrar drawer al cambiar de ruta
+  useEffect(() => { setDrawerOpen(false) }, [location.pathname])
+
+  const navProps = {
+    pedidosAbiertos, sucursalesOpen, setSucursalesOpen,
+    setEditando, sucursales, sucursalActual, setSucursalActual,
+  }
+
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-text">AURUM</div>
-        <div className="logo-sub">Gestión de suplementos</div>
+    <>
+      {/* ── SIDEBAR DESKTOP ── */}
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="logo-text">AURUM</div>
+          <div className="logo-sub">Gestión de suplementos</div>
+        </div>
+        <NavContent {...navProps} />
+      </aside>
+
+      {/* ── MOBILE HEADER (position: fixed, fuera del flujo del sidebar) ── */}
+      <header className="mobile-header">
+        <div className="mobile-logo">AURUM</div>
+        <button className="mobile-menu-btn" onClick={() => setDrawerOpen(true)}>☰</button>
+      </header>
+
+      {/* ── DRAWER OVERLAY ── */}
+      {drawerOpen && (
+        <div className="mobile-overlay open" onClick={() => setDrawerOpen(false)} />
+      )}
+
+      {/* ── MOBILE DRAWER ── */}
+      <div className={`mobile-drawer${drawerOpen ? ' open' : ''}`}>
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div className="logo-text">AURUM</div>
+            <div className="logo-sub">Gestión de suplementos</div>
+          </div>
+          <button
+            onClick={() => setDrawerOpen(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', padding: 4 }}
+          >✕</button>
+        </div>
+        <NavContent {...navProps} onItemClick={() => setDrawerOpen(false)} />
       </div>
 
-      <nav className="sidebar-nav">
-        {NAV.map(section => (
-          <div key={section.label}>
-            <div className="nav-label">{section.label}</div>
-            {section.items.map(item => (
+      {/* ── BOTTOM NAV MOBILE ── */}
+      <nav className="bottom-nav">
+        <div className="bottom-nav-inner">
+          {BOTTOM_NAV.map(item => {
+            const isActive = item.to === '/'
+              ? location.pathname === '/'
+              : location.pathname.startsWith(item.to)
+            return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
-                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                className={`bottom-nav-item${isActive ? ' active' : ''}`}
               >
-                <span className="nav-icon">{item.icon}</span>
-                {item.label}
-                {item.badge === 'pedidos' && pedidosAbiertos > 0 && (
-                  <span className="nav-badge">{pedidosAbiertos}</span>
-                )}
+                <span className="bottom-nav-icon">
+                  {item.icon}
+                  {item.badge === 'pedidos' && pedidosAbiertos > 0 && (
+                    <span className="bottom-nav-dot" />
+                  )}
+                </span>
+                <span className="bottom-nav-label">{item.label}</span>
               </NavLink>
-            ))}
-          </div>
-        ))}
-
-        <div style={{ marginTop: 8 }}>
-          <div className="nav-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, cursor: 'pointer' }}
-            onClick={() => setSucursalesOpen(v => !v)}>
-            <span>Sucursales</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <span style={{ transform: sucursalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block', transition: 'transform 0.15s', fontSize: 8 }}>▶</span>
-              <button
-                onClick={e => { e.stopPropagation(); setEditando('nuevo') }}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}
-                title="Nueva sucursal"
-              >+</button>
-            </div>
-          </div>
-          {sucursalesOpen && sucursales.map(s => (
-            <div
-              key={s.id}
-              className={`nav-item${sucursalActual?.id === s.id ? ' active' : ''}`}
-              style={{ cursor: 'pointer', paddingRight: 6 }}
-              onClick={() => setSucursalActual(s)}
-            >
-              <span className="nav-icon" style={{ fontSize: 8 }}>●</span>
-              <span style={{ flex: 1, fontSize: 13 }}>{s.nombre}</span>
-              {sucursalActual?.id === s.id && (
-                <button
-                  onClick={e => { e.stopPropagation(); setEditando(s) }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 11, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
-                  title="Editar"
-                >✎</button>
-              )}
-            </div>
-          ))}
+            )
+          })}
+          {/* Botón "Más" abre el drawer */}
+          <button className="bottom-nav-item" onClick={() => setDrawerOpen(true)}>
+            <span className="bottom-nav-icon">☰</span>
+            <span className="bottom-nav-label">Más</span>
+          </button>
         </div>
       </nav>
 
@@ -150,6 +235,6 @@ export default function Sidebar() {
           onSaved={() => { setEditando(null); cargarSucursales() }}
         />
       )}
-    </aside>
+    </>
   )
 }
