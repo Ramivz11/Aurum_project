@@ -229,6 +229,7 @@ class CompraResponse(BaseModel):
 class FacturaItemIA(BaseModel):
     """Item detectado por IA — incluye descripcion original y datos editables"""
     descripcion: Optional[str] = None
+    descripcion_original: Optional[str] = None  # Texto exacto de la factura, para mostrar al usuario
     cantidad: int = Field(..., gt=0)
     costo_unitario: Decimal = Field(..., ge=0)
 

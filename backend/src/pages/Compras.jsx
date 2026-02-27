@@ -68,23 +68,71 @@ function ModalIAConfirmacion({ resultado, productos, sucursales, onConfirm, onCl
     }))
   )
 
-  // Para cada ítem detectado, intentamos hacer match por nombre
-  const hacerMatch = (descripcion) => {
-    const desc = descripcion.toLowerCase()
-    let mejor = null, mejorScore = 0
-    for (const v of variantesFlat) {
-      const palabras = v.label.toLowerCase().split(/[\s·,\-]+/)
-      const coincidencias = palabras.filter(p => p.length > 2 && desc.includes(p)).length
-      if (coincidencias > mejorScore) { mejorScore = coincidencias; mejor = v }
+  // ─── MATCHING MEJORADO ────────────────────────────────────────────────────
+  // Tabla de alias: términos del proveedor → términos normalizados en tu sistema
+  const ALIAS = {
+    // Marcas
+    'star': 'star nutrition', 'gold': 'gold nutrition', 'gold nutrtion': 'gold nutrition',
+    // Productos
+    'crea mono': 'creatina monohidrato', 'creatina mono': 'creatina monohidrato',
+    'collagen plus': 'colageno plus', 'collagen sport': 'colageno sport',
+    'whey pr': 'whey protein', 'plat whey': 'whey protein', 'protein bar': 'barra de proteina',
+    'pr bar': 'barra de proteina', 'truemade': '',
+    // Sabores
+    'ch': 'chocolate', 'va': 'vainilla', 'c&c': 'cookies and cream',
+    'fr': 'frutilla', 'lim': 'limon', 'nar': 'naranja',
+    // Tamaños
+    '2lb': '2lb', '2 l': '2lb', '2lb': '2lb',
+    '300 gr': '300gr', '300gr': '300gr', '360gr': '360gr', '360 gr': '360gr',
+    // Neutro
+    ' s ': ' neutro ', ' s$': ' neutro',
+    // Ignorar
+    'dpk': '', 'br': '', 'u ct': '', 'plus': 'plus',
+  }
+
+  const normalizar = (texto) => {
+    if (!texto) return ''
+    let t = texto.toLowerCase()
+    // Aplicar alias de mayor a menor longitud (para evitar reemplazos parciales incorrectos)
+    const aliasOrdenados = Object.entries(ALIAS).sort((a, b) => b[0].length - a[0].length)
+    for (const [desde, hasta] of aliasOrdenados) {
+      t = t.replace(new RegExp(desde, 'gi'), hasta)
     }
-    return mejorScore >= 1 ? mejor : null
+    // Limpiar espacios múltiples y caracteres no alfanuméricos
+    return t.replace(/\s+/g, ' ').trim()
+  }
+
+  const hacerMatch = (descripcion, descripcionOriginal) => {
+    // Intentamos con la descripción normalizada por Gemini primero, luego con la original
+    const textos = [descripcion, descripcionOriginal].filter(Boolean)
+    let mejor = null, mejorScore = 0
+
+    for (const texto of textos) {
+      const desc = normalizar(texto)
+      for (const v of variantesFlat) {
+        const etiqueta = normalizar(v.label + ' ' + v.marca + ' ' + (v.nombre_producto || ''))
+        const palabrasDesc = desc.split(/\s+/).filter(p => p.length > 2)
+        const palabrasLabel = etiqueta.split(/\s+/).filter(p => p.length > 2)
+
+        // Score: cuántas palabras de la descripción aparecen en la etiqueta de la variante
+        const coincidencias = palabrasDesc.filter(p => etiqueta.includes(p)).length
+        // Bonus si la marca coincide exactamente
+        const bonusMarca = palabrasDesc.some(p => etiqueta.startsWith(p)) ? 1 : 0
+        const score = coincidencias + bonusMarca
+
+        if (score > mejorScore) { mejorScore = score; mejor = v }
+      }
+    }
+    // Requerir al menos 2 palabras coincidentes para evitar falsos positivos
+    return mejorScore >= 2 ? mejor : null
   }
 
   const [items, setItems] = useState(() =>
     resultado.items_detectados.map(item => {
-      const match = hacerMatch(item.descripcion || '')
+      const match = hacerMatch(item.descripcion || '', item.descripcion_original || '')
       return {
-        descripcion_ia: item.descripcion,
+        descripcion_ia: item.descripcion_original || item.descripcion,
+        descripcion_norm: item.descripcion,
         variante_id: match?.id || '',
         cantidad: item.cantidad,
         costo_unitario: Number(item.costo_unitario),
@@ -178,9 +226,19 @@ function ModalIAConfirmacion({ resultado, productos, sucursales, onConfirm, onCl
                         <div style={{ fontSize: 13, color: 'var(--gold-light)', fontStyle: 'italic' }}>
                           "{item.descripcion_ia || 'Sin descripción'}"
                         </div>
+                        {item.descripcion_norm && item.descripcion_norm !== item.descripcion_ia && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            → {item.descripcion_norm}
+                          </div>
+                        )}
                         {item.match_auto && item.variante_id && (
                           <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 4 }}>
                             ✓ Match automático encontrado
+                          </div>
+                        )}
+                        {!item.match_auto && (
+                          <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>
+                            ⚠ No se encontró match — seleccioná la variante manualmente
                           </div>
                         )}
                       </div>

@@ -46,6 +46,25 @@ def listar_compras(
     return query.order_by(Compra.fecha.desc()).all()
 
 
+# ─── MÓDULO IA ────────────────────────────────────────────────────────────────
+# IMPORTANTE: esta ruta va ANTES de /{compra_id} para que FastAPI
+# no intente parsear "factura" como un entero.
+
+@router.post("/factura/ia", response_model=FacturaIAResponse)
+async def analizar_factura_con_ia(
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not archivo.content_type.startswith(("image/", "application/pdf")):
+        raise HTTPException(status_code=400, detail="Solo se aceptan imágenes o PDF")
+    contenido = await archivo.read()
+    try:
+        resultado = await procesar_factura_con_ia(contenido, archivo.content_type)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return resultado
+
+
 @router.get("/{compra_id}", response_model=CompraResponse)
 def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
@@ -84,7 +103,6 @@ def registrar_compra(data: CompraCreateConDistribucion, db: Session = Depends(ge
         db.add(item)
         variante.costo = item_data.costo_unitario
 
-        # Distribuir stock
         total_distribuido = sum(d.cantidad for d in item_data.distribucion)
         if total_distribuido > item_data.cantidad:
             raise HTTPException(
@@ -92,16 +110,13 @@ def registrar_compra(data: CompraCreateConDistribucion, db: Session = Depends(ge
                 detail=f"La distribución ({total_distribuido}) supera la cantidad comprada ({item_data.cantidad})"
             )
 
-        # Lo que va a central = total - distribuido a sucursales
         a_central = item_data.cantidad - total_distribuido
         if a_central > 0:
             variante.stock_actual += a_central
 
-        # Distribuir a sucursales
         for dist in item_data.distribucion:
             if dist.cantidad > 0:
                 _sumar_stock_sucursal(db, variante.id, dist.sucursal_id, dist.cantidad)
-                # Registrar transferencia
                 db.add(Transferencia(
                     variante_id=variante.id,
                     tipo=TipoTransferenciaEnum.central_a_sucursal,
@@ -123,9 +138,27 @@ def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Ses
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Revertir stock de items anteriores (solo central, no podemos saber la distribución original exacta)
+    # FIX: Revertir stock correctamente — central Y sucursales
     for item in compra.items:
-        item.variante.stock_actual -= item.cantidad
+        variante = item.variante
+
+        # Revertir distribución a sucursales usando las transferencias registradas
+        transferencias = db.query(Transferencia).filter(
+            Transferencia.variante_id == variante.id,
+            Transferencia.notas == f"Distribución de compra #{compra.id}",
+        ).all()
+
+        cantidad_distribuida = 0
+        for t in transferencias:
+            _restar_stock_sucursal(db, variante.id, t.sucursal_destino_id, t.cantidad)
+            cantidad_distribuida += t.cantidad
+            db.delete(t)
+
+        # Revertir lo que fue a central
+        cantidad_a_central = item.cantidad - cantidad_distribuida
+        if cantidad_a_central > 0:
+            variante.stock_actual = max(0, variante.stock_actual - cantidad_a_central)
+
         db.delete(item)
 
     db.flush()
@@ -161,6 +194,14 @@ def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Ses
         for dist in item_data.distribucion:
             if dist.cantidad > 0:
                 _sumar_stock_sucursal(db, variante.id, dist.sucursal_id, dist.cantidad)
+                db.add(Transferencia(
+                    variante_id=variante.id,
+                    tipo=TipoTransferenciaEnum.central_a_sucursal,
+                    sucursal_origen_id=None,
+                    sucursal_destino_id=dist.sucursal_id,
+                    cantidad=dist.cantidad,
+                    notas=f"Distribución de compra #{compra.id}",
+                ))
 
     compra.total = total
     db.commit()
@@ -179,20 +220,3 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
 
     db.delete(compra)
     db.commit()
-
-
-# ─── MÓDULO IA ────────────────────────────────────────────────────────────────
-
-@router.post("/factura/ia", response_model=FacturaIAResponse)
-async def analizar_factura_con_ia(
-    archivo: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
-    if not archivo.content_type.startswith(("image/", "application/pdf")):
-        raise HTTPException(status_code=400, detail="Solo se aceptan imágenes o PDF")
-    contenido = await archivo.read()
-    try:
-        resultado = await procesar_factura_con_ia(contenido, archivo.content_type)
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    return resultado
