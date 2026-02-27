@@ -67,7 +67,7 @@ def resumen_periodo(
     )
 
 
-@movimientos_router.get("/ventas", response_model=List[VentaResponse])
+@movimientos_router.get("/ventas")
 def movimientos_ventas(
     fecha_desde: Optional[datetime] = Query(None),
     fecha_hasta: Optional[datetime] = Query(None),
@@ -89,7 +89,13 @@ def movimientos_ventas(
     if cliente_id:
         query = query.filter(Venta.cliente_id == cliente_id)
 
-    return query.order_by(Venta.fecha.desc()).all()
+    ventas = query.order_by(Venta.fecha.desc()).all()
+    result = []
+    for v in ventas:
+        data = VentaResponse.model_validate(v).model_dump()
+        data["cliente_nombre"] = v.cliente.nombre if v.cliente else None
+        result.append(data)
+    return result
 
 
 @movimientos_router.get("/compras", response_model=List[CompraResponse])
