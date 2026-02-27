@@ -35,7 +35,7 @@ Reglas:
 """
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free"
+OPENROUTER_MODEL = "google/gemma-3-12b-it:free"
 async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> FacturaIAResponse:
     if not settings.GEMINI_API_KEY:
         raise Exception("GEMINI_API_KEY no configurada. Agregá la variable de entorno en Railway.")
