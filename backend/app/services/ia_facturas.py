@@ -34,6 +34,9 @@ Reglas:
 - Si no podés leer un dato, usá 0 para el precio o 1 para la cantidad
 """
 
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free"
+
 
 async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> FacturaIAResponse:
     if not settings.GEMINI_API_KEY:
@@ -41,56 +44,55 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
 
     imagen_b64 = base64.standard_b64encode(contenido).decode("utf-8")
 
-    if content_type == "application/pdf":
-        mime_type = "application/pdf"
-    else:
-        mime_type = content_type
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
-
     payload = {
-        "contents": [
+        "model": OPENROUTER_MODEL,
+        "messages": [
             {
-                "parts": [
+                "role": "user",
+                "content": [
                     {
-                        "inline_data": {
-                            "mime_type": mime_type,
-                            "data": imagen_b64
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{content_type};base64,{imagen_b64}"
                         }
                     },
                     {
+                        "type": "text",
                         "text": PROMPT_FACTURA
                     }
                 ]
             }
         ],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 1500,
-        }
+        "max_tokens": 1500,
+        "temperature": 0.1,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {settings.GEMINI_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://vivacious-truth-production-b827.up.railway.app",
+        "X-Title": "Gestion Suplementos",
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
-        response = await client.post(url, json=payload)
+        response = await client.post(OPENROUTER_URL, json=payload, headers=headers)
+
         if response.status_code == 429:
-            logger.error(f"Gemini 429 detail: {response.text}")
-            raise Exception("Límite de requests de Gemini alcanzado. Esperá unos segundos e intentá de nuevo.")
-        if response.status_code == 400:
-            detail = response.json().get("error", {}).get("message", "Request inválido a Gemini")
-            logger.error(f"Gemini 400 detail: {detail}")
-            raise Exception(f"Error Gemini 400: {detail}")
-        if response.status_code == 403:
-            logger.error(f"Gemini 403 detail: {response.text}")
-            raise Exception("API Key de Gemini inválida o sin permisos. Verificá la variable GEMINI_API_KEY en Railway.")
+            logger.error(f"OpenRouter 429: {response.text}")
+            raise Exception("Límite de requests alcanzado. Esperá unos segundos e intentá de nuevo.")
+        if response.status_code == 401:
+            logger.error(f"OpenRouter 401: {response.text}")
+            raise Exception("API Key inválida. Verificá la variable GEMINI_API_KEY en Railway.")
         if not response.is_success:
-            logger.error(f"Gemini error {response.status_code}: {response.text}")
-            raise Exception(f"Gemini respondió con error {response.status_code}: {response.text[:200]}")
+            logger.error(f"OpenRouter error {response.status_code}: {response.text}")
+            raise Exception(f"Error del servicio de IA: {response.status_code}")
+
         data = response.json()
 
     try:
-        texto = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        texto = data["choices"][0]["message"]["content"].strip()
     except (KeyError, IndexError):
-        raise Exception(f"Respuesta de Gemini inesperada: {str(data)[:200]}")
+        raise Exception(f"Respuesta inesperada del servicio de IA: {str(data)[:200]}")
 
     if texto.startswith("```"):
         partes = texto.split("```")
