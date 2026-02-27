@@ -443,9 +443,30 @@ export default function Stock() {
             <span className="search-icon">⌕</span>
             <input className="search-input" placeholder="Buscar por nombre, marca..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
           </div>
-          <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={categoria} onChange={e => setCategoria(e.target.value)}>
+          <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={categoria} onChange={e => {
+              if (e.target.value === '__nueva__') {
+                const nombre = prompt('Nombre de la nueva categoría:')
+                if (nombre?.trim()) {
+                  categoriasProductoApi.crear({ nombre: nombre.trim() })
+                    .then(() => categoriasProductoApi.listar().then(setCategorias))
+                    .catch(err => toast(err.message || 'Error al crear categoría', 'error'))
+                }
+              } else {
+                setCategoria(e.target.value)
+              }
+            }}>
             <option value="">Todas las categorías</option>
-            {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            {/* Orden fijo de categorías principales */}
+            {['Proteína', 'Creatina', 'Colágeno', 'Magnesio'].map(nombre => {
+              const cat = categorias.find(c => c.nombre.toLowerCase() === nombre.toLowerCase())
+              return cat ? <option key={cat.id} value={cat.nombre}>{cat.nombre}</option> : null
+            })}
+            {/* Resto de categorías no fijas */}
+            {categorias
+              .filter(c => !['Proteína', 'Creatina', 'Colágeno', 'Magnesio'].map(n => n.toLowerCase()).includes(c.nombre.toLowerCase()))
+              .map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)
+            }
+            <option value="__nueva__">＋ Crear nueva categoría</option>
           </select>
           <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={filtroSucursal} onChange={e => setFiltroSucursal(e.target.value ? Number(e.target.value) : '')}>
             <option value="">Vista global</option>
