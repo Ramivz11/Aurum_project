@@ -35,8 +35,7 @@ Reglas:
 """
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free"
-
+OPENROUTER_MODEL = "meta-llama/llama-3.2-11b-vision-instruct:free"
 
 async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> FacturaIAResponse:
     if not settings.GEMINI_API_KEY:
