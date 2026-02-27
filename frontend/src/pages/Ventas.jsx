@@ -273,23 +273,22 @@ export default function Ventas() {
   const toast = useToast()
   const { sucursalActual, sucursales } = useSucursal()
   const [ventas, setVentas] = useState([])
-  const [pedidos, setPedidos] = useState([])
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
-  const [verPedidos, setVerPedidos] = useState(false)
+  const [filtroEstado, setFiltroEstado] = useState('confirmada')
+  const [showDropdownEstado, setShowDropdownEstado] = useState(false)
   const [filtroSucursal, setFiltroSucursal] = useState('')
 
   const cargar = () => {
     setLoading(true)
     Promise.all([
-      ventasApi.listar({ estado: 'confirmada' }),
-      ventasApi.pedidosAbiertos(),
+      ventasApi.listar({}),
       clientesApi.listar(),
       productosApi.listar(),
-    ]).then(([v, p, c, pr]) => {
-      setVentas(v); setPedidos(p); setClientes(c); setProductos(pr)
+    ]).then(([v, c, pr]) => {
+      setVentas(v); setClientes(c); setProductos(pr)
     }).finally(() => setLoading(false))
   }
 
@@ -311,7 +310,9 @@ export default function Ventas() {
     catch (e) { toast(e.message, 'error') }
   }
 
-  const base = verPedidos ? pedidos : ventas
+  const ESTADO_LABELS = { confirmada: 'Ventas cerradas', abierta: 'Ventas abiertas', todos: 'Ventas totales' }
+
+  const base = filtroEstado === 'todos' ? ventas : ventas.filter(v => v.estado === filtroEstado)
   const lista = filtroSucursal
     ? base.filter(v => String(v.sucursal_id) === filtroSucursal)
     : base
@@ -340,9 +341,45 @@ export default function Ventas() {
             <option value="">Todas las sucursales</option>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
-          <button className={`btn ${verPedidos ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setVerPedidos(v => !v)}>
-            Pedidos abiertos {pedidos.length > 0 && `(${pedidos.length})`}
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`btn ${filtroEstado !== 'confirmada' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setShowDropdownEstado(v => !v)}
+              style={{ gap: 6 }}
+            >
+              {ESTADO_LABELS[filtroEstado]} ▾
+            </button>
+            {showDropdownEstado && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 10, zIndex: 50, minWidth: 180,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                overflow: 'hidden',
+              }} onMouseLeave={() => setShowDropdownEstado(false)}>
+                {[
+                  { key: 'todos', label: 'Ventas totales' },
+                  { key: 'abierta', label: 'Ventas abiertas' },
+                  { key: 'confirmada', label: 'Ventas cerradas' },
+                ].map(opt => (
+                  <div key={opt.key}
+                    style={{
+                      padding: '11px 16px', cursor: 'pointer', fontSize: 13,
+                      background: filtroEstado === opt.key ? 'var(--surface2)' : 'transparent',
+                      color: filtroEstado === opt.key ? 'var(--gold-light)' : 'var(--text)',
+                      fontWeight: filtroEstado === opt.key ? 600 : 400,
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                    onClick={() => { setFiltroEstado(opt.key); setShowDropdownEstado(false) }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = filtroEstado === opt.key ? 'var(--surface2)' : 'transparent'}
+                  >
+                    {opt.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar venta</button>
         </div>
       </div>
@@ -350,7 +387,7 @@ export default function Ventas() {
       <div className="content page-enter">
         <div className="card">
           <div className="card-header">
-            <span className="card-title">{verPedidos ? 'Pedidos abiertos' : 'Ventas confirmadas'}</span>
+            <span className="card-title">{ESTADO_LABELS[filtroEstado]}</span>
           </div>
           {loading ? <div className="loading">Cargando...</div> : (
             <div className="table-wrap">
