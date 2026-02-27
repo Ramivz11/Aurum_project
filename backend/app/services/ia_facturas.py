@@ -46,7 +46,8 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
     else:
         mime_type = content_type
 
-url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
+
     payload = {
         "contents": [
             {
@@ -86,13 +87,11 @@ url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash
             raise Exception(f"Gemini respondió con error {response.status_code}: {response.text[:200]}")
         data = response.json()
 
-    # Extraer texto de la respuesta
     try:
         texto = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError) as e:
+    except (KeyError, IndexError):
         raise Exception(f"Respuesta de Gemini inesperada: {str(data)[:200]}")
 
-    # Limpiar markdown si viene con ```json ... ```
     if texto.startswith("```"):
         partes = texto.split("```")
         texto = partes[1] if len(partes) > 1 else texto
