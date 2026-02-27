@@ -123,13 +123,9 @@ def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Ses
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Revertir stock de items anteriores: central y todas las sucursales
+    # Revertir stock de items anteriores (solo central, no podemos saber la distribución original exacta)
     for item in compra.items:
-        # Revertir central
-        item.variante.stock_actual = max(0, item.variante.stock_actual - item.cantidad)
-        # Revertir sucursales (descontar lo distribuido)
-        for ss in item.variante.stocks_sucursal:
-            ss.cantidad = max(0, ss.cantidad - item.cantidad)
+        item.variante.stock_actual -= item.cantidad
         db.delete(item)
 
     db.flush()
@@ -179,11 +175,7 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
     for item in compra.items:
-        # Revertir stock central
-        item.variante.stock_actual = max(0, item.variante.stock_actual - item.cantidad)
-        # Revertir stock en sucursales
-        for ss in item.variante.stocks_sucursal:
-            ss.cantidad = max(0, ss.cantidad - item.cantidad)
+        item.variante.stock_actual -= item.cantidad
 
     db.delete(compra)
     db.commit()
@@ -191,7 +183,7 @@ def eliminar_compra(compra_id: int, db: Session = Depends(get_db)):
 
 # ─── MÓDULO IA ────────────────────────────────────────────────────────────────
 
-@router.post("/ia/factura", response_model=FacturaIAResponse)
+@router.post("/factura/ia", response_model=FacturaIAResponse)
 async def analizar_factura_con_ia(
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -204,61 +196,3 @@ async def analizar_factura_con_ia(
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
     return resultado
-
-
-@router.get("/ia/diagnostico")
-async def diagnostico_ia():
-    """Verifica el estado de la configuración de IA usando el SDK oficial de Google."""
-    from google import genai
-    from google.genai.errors import ClientError
-    from app.config import settings
-    from app.services.ia_facturas import GEMINI_MODELS
-
-    key = settings.GEMINI_API_KEY
-    if not key:
-        return {
-            "estado": "error",
-            "problema": "GEMINI_API_KEY no configurada en las variables de entorno de Railway.",
-            "solucion": "Agregá GEMINI_API_KEY en Railway → Variables con tu clave de Google AI Studio (aistudio.google.com)."
-        }
-
-    client = genai.Client(api_key=key)
-    resultados_modelos = []
-
-    for model in GEMINI_MODELS:
-        try:
-            response = await client.aio.models.generate_content(
-                model=model,
-                contents=["Respondé solo con: OK"],
-            )
-            if response.text:
-                resultados_modelos.append({"modelo": model, "estado": "✅ disponible"})
-            else:
-                resultados_modelos.append({"modelo": model, "estado": "⚠️ sin respuesta"})
-        except ClientError as e:
-            msg = str(e)
-            if "API_KEY" in msg or "PERMISSION" in msg or "403" in msg:
-                resultados_modelos.append({"modelo": model, "estado": "❌ API key inválida o sin permisos"})
-                break
-            elif "404" in msg or "not found" in msg.lower():
-                resultados_modelos.append({"modelo": model, "estado": "⚠️ modelo no disponible"})
-            elif "429" in msg or "QUOTA" in msg:
-                resultados_modelos.append({"modelo": model, "estado": "⚠️ límite de requests alcanzado"})
-                break
-            else:
-                resultados_modelos.append({"modelo": model, "estado": f"❌ {msg[:80]}"})
-        except Exception as e:
-            resultados_modelos.append({"modelo": model, "estado": f"❌ {str(e)[:80]}"})
-
-    disponibles = [m for m in resultados_modelos if "✅" in m["estado"]]
-    return {
-        "estado": "ok" if disponibles else "error",
-        "api_key_configurada": True,
-        "api_key_preview": f"{key[:8]}...{key[-4:]}",
-        "modelos": resultados_modelos,
-        "conclusion": (
-            f"{len(disponibles)} de {len(GEMINI_MODELS)} modelos disponibles."
-            if disponibles else
-            "Ningún modelo disponible. Verificá la API key."
-        )
-    }

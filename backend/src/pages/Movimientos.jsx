@@ -63,7 +63,7 @@ export function Movimientos() {
                     <tr key={`${m._tipo}-${m.id}-${i}`}>
                       <td><span className={`chip ${m._tipo === 'venta' ? 'chip-green' : 'chip-red'}`}>{m._tipo === 'venta' ? '↑ Venta' : '↓ Compra'}</span></td>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{m.cliente_id ? `Cliente #${m.cliente_id}` : m.proveedor || '—'}</td>
+                      <td>{m._tipo === 'venta' ? (m.cliente_nombre || (m.cliente_id ? `Cliente #${m.cliente_id}` : '—')) : (m.proveedor || '—')}</td>
                       <td><span className={`chip ${CHIP[m.metodo_pago]}`}>{m.metodo_pago}</span></td>
                       <td><strong>{fmt(m.total)}</strong></td>
                     </tr>

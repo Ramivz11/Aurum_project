@@ -298,6 +298,7 @@ class AnalisisMesResponse(BaseModel):
 class ProductoTopResponse(BaseModel):
     variante_id: int
     nombre_producto: str
+    marca: Optional[str]
     sabor: Optional[str]
     tamanio: Optional[str]
     cantidad_vendida: int
@@ -364,19 +365,11 @@ class MovimientoFiltros(BaseModel):
     metodo_pago: Optional[MetodoPago] = None
     cliente_id: Optional[int] = None
 
-class ProductoMasVendido(BaseModel):
-    nombre: str
-    marca: Optional[str] = None
-    variante: Optional[str] = None
-    tamanio: Optional[str] = None
-    cantidad: int
-
 class ResumenPeriodo(BaseModel):
     total_ventas: Decimal
     cantidad_ventas: int
     ticket_promedio: Decimal
     producto_mas_vendido: Optional[str] = None
-    producto_top: Optional[ProductoMasVendido] = None
 
 
 # ─── STOCK POR SUCURSAL ──────────────────────────────────────────────────────

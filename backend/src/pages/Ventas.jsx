@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { ventasApi, clientesApi, sucursalesApi, productosApi } from '../api'
 import { useToast } from '../components/Toast'
 import { useSucursal } from '../context/SucursalContext'
@@ -58,7 +58,6 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
   const [notas, setNotas] = useState(venta?.notas || '')
   const [items, setItems] = useState(venta?.items?.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario })) || [])
   const [busqProd, setBusqProd] = useState('')
-  const [showDropdown, setShowDropdown] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showNuevoCliente, setShowNuevoCliente] = useState(false)
 
@@ -67,12 +66,9 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
     label: `${p.nombre} — ${[v.sabor, v.tamanio].filter(Boolean).join(' · ')}`,
     marca: p.marca,
     nombre_producto: p.nombre,
-    searchText: [p.nombre, p.marca, v.sabor, v.tamanio].filter(Boolean).join(' ').toLowerCase(),
   })) || [])
 
-  const filtradas = busqProd
-    ? variantesFlat.filter(v => v.searchText.includes(busqProd.toLowerCase()))
-    : variantesFlat
+  const filtradas = variantesFlat.filter(v => v.label.toLowerCase().includes(busqProd.toLowerCase()))
 
   const addItem = (variante) => {
     setItems(prev => {
@@ -81,7 +77,6 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
       return [...prev, { variante_id: variante.id, cantidad: 1, precio_unitario: Number(variante.precio_venta) }]
     })
     setBusqProd('')
-    setShowDropdown(false)
   }
 
   const setItemField = (i, k, v) => setItems(prev => prev.map((x, j) => j === i ? { ...x, [k]: v } : x))
@@ -173,59 +168,20 @@ function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, o
           <div className="form-group">
             <label className="form-label">Agregar producto</label>
             <div style={{ position: 'relative' }}>
-              <input
-                className="form-input"
-                placeholder="Buscar por nombre, marca, sabor..."
-                value={busqProd}
-                onChange={e => { setBusqProd(e.target.value); setShowDropdown(true) }}
-                onFocus={() => setShowDropdown(true)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-                autoComplete="off"
-              />
-              {showDropdown && filtradas.length > 0 && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: 10, zIndex: 50, maxHeight: 260, overflowY: 'auto',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                }}>
-                  {filtradas.slice(0, 10).map(v => (
+              <input className="form-input" placeholder="Buscar producto..." value={busqProd} onChange={e => setBusqProd(e.target.value)} />
+              {busqProd && filtradas.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
+                  {filtradas.slice(0, 8).map(v => (
                     <div key={v.id}
-                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+                      style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}
                       onMouseDown={() => addItem(v)}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {v.nombre_producto}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          {v.marca && <span style={{ color: 'var(--gold-light)' }}>🏷 {v.marca}</span>}
-                          {v.tamanio && <span>⚖ {v.tamanio}</span>}
-                          {v.sabor && <span>✦ {v.sabor}</span>}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold-light)', whiteSpace: 'nowrap' }}>
-                        ${Number(v.precio_venta || 0).toLocaleString('es-AR')}
-                      </div>
+                      <span>{v.label}</span>
+                      <span style={{ color: 'var(--gold-light)' }}>{fmt(v.precio_venta)}</span>
                     </div>
                   ))}
-                  {filtradas.length > 10 && (
-                    <div style={{ padding: '8px 14px', fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>
-                      {filtradas.length - 10} más — seguí escribiendo para filtrar
-                    </div>
-                  )}
-                </div>
-              )}
-              {showDropdown && filtradas.length === 0 && busqProd && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: 10, zIndex: 50, padding: '14px', textAlign: 'center',
-                  color: 'var(--text-muted)', fontSize: 13,
-                }}>
-                  No se encontraron productos
                 </div>
               )}
             </div>
@@ -278,18 +234,18 @@ export default function Ventas() {
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
-  const [verPedidos, setVerPedidos] = useState(false)
+  const [filtroEstado, setFiltroEstado] = useState('totales') // 'totales' | 'abiertas' | 'cerradas'
   const [filtroSucursal, setFiltroSucursal] = useState('')
 
   const cargar = () => {
     setLoading(true)
     Promise.all([
-      ventasApi.listar({ estado: 'confirmada' }),
-      ventasApi.pedidosAbiertos(),
+      ventasApi.listar({}),
       clientesApi.listar(),
       productosApi.listar(),
-    ]).then(([v, p, c, pr]) => {
-      setVentas(v); setPedidos(p); setClientes(c); setProductos(pr)
+    ]).then(([v, c, pr]) => {
+      setVentas(v); setClientes(c); setProductos(pr)
+      setPedidos(v.filter(x => x.estado === 'abierta'))
     }).finally(() => setLoading(false))
   }
 
@@ -311,13 +267,17 @@ export default function Ventas() {
     catch (e) { toast(e.message, 'error') }
   }
 
-  const base = verPedidos ? pedidos : ventas
+  const base = filtroEstado === 'totales' ? ventas
+    : filtroEstado === 'abiertas' ? ventas.filter(v => v.estado === 'abierta')
+    : ventas.filter(v => v.estado === 'confirmada')
   const lista = filtroSucursal
     ? base.filter(v => String(v.sucursal_id) === filtroSucursal)
     : base
 
   const getNombreSucursal = (id) => sucursales.find(s => s.id === id)?.nombre || `#${id}`
   const getNombreCliente = (id) => clientes.find(c => c.id === id)?.nombre || `#${id}`
+
+  const tituloEstado = { totales: 'Ventas totales', abiertas: 'Pedidos abiertos', cerradas: 'Ventas cerradas' }
 
   return (
     <>
@@ -340,9 +300,16 @@ export default function Ventas() {
             <option value="">Todas las sucursales</option>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
-          <button className={`btn ${verPedidos ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setVerPedidos(v => !v)}>
-            Pedidos abiertos {pedidos.length > 0 && `(${pedidos.length})`}
-          </button>
+          <select
+            className="form-select"
+            style={{ width: 'auto', padding: '9px 14px' }}
+            value={filtroEstado}
+            onChange={e => setFiltroEstado(e.target.value)}
+          >
+            <option value="totales">Ventas totales</option>
+            <option value="abiertas">Abiertas {pedidos.length > 0 ? `(${pedidos.length})` : ''}</option>
+            <option value="cerradas">Cerradas</option>
+          </select>
           <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar venta</button>
         </div>
       </div>
@@ -350,7 +317,7 @@ export default function Ventas() {
       <div className="content page-enter">
         <div className="card">
           <div className="card-header">
-            <span className="card-title">{verPedidos ? 'Pedidos abiertos' : 'Ventas confirmadas'}</span>
+            <span className="card-title">{tituloEstado[filtroEstado]}</span>
           </div>
           {loading ? <div className="loading">Cargando...</div> : (
             <div className="table-wrap">
@@ -363,7 +330,7 @@ export default function Ventas() {
                   {lista.map(v => (
                     <tr key={v.id}>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{v.cliente_id ? getNombreCliente(v.cliente_id) : '—'}</td>
+                      <td>{v.cliente_nombre || (v.cliente_id ? getNombreCliente(v.cliente_id) : '—')}</td>
                       <td>{getNombreSucursal(v.sucursal_id)}</td>
                       <td>
                         {v.items?.length > 0 ? (

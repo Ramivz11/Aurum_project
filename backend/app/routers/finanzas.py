@@ -179,6 +179,7 @@ def productos_mas_vendidos(
         lista.append(ProductoTopResponse(
             variante_id=variante_id,
             nombre_producto=variante.producto.nombre,
+            marca=variante.producto.marca,
             sabor=variante.sabor,
             tamanio=variante.tamanio,
             cantidad_vendida=cantidad,
