@@ -46,8 +46,7 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
     else:
         mime_type = content_type
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={settings.GEMINI_API_KEY}"
-
+url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
     payload = {
         "contents": [
             {
