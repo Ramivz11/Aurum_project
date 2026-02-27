@@ -115,6 +115,10 @@ export const sucursalesApi = {
     const q = new URLSearchParams(params).toString()
     return api.get(`/sucursales/comparacion${q ? '?' + q : ''}`)
   },
+  dashboard: (id, params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return api.get(`/sucursales/${id}/dashboard${q ? '?' + q : ''}`)
+  },
 }
 
 // ── DEUDAS ──

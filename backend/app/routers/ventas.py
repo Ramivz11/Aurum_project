@@ -12,6 +12,13 @@ from app.schemas import VentaCreate, VentaUpdate, VentaResponse
 router = APIRouter(prefix="/ventas", tags=["Ventas"])
 
 
+def _venta_a_response(venta: Venta) -> dict:
+    """Convierte una Venta ORM en dict con cliente_nombre incluido."""
+    data = VentaResponse.model_validate(venta).model_dump()
+    data["cliente_nombre"] = venta.cliente.nombre if venta.cliente else None
+    return data
+
+
 def _get_stock_disponible(db: Session, variante_id: int, sucursal_id: int) -> int:
     """Stock disponible en una sucursal específica."""
     ss = db.query(StockSucursal).filter(
@@ -117,12 +124,14 @@ def listar_ventas(
         query = query.filter(Venta.fecha >= fecha_desde)
     if fecha_hasta:
         query = query.filter(Venta.fecha <= fecha_hasta)
-    return query.order_by(Venta.fecha.desc()).all()
+    ventas = query.order_by(Venta.fecha.desc()).all()
+    return [_venta_a_response(v) for v in ventas]
 
 
 @router.get("/pedidos-abiertos", response_model=List[VentaResponse])
 def listar_pedidos_abiertos(db: Session = Depends(get_db)):
-    return db.query(Venta).filter(Venta.estado == EstadoVentaEnum.abierta).order_by(Venta.fecha.desc()).all()
+    ventas = db.query(Venta).filter(Venta.estado == EstadoVentaEnum.abierta).order_by(Venta.fecha.desc()).all()
+    return [_venta_a_response(v) for v in ventas]
 
 
 @router.get("/{venta_id}", response_model=VentaResponse)
@@ -130,7 +139,7 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    return venta
+    return _venta_a_response(venta)
 
 
 @router.post("", response_model=VentaResponse, status_code=201)
@@ -147,7 +156,7 @@ def crear_venta(data: VentaCreate, db: Session = Depends(get_db)):
     _calcular_y_guardar_venta(db, venta, data.items)
     db.commit()
     db.refresh(venta)
-    return venta
+    return _venta_a_response(venta)
 
 
 @router.post("/{venta_id}/confirmar", response_model=VentaResponse)
@@ -164,7 +173,7 @@ def confirmar_pedido(venta_id: int, db: Session = Depends(get_db)):
     venta.estado = EstadoVentaEnum.confirmada
     db.commit()
     db.refresh(venta)
-    return venta
+    return _venta_a_response(venta)
 
 
 @router.put("/{venta_id}", response_model=VentaResponse)
@@ -186,7 +195,7 @@ def actualizar_venta(venta_id: int, data: VentaUpdate, db: Session = Depends(get
 
     db.commit()
     db.refresh(venta)
-    return venta
+    return _venta_a_response(venta)
 
 
 @router.delete("/{venta_id}", status_code=204)

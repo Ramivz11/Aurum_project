@@ -207,7 +207,10 @@ export default function Dashboard() {
                   <div className={`rank-num${i === 0 ? ' gold' : ''}`}>{i + 1}</div>
                   <div className="rank-info">
                     <div className="rank-name">{p.nombre_producto}</div>
-                    <div className="rank-sub">{[p.sabor, p.tamanio].filter(Boolean).join(' · ')}</div>
+                    <div className="rank-sub">
+                      {p.marca && <span style={{ color: 'var(--gold-light)', marginRight: 4 }}>{p.marca}</span>}
+                      {[p.sabor, p.tamanio].filter(Boolean).join(' · ')}
+                    </div>
                   </div>
                   <div className="rank-metrics">
                     <div className="rank-ingreso">{fmt(p.ingreso_total)}</div>
@@ -228,7 +231,7 @@ export default function Dashboard() {
                   <div className="pedido-card" key={p.id} onClick={() => navigate('/ventas')}>
                     <div style={{ fontSize: 20 }}>🛒</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{p.cliente_id ? `Cliente #${p.cliente_id}` : 'Sin cliente'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{p.cliente_nombre || (p.cliente_id ? `Cliente #${p.cliente_id}` : 'Sin cliente')}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.items?.length || 0} productos</div>
                     </div>
                     <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600, fontSize: 14 }}>{fmt(p.total)}</div></div>

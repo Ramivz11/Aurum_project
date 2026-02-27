@@ -5,6 +5,121 @@ import { useSucursal } from '../context/SucursalContext'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
+// ─── DASHBOARD POR SUCURSAL ──────────────────────────────────────────────────
+function DashboardSucursal({ sucursal, onClose }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [showStock, setShowStock] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    sucursalesApi.dashboard(sucursal.id)
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false))
+  }, [sucursal.id])
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal modal-lg">
+        <div className="modal-header">
+          <div className="modal-title">📍 {sucursal.nombre} — Dashboard</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          {loading ? <div className="loading">Cargando...</div> : !data ? (
+            <div className="empty">No se pudieron cargar los datos</div>
+          ) : (
+            <>
+              {/* Stats de ventas */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Ventas del mes</div>
+                  <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--gold-light)' }}>{fmt(data.ventas.total)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{data.ventas.cantidad} ventas · ticket {fmt(data.ventas.ticket_promedio)}</div>
+                </div>
+                <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Rentabilidad</div>
+                  <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--green)' }}>{fmt(data.ventas.rentabilidad)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{data.ventas.porcentaje_del_total}% del total de ventas</div>
+                </div>
+                <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Stock en sucursal</div>
+                  <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700 }}>{data.stock.total_unidades} <span style={{ fontSize: 14, fontWeight: 400 }}>u.</span></div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{data.stock.porcentaje_del_total}% del stock total</div>
+                </div>
+              </div>
+
+              {/* Barra de % del total de ventas */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Participación en ventas globales</div>
+                <div style={{ height: 8, background: 'var(--surface2)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${data.ventas.porcentaje_del_total}%`, background: 'var(--gold)', borderRadius: 4, transition: 'width 0.5s ease' }} />
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{data.ventas.porcentaje_del_total}% del total</div>
+              </div>
+
+              {/* Producto más vendido */}
+              {data.producto_mas_vendido ? (
+                <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border)', marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>🏆 Producto más vendido</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15 }}>{data.producto_mas_vendido.nombre}</div>
+                      {data.producto_mas_vendido.marca && <div style={{ fontSize: 12, color: 'var(--gold-light)' }}>{data.producto_mas_vendido.marca}</div>}
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {[data.producto_mas_vendido.sabor, data.producto_mas_vendido.tamanio].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 24, fontWeight: 700, color: 'var(--gold-light)' }}>{data.producto_mas_vendido.unidades_vendidas}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>unidades</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border)', marginBottom: 16, color: 'var(--text-muted)', fontSize: 13 }}>
+                  Sin ventas este mes para calcular producto top
+                </div>
+              )}
+
+              {/* Stock detalle desplegable */}
+              <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                <button
+                  onClick={() => setShowStock(v => !v)}
+                  style={{ width: '100%', padding: '12px 16px', background: 'var(--surface2)', border: 'none', color: 'var(--text)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, fontWeight: 500 }}
+                >
+                  <span>📦 Ver stock detallado ({data.stock.total_unidades} unidades)</span>
+                  <span>{showStock ? '▲' : '▼'}</span>
+                </button>
+                {showStock && (
+                  <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                    {data.stock.detalle.length === 0 ? (
+                      <div style={{ padding: '16px 20px', color: 'var(--text-muted)', fontSize: 13 }}>Sin stock en esta sucursal</div>
+                    ) : data.stock.detalle.map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid var(--border)', gap: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>{s.producto}</div>
+                          {s.marca && <span style={{ fontSize: 11, color: 'var(--gold-light)', marginRight: 6 }}>{s.marca}</span>}
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{[s.sabor, s.tamanio].filter(Boolean).join(' · ')}</span>
+                        </div>
+                        <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>{s.cantidad} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>u.</span></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ModalDeuda({ onClose, onSaved }) {
   const toast = useToast()
   const [form, setForm] = useState({ tipo: 'por_cobrar', cliente_proveedor: '', monto: '', concepto: '', notas: '' })
@@ -114,6 +229,7 @@ export function Sucursales() {
   const [loading, setLoading] = useState(true)
   const [modalDeuda, setModalDeuda] = useState(false)
   const [modalSucursal, setModalSucursal] = useState(null) // null | 'nuevo' | sucursal
+  const [dashboardSucursal, setDashboardSucursal] = useState(null)
 
   const cargar = () => {
     setLoading(true)
@@ -171,6 +287,7 @@ export function Sucursales() {
                   }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
                     <span style={{ flex: 1, fontWeight: 500, fontSize: 14 }}>{s.nombre}</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setDashboardSucursal(s)} style={{ padding: '4px 8px' }} title="Ver dashboard">📊</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setModalSucursal(s)} style={{ padding: '4px 8px' }}>✎</button>
                     <button className="btn btn-danger btn-sm" onClick={() => eliminarSucursal(s)} style={{ padding: '4px 8px' }}>✕</button>
                   </div>
@@ -248,6 +365,12 @@ export function Sucursales() {
           sucursal={modalSucursal === 'nuevo' ? null : modalSucursal}
           onClose={() => setModalSucursal(null)}
           onSaved={() => { setModalSucursal(null); cargarSucursales(); cargar() }}
+        />
+      )}
+      {dashboardSucursal && (
+        <DashboardSucursal
+          sucursal={dashboardSucursal}
+          onClose={() => setDashboardSucursal(null)}
         />
       )}
     </>

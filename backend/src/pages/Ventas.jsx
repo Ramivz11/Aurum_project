@@ -234,18 +234,18 @@ export default function Ventas() {
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
-  const [verPedidos, setVerPedidos] = useState(false)
+  const [filtroEstado, setFiltroEstado] = useState('totales') // 'totales' | 'abiertas' | 'cerradas'
   const [filtroSucursal, setFiltroSucursal] = useState('')
 
   const cargar = () => {
     setLoading(true)
     Promise.all([
-      ventasApi.listar({ estado: 'confirmada' }),
-      ventasApi.pedidosAbiertos(),
+      ventasApi.listar({}),
       clientesApi.listar(),
       productosApi.listar(),
-    ]).then(([v, p, c, pr]) => {
-      setVentas(v); setPedidos(p); setClientes(c); setProductos(pr)
+    ]).then(([v, c, pr]) => {
+      setVentas(v); setClientes(c); setProductos(pr)
+      setPedidos(v.filter(x => x.estado === 'abierta'))
     }).finally(() => setLoading(false))
   }
 
@@ -267,13 +267,17 @@ export default function Ventas() {
     catch (e) { toast(e.message, 'error') }
   }
 
-  const base = verPedidos ? pedidos : ventas
+  const base = filtroEstado === 'totales' ? ventas
+    : filtroEstado === 'abiertas' ? ventas.filter(v => v.estado === 'abierta')
+    : ventas.filter(v => v.estado === 'confirmada')
   const lista = filtroSucursal
     ? base.filter(v => String(v.sucursal_id) === filtroSucursal)
     : base
 
   const getNombreSucursal = (id) => sucursales.find(s => s.id === id)?.nombre || `#${id}`
   const getNombreCliente = (id) => clientes.find(c => c.id === id)?.nombre || `#${id}`
+
+  const tituloEstado = { totales: 'Ventas totales', abiertas: 'Pedidos abiertos', cerradas: 'Ventas cerradas' }
 
   return (
     <>
@@ -296,9 +300,16 @@ export default function Ventas() {
             <option value="">Todas las sucursales</option>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
-          <button className={`btn ${verPedidos ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setVerPedidos(v => !v)}>
-            Pedidos abiertos {pedidos.length > 0 && `(${pedidos.length})`}
-          </button>
+          <select
+            className="form-select"
+            style={{ width: 'auto', padding: '9px 14px' }}
+            value={filtroEstado}
+            onChange={e => setFiltroEstado(e.target.value)}
+          >
+            <option value="totales">Ventas totales</option>
+            <option value="abiertas">Abiertas {pedidos.length > 0 ? `(${pedidos.length})` : ''}</option>
+            <option value="cerradas">Cerradas</option>
+          </select>
           <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar venta</button>
         </div>
       </div>
@@ -306,7 +317,7 @@ export default function Ventas() {
       <div className="content page-enter">
         <div className="card">
           <div className="card-header">
-            <span className="card-title">{verPedidos ? 'Pedidos abiertos' : 'Ventas confirmadas'}</span>
+            <span className="card-title">{tituloEstado[filtroEstado]}</span>
           </div>
           {loading ? <div className="loading">Cargando...</div> : (
             <div className="table-wrap">
@@ -319,7 +330,7 @@ export default function Ventas() {
                   {lista.map(v => (
                     <tr key={v.id}>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{v.cliente_id ? getNombreCliente(v.cliente_id) : '—'}</td>
+                      <td>{v.cliente_nombre || (v.cliente_id ? getNombreCliente(v.cliente_id) : '—')}</td>
                       <td>{getNombreSucursal(v.sucursal_id)}</td>
                       <td>
                         {v.items?.length > 0 ? (

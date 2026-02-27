@@ -174,6 +174,7 @@ class VentaUpdate(BaseModel):
 class VentaResponse(BaseModel):
     id: int
     cliente_id: Optional[int]
+    cliente_nombre: Optional[str] = None
     sucursal_id: int
     fecha: datetime
     metodo_pago: MetodoPago
@@ -297,6 +298,7 @@ class AnalisisMesResponse(BaseModel):
 class ProductoTopResponse(BaseModel):
     variante_id: int
     nombre_producto: str
+    marca: Optional[str]
     sabor: Optional[str]
     tamanio: Optional[str]
     cantidad_vendida: int
