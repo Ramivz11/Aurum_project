@@ -291,17 +291,23 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
   const [analizando, setAnalizando] = useState(false)
   const [resultado, setResultado] = useState(null)
   const [guardando, setGuardando] = useState(false)
+  const [errorIA, setErrorIA] = useState(null)
   const fileRef = useRef()
 
   const analizar = async () => {
     if (!archivo) return toast('Seleccioná un archivo', 'error')
     setAnalizando(true)
+    setErrorIA(null)
     try {
       const form = new FormData()
       form.append('archivo', archivo)
       const res = await comprasApi.analizarFactura(form)
       setResultado(res)
-    } catch (e) { toast(e.message || 'Error al analizar', 'error') }
+    } catch (e) {
+      const msg = e.message || 'Error al analizar'
+      setErrorIA(msg)
+      toast(msg, 'error')
+    }
     finally { setAnalizando(false) }
   }
 
@@ -355,6 +361,21 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
                 Gemini está leyendo el documento. Esto puede tardar unos segundos.
               </div>
             </div>
+          ) : errorIA ? (
+            <div style={{ padding: '20px 0' }}>
+              <div style={{ background: 'rgba(224,85,85,0.1)', border: '1px solid rgba(224,85,85,0.3)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--red, #e05555)', marginBottom: 6 }}>⚠ Error al analizar la factura</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{errorIA}</div>
+                {errorIA.toLowerCase().includes('gemini') && (
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, padding: '8px 10px', background: 'var(--surface3)', borderRadius: 6 }}>
+                    💡 Para activar el análisis con IA, configurá la variable <code>GEMINI_API_KEY</code> en tu entorno de Railway.
+                  </div>
+                )}
+              </div>
+              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setErrorIA(null); setArchivo(null) }}>
+                Intentar con otro archivo
+              </button>
+            </div>
           ) : (
             <>
             <div className="ia-banner">
@@ -390,7 +411,7 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose} disabled={analizando}>Cancelar</button>
-          {!analizando && (
+          {!analizando && !errorIA && (
             <button className="btn btn-primary" onClick={analizar} disabled={!archivo}>
               ✨ Analizar con IA
             </button>
