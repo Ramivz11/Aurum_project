@@ -277,7 +277,7 @@ export default function Ventas() {
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
-  const [filtroEstado, setFiltroEstado] = useState('confirmada')
+  const [filtroEstado, setFiltroEstado] = useState('todos')
   const [showDropdownEstado, setShowDropdownEstado] = useState(false)
   const [filtroSucursal, setFiltroSucursal] = useState('')
 

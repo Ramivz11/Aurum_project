@@ -241,9 +241,20 @@ export default function Stock() {
           <span className="search-icon">⌕</span>
           <input className="search-input" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
-        <select className="input" style={{ width: 'auto' }} value={categoria} onChange={e => setCategoria(e.target.value)}>
+        <select className="input" style={{ width: 'auto' }} value={categoria} onChange={e => {
+          if (e.target.value === '__nueva__') { setModalCats(true) }
+          else { setCategoria(e.target.value) }
+        }}>
           <option value="">Todas las categorías</option>
-          {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+          {[...categorias]
+            .filter(c => c.nombre.toLowerCase() !== 'otras')
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+            .map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)
+          }
+          {categorias.some(c => c.nombre.toLowerCase() === 'otras') && (
+            <option value="Otras">Otras</option>
+          )}
+          <option value="__nueva__">+ Crear nueva categoría</option>
         </select>
         <button className="btn btn-ghost" onClick={() => setModalCats(true)}>Categorías</button>
         <button className="btn btn-primary" onClick={() => setModalProd({})}>+ Nuevo producto</button>

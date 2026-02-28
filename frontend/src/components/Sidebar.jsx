@@ -18,7 +18,6 @@ const NAV = [
     { to: '/clientes', icon: '◯', label: 'Clientes' },
     { to: '/finanzas', icon: '◇', label: 'Finanzas' },
     { to: '/sucursales', icon: '⬙', label: 'Sucursales' },
-    { to: '/categorias', icon: '⊞', label: 'Categorías' },
   ]},
 ]
 
@@ -104,37 +103,7 @@ function NavContent({ onItemClick, pedidosAbiertos, sucursalesOpen, setSucursale
         </div>
       ))}
 
-      <div className="sucursal-section">
-        <div className="sucursal-header" onClick={() => setSucursalesOpen(v => !v)}>
-          <span className="sucursal-title">Sucursales</span>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              onClick={e => { e.stopPropagation(); setEditando('nuevo') }}
-              className="sucursal-add-btn"
-              title="Nueva sucursal"
-            >+</button>
-            <span className={`sucursal-toggle${sucursalesOpen ? ' open' : ''}`}>▶</span>
-          </div>
-        </div>
-        {sucursalesOpen && sucursales.map(s => (
-          <div
-            key={s.id}
-            className={`nav-item${sucursalActual?.id === s.id ? ' active' : ''}`}
-            style={{ cursor: 'pointer', paddingRight: 6 }}
-            onClick={() => { setSucursalActual(s); onItemClick?.() }}
-          >
-            <span className="nav-icon" style={{ fontSize: 7 }}>●</span>
-            <span style={{ flex: 1, fontSize: 13 }}>{s.nombre}</span>
-            {sucursalActual?.id === s.id && (
-              <button
-                onClick={e => { e.stopPropagation(); setEditando(s) }}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 11, padding: '2px 4px', borderRadius: 4 }}
-                title="Editar"
-              >✎</button>
-            )}
-          </div>
-        ))}
-      </div>
+
     </nav>
   )
 }
