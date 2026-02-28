@@ -482,9 +482,9 @@ export default function Stock() {
           : productosFiltrados.length === 0
           ? <div className="empty">{filtroSucursal ? 'Sin stock en esta sucursal.' : 'No hay productos.'}</div>
           : (
-            <div className="grid-2">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
               {productosFiltrados.map(prod => (
-                <div className="card" key={prod.id} style={{ height: 'fit-content' }}>
+                <div className="card" key={prod.id} style={{ height: 'fit-content', marginBottom: 0 }}>
                   <div className="card-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 18 }}>{getEmoji(prod.categoria)}</span>
