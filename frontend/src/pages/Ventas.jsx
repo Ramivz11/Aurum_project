@@ -1,452 +1,481 @@
-import { useState, useEffect, useRef } from 'react'
-import { ventasApi, clientesApi, sucursalesApi, productosApi } from '../api'
-import { useToast } from '../components/Toast'
-import { useSucursal } from '../context/SucursalContext'
+import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
+import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../../api/services'
+import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
 
-const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
-const METODOS = ['efectivo', 'transferencia', 'tarjeta']
-const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chip-gray' }
-const ESTADO_CHIP = { confirmada: 'chip-green', abierta: 'chip-gold', cancelada: 'chip-red' }
-
-function ModalNuevoCliente({ onClose, onCreated }) {
-  const toast = useToast()
-  const [form, setForm] = useState({ nombre: '', ubicacion: '', telefono: '' })
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    if (!form.nombre) return toast('El nombre es obligatorio', 'error')
-    setSaving(true)
-    try {
-      const cliente = await clientesApi.crear(form)
-      toast('Cliente creado')
-      onCreated(cliente)
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
-  }
-
-  return (
-    <div style={{ marginTop: 16, padding: 16, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)' }}>
-      <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 13, color: 'var(--gold-light)' }}>Nuevo cliente</div>
-      <div className="form-row">
-        <div className="form-group" style={{ margin: 0 }}>
-          <label className="form-label">Nombre *</label>
-          <input className="form-input" placeholder="Nombre completo" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoFocus />
-        </div>
-        <div className="form-group" style={{ margin: 0 }}>
-          <label className="form-label">Teléfono</label>
-          <input className="form-input" placeholder="Ej: 11-1234-5678" value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} />
-        </div>
-      </div>
-      <div className="form-group" style={{ marginBottom: 12 }}>
-        <label className="form-label">Ubicación</label>
-        <input className="form-input" placeholder="Ciudad / barrio" value={form.ubicacion} onChange={e => setForm(f => ({ ...f, ubicacion: e.target.value }))} />
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
-        <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Crear cliente'}</button>
-      </div>
-    </div>
-  )
-}
-
-function ModalVenta({ venta, clientes: initialClientes, sucursales, productos, onClose, onSaved }) {
-  const toast = useToast()
-  const [clientes, setClientes] = useState(initialClientes)
-  const [clienteId, setClienteId] = useState(venta?.cliente_id || '')
-  const [sucursalId, setSucursalId] = useState(venta?.sucursal_id || sucursales[0]?.id || '')
-  const [metodo, setMetodo] = useState(venta?.metodo_pago || 'efectivo')
-  const [estado, setEstado] = useState(venta?.estado || 'confirmada')
-  const [notas, setNotas] = useState(venta?.notas || '')
-  const [items, setItems] = useState(venta?.items?.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario })) || [])
-  const [busqProd, setBusqProd] = useState('')
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [showNuevoCliente, setShowNuevoCliente] = useState(false)
-
-  const variantesFlat = productos.flatMap(p => p.variantes?.filter(v => v.activa).map(v => ({
-    ...v,
-    label: `${p.nombre} — ${[v.sabor, v.tamanio].filter(Boolean).join(' · ')}`,
-    marca: p.marca,
-    nombre_producto: p.nombre,
-    searchText: [p.nombre, p.marca, v.sabor, v.tamanio].filter(Boolean).join(' ').toLowerCase(),
-  })) || [])
-
-  const filtradas = busqProd
-    ? variantesFlat.filter(v => v.searchText.includes(busqProd.toLowerCase()))
-    : variantesFlat
-
-  const addItem = (variante) => {
-    setItems(prev => {
-      const exists = prev.find(i => i.variante_id === variante.id)
-      if (exists) return prev.map(i => i.variante_id === variante.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { variante_id: variante.id, cantidad: 1, precio_unitario: Number(variante.precio_venta) }]
-    })
-    setBusqProd('')
-    setShowDropdown(false)
-  }
-
-  const setItemField = (i, k, v) => setItems(prev => prev.map((x, j) => j === i ? { ...x, [k]: v } : x))
-  const removeItem = (i) => setItems(prev => prev.filter((_, j) => j !== i))
-
-  const total = items.reduce((s, i) => s + (Number(i.cantidad) * Number(i.precio_unitario)), 0)
-
-  const save = async () => {
-    if (!sucursalId) return toast('Seleccioná una sucursal', 'error')
-    if (items.length === 0) return toast('Agregá al menos un producto', 'error')
-    setSaving(true)
-    try {
-      const payload = {
-        cliente_id: clienteId || null,
-        sucursal_id: Number(sucursalId),
-        metodo_pago: metodo,
-        estado,
-        notas: notas || null,
-        items: items.map(i => ({ variante_id: Number(i.variante_id), cantidad: Number(i.cantidad), precio_unitario: Number(i.precio_unitario) }))
-      }
-      if (venta) await ventasApi.actualizar(venta.id, payload)
-      else await ventasApi.crear(payload)
-      toast(venta ? 'Venta actualizada' : 'Venta registrada')
-      onSaved()
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
-  }
-
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal modal-lg">
-        <div className="modal-header">
-          <div className="modal-title">{venta ? 'Editar venta' : 'Registrar venta'}</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Cliente</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select className="form-select" value={clienteId} onChange={e => setClienteId(e.target.value)} style={{ flex: 1 }}>
-                  <option value="">Sin cliente</option>
-                  {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  style={{ whiteSpace: 'nowrap' }}
-                  onClick={() => setShowNuevoCliente(v => !v)}
-                  title="Crear cliente nuevo"
-                >
-                  {showNuevoCliente ? '✕' : '+ Nuevo'}
-                </button>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Sucursal *</label>
-              <select className="form-select" value={sucursalId} onChange={e => setSucursalId(e.target.value)}>
-                {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {showNuevoCliente && (
-            <ModalNuevoCliente
-              onClose={() => setShowNuevoCliente(false)}
-              onCreated={(cliente) => {
-                setClientes(c => [...c, cliente])
-                setClienteId(cliente.id)
-                setShowNuevoCliente(false)
-              }}
-            />
-          )}
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Método de pago</label>
-              <select className="form-select" value={metodo} onChange={e => setMetodo(e.target.value)}>
-                {METODOS.map(m => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              <select className="form-select" value={estado} onChange={e => setEstado(e.target.value)}>
-                <option value="confirmada">Confirmada</option>
-                <option value="abierta">Pedido abierto</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Agregar producto</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                className="form-input"
-                placeholder="Buscar por nombre, marca, sabor..."
-                value={busqProd}
-                onChange={e => { setBusqProd(e.target.value); setShowDropdown(true) }}
-                onFocus={() => setShowDropdown(true)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-                autoComplete="off"
-              />
-              {showDropdown && filtradas.length > 0 && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: 10, zIndex: 50, maxHeight: 260, overflowY: 'auto',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                }}>
-                  {filtradas.slice(0, 10).map(v => (
-                    <div key={v.id}
-                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
-                      onMouseDown={() => addItem(v)}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {v.nombre_producto}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          {v.marca && <span style={{ color: 'var(--gold-light)' }}>🏷 {v.marca}</span>}
-                          {v.tamanio && <span>⚖ {v.tamanio}</span>}
-                          {v.sabor && <span>✦ {v.sabor}</span>}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold-light)', whiteSpace: 'nowrap' }}>
-                        ${Number(v.precio_venta || 0).toLocaleString('es-AR')}
-                      </div>
-                    </div>
-                  ))}
-                  {filtradas.length > 10 && (
-                    <div style={{ padding: '8px 14px', fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>
-                      {filtradas.length - 10} más — seguí escribiendo para filtrar
-                    </div>
-                  )}
-                </div>
-              )}
-              {showDropdown && filtradas.length === 0 && busqProd && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: 10, zIndex: 50, padding: '14px', textAlign: 'center',
-                  color: 'var(--text-muted)', fontSize: 13,
-                }}>
-                  No se encontraron productos
-                </div>
-              )}
-            </div>
-          </div>
-
-          {items.length > 0 && (
-            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-              {items.map((item, i) => {
-                const v = variantesFlat.find(x => x.id === Number(item.variante_id))
-                return (
-                  <div className="carrito-item" key={i}>
-                    <div className="carrito-nombre">
-                      <span>{v?.nombre_producto || `Variante #${item.variante_id}`}</span>
-                      {v?.marca && <span style={{ color: 'var(--text-muted)', marginLeft: 5 }}>· {v.marca}</span>}
-                      {v && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 1 }}>{[v.sabor, v.tamanio].filter(Boolean).join(' · ')}</div>}
-                    </div>
-                    <input className="carrito-qty" type="number" min={1} value={item.cantidad} onChange={e => setItemField(i, 'cantidad', e.target.value)} />
-                    <input className="carrito-precio" type="number" value={item.precio_unitario} onChange={e => setItemField(i, 'precio_unitario', e.target.value)} />
-                    <div className="carrito-subtotal">{fmt(item.cantidad * item.precio_unitario)}</div>
-                    <button className="carrito-remove" onClick={() => removeItem(i)}>✕</button>
-                  </div>
-                )
-              })}
-              <div style={{ textAlign: 'right', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', fontFamily: 'Syne, sans-serif', fontSize: 20, fontWeight: 700, color: 'var(--gold-light)' }}>
-                Total: {fmt(total)}
-              </div>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label className="form-label">Notas</label>
-            <textarea className="form-textarea" value={notas} onChange={e => setNotas(e.target.value)} placeholder="Observaciones..." />
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar venta'}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export default function Ventas() {
-  const toast = useToast()
-  const { sucursalActual, sucursales } = useSucursal()
-  const [ventas, setVentas] = useState([])
+function ModalVenta({ onClose, onSaved }) {
+  const [sucursales, setSucursales] = useState([])
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
+  const [form, setForm] = useState({ cliente_id: '', sucursal_id: '', metodo_pago: 'efectivo', estado: 'confirmada', notas: '' })
+  const [carrito, setCarrito] = useState([])
+  const [busqueda, setBusqueda] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [nuevoCliente, setNuevoCliente] = useState(null)
+  const [formCliente, setFormCliente] = useState({ nombre: '', ubicacion: '', telefono: '' })
+
+  useEffect(() => {
+    Promise.all([sucursalesApi.listar(), clientesApi.listar(), productosApi.listar()])
+      .then(([s, c, p]) => { setSucursales(s.data); setClientes(c.data); setProductos(p.data) })
+  }, [])
+
+  const filtrados = busqueda
+    ? productos.filter(p => {
+        const q = busqueda.toLowerCase()
+        return p.nombre.toLowerCase().includes(q) || (p.marca || '').toLowerCase().includes(q)
+      })
+    : []
+
+  const agregar = (prod, vari) => {
+    const key = `v${vari.id}`
+    const ex = carrito.find(i => i.key === key)
+    if (ex) {
+      setCarrito(c => c.map(i => i.key === key ? { ...i, cantidad: i.cantidad + 1 } : i))
+    } else {
+      setCarrito(c => [...c, {
+        key, variante_id: vari.id, cantidad: 1, precio_unitario: Number(vari.precio_venta),
+        nombre: [prod.nombre, prod.marca].filter(Boolean).join(' · '),
+        detalle: [vari.sabor, vari.tamanio].filter(Boolean).join(' / ')
+      }])
+    }
+    setBusqueda('')
+  }
+
+  const crearCliente = async () => {
+    if (!formCliente.nombre) return toast.error('El nombre es obligatorio')
+    const { data } = await clientesApi.crear(formCliente)
+    setClientes(c => [...c, data]); setForm(f => ({ ...f, cliente_id: data.id })); setNuevoCliente(null); toast.success('Cliente creado')
+  }
+
+  const total = carrito.reduce((a, i) => a + i.precio_unitario * i.cantidad, 0)
+
+  const submit = async () => {
+    if (!form.sucursal_id) return toast.error('Seleccioná una sucursal')
+    if (!carrito.length) return toast.error('El carrito está vacío')
+    setLoading(true)
+    try {
+      await ventasApi.crear({
+        ...form, cliente_id: form.cliente_id || null, sucursal_id: Number(form.sucursal_id),
+        items: carrito.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario }))
+      })
+      toast.success(form.estado === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
+      onSaved(); onClose()
+    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+  }
+
+  return (
+    <Modal title="Registrar venta" onClose={onClose} size="modal-lg"
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-ghost" onClick={() => { setForm(f => ({ ...f, estado: 'abierta' })); setTimeout(submit, 50) }}>Guardar como pedido</button>
+        <button className="btn btn-primary" onClick={submit} disabled={loading}>{loading ? 'Registrando...' : `Confirmar ${formatARS(total)}`}</button>
+      </>}
+    >
+      <div className="grid-2" style={{ marginBottom: 0 }}>
+        <div className="form-group">
+          <label className="input-label">Cliente</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select className="input" value={form.cliente_id} onChange={e => setForm(f => ({ ...f, cliente_id: e.target.value }))}>
+              <option value="">Sin cliente</option>
+              {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+            <button className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={() => setNuevoCliente(true)}>+ Nuevo</button>
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="input-label">Sucursal *</label>
+          <select className="input" value={form.sucursal_id} onChange={e => setForm(f => ({ ...f, sucursal_id: e.target.value }))}>
+            <option value="">Seleccionar...</option>
+            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="input-label">Método de pago</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['efectivo', 'transferencia', 'tarjeta'].map(m => (
+            <button key={m} className={`btn btn-sm ${form.metodo_pago === m ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setForm(f => ({ ...f, metodo_pago: m }))}>{METODO_PAGO_LABEL[m]}</button>
+          ))}
+        </div>
+      </div>
+      <hr className="divider" />
+      <div className="form-group">
+        <label className="input-label">Buscar producto</label>
+        <input className="input" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Nombre o marca..." />
+        {filtrados.length > 0 && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+            {filtrados.map(p => p.variantes?.filter(v => v.activa !== false).map(v => (
+              <div key={v.id} onClick={() => agregar(p, v)}
+                style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                onMouseLeave={e => e.currentTarget.style.background = ''}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.nombre}</span>
+                    {p.marca && <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--gold-light)' }}>{p.marca}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {[v.sabor, v.tamanio].filter(Boolean).join(' · ')}
+                    {' — '}Stock: <strong style={{ color: v.stock_actual <= (v.stock_minimo || 0) ? 'var(--red)' : 'var(--text-muted)' }}>{v.stock_actual}</strong>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 600, marginLeft: 12, whiteSpace: 'nowrap' }}>{formatARS(v.precio_venta)}</div>
+              </div>
+            )))}
+          </div>
+        )}
+      </div>
+      {carrito.length > 0 && (
+        <div>
+          <label className="input-label">Carrito</label>
+          {carrito.map((item, i) => (
+            <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{item.nombre}</div>
+                {item.detalle && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.detalle}</div>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button className="btn btn-ghost btn-xs" onClick={() => setCarrito(c => c.map((x, idx) => idx === i && x.cantidad > 1 ? { ...x, cantidad: x.cantidad - 1 } : x))}>−</button>
+                <span style={{ width: 24, textAlign: 'center' }}>{item.cantidad}</span>
+                <button className="btn btn-ghost btn-xs" onClick={() => setCarrito(c => c.map((x, idx) => idx === i ? { ...x, cantidad: x.cantidad + 1 } : x))}>+</button>
+              </div>
+              <input type="number" className="input" style={{ width: 110 }} value={item.precio_unitario}
+                onChange={e => setCarrito(c => c.map((x, idx) => idx === i ? { ...x, precio_unitario: Number(e.target.value) } : x))} />
+              <button className="btn btn-danger btn-xs" onClick={() => setCarrito(c => c.filter((_, idx) => idx !== i))}>✕</button>
+            </div>
+          ))}
+          <div style={{ textAlign: 'right', marginTop: 12, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--gold-light)' }}>
+            Total: {formatARS(total)}
+          </div>
+        </div>
+      )}
+      {nuevoCliente && (
+        <div style={{ marginTop: 16, padding: 16, background: 'var(--surface2)', borderRadius: 8 }}>
+          <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 13 }}>Nuevo cliente</div>
+          <input className="input mb-8" placeholder="Nombre *" value={formCliente.nombre} onChange={e => setFormCliente(n => ({ ...n, nombre: e.target.value }))} />
+          <input className="input mb-8" placeholder="Ubicación" value={formCliente.ubicacion} onChange={e => setFormCliente(n => ({ ...n, ubicacion: e.target.value }))} />
+          <input className="input mb-8" placeholder="Teléfono" value={formCliente.telefono} onChange={e => setFormCliente(n => ({ ...n, telefono: e.target.value }))} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setNuevoCliente(null)}>Cancelar</button>
+            <button className="btn btn-primary btn-sm" onClick={crearCliente}>Crear</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ─── Métodos de pago color badge ─────────────────────────────────────────────
+const PAGO_COLORS = {
+  efectivo: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e', border: 'rgba(34,197,94,0.22)' },
+  transferencia: { bg: 'rgba(91,143,232,0.12)', text: '#5b8fe8', border: 'rgba(91,143,232,0.22)' },
+  tarjeta: { bg: 'rgba(251,191,36,0.12)', text: '#fbbf24', border: 'rgba(251,191,36,0.22)' },
+}
+
+function PagoBadge({ metodo }) {
+  const c = PAGO_COLORS[metodo] || { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.5)', border: 'rgba(255,255,255,0.1)' }
+  return (
+    <span style={{
+      background: c.bg, color: c.text, border: `1px solid ${c.border}`,
+      borderRadius: 8, fontSize: 11, fontWeight: 600, padding: '3px 10px',
+    }}>{METODO_PAGO_LABEL[metodo] || metodo}</span>
+  )
+}
+
+function EstadoBadge({ estado }) {
+  const map = {
+    confirmada: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e', border: 'rgba(34,197,94,0.22)' },
+    abierta: { bg: 'rgba(255,152,0,0.12)', text: '#ff9800', border: 'rgba(255,152,0,0.22)' },
+    cancelada: { bg: 'rgba(239,68,68,0.12)', text: '#ef4444', border: 'rgba(239,68,68,0.22)' },
+  }
+  const c = map[estado] || map.abierta
+  return (
+    <span style={{
+      background: c.bg, color: c.text, border: `1px solid ${c.border}`,
+      borderRadius: 8, fontSize: 11, fontWeight: 600, padding: '3px 10px',
+      textTransform: 'capitalize',
+    }}>{estado}</span>
+  )
+}
+
+// ─── Ventas Footer ────────────────────────────────────────────────────────────
+
+function VentasFooter({ ventas }) {
+  const confirmadas = ventas.filter(v => v.estado === 'confirmada')
+  const ingresosDia = confirmadas.reduce((a, v) => a + (Number(v.total) || 0), 0)
+  const pendientes = ventas.filter(v => v.estado === 'abierta').length
+
+  const sparkPoints = [30, 45, 38, 62, 54, 70, 48, 66, 52, 74, 60, 82]
+  const sparkMax = Math.max(...sparkPoints); const sparkMin = Math.min(...sparkPoints)
+  const range = sparkMax - sparkMin || 1
+  const W = 220; const H = 38
+  const pts = sparkPoints.map((v, i) => {
+    const x = (i / (sparkPoints.length - 1)) * W
+    const y = H - ((v - sparkMin) / range) * H
+    return `${x},${y}`
+  }).join(' ')
+
+  const ventasByMetodo = { efectivo: 0, transferencia: 0, tarjeta: 0 }
+  confirmadas.forEach(v => { ventasByMetodo[v.metodo_pago] = (ventasByMetodo[v.metodo_pago] || 0) + Number(v.total || 0) })
+  const margenTotal = confirmadas.length > 0
+    ? Math.round((confirmadas.length / Math.max(ventas.length, 1)) * 100)
+    : 0
+
+  return (
+    <div style={{
+      margin: '24px 0 8px',
+      borderRadius: 20,
+      background: 'linear-gradient(135deg, rgba(15,22,41,0.97) 0%, rgba(26,32,53,0.92) 100%)',
+      border: '1px solid rgba(255,152,0,0.15)',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+        {/* Ingresos del día */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
+            border: '1px solid rgba(255,152,0,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, flexShrink: 0,
+          }}>$</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Ingresos del Día</div>
+            <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#f1f5f9', lineHeight: 1 }}>
+              {formatARS(ingresosDia)}
+            </div>
+            {pendientes > 0 && (
+              <div style={{ fontSize: 11, marginTop: 4 }}>
+                <span style={{ background: 'rgba(255,152,0,0.15)', color: '#ff9800', borderRadius: 999, padding: '1px 8px' }}>
+                  +{pendientes} pendientes
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tendencia mensual sparkline */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Tendencia Mensual</div>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="vk-g" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#ff9800" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#ffb74d" stopOpacity="1" />
+                </linearGradient>
+              </defs>
+              <polyline points={pts} fill="none" stroke="url(#vk-g)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Margen / tasa confirmación */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px' }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
+            border: '1px solid rgba(255,152,0,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, flexShrink: 0,
+          }}>◇</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Margen Promedio</div>
+            <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#ff9800', lineHeight: 1 }}>{margenTotal}%</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>{confirmadas.length} confirmadas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Row Card ─────────────────────────────────────────────────────────────────
+
+function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar }) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 160px 100px 120px 140px 110px auto',
+        alignItems: 'center',
+        gap: 12,
+        padding: '16px 20px',
+        borderRadius: 16,
+        background: hovered
+          ? 'linear-gradient(135deg, rgba(26,32,53,0.98), rgba(22,28,48,0.95))'
+          : 'linear-gradient(135deg, rgba(15,22,41,0.9), rgba(20,26,46,0.85))',
+        border: hovered ? '1px solid rgba(255,152,0,0.2)' : '1px solid rgba(255,255,255,0.05)',
+        transition: 'all 0.2s ease',
+        transform: hovered ? 'translateX(2px)' : 'translateX(0)',
+        boxShadow: hovered ? '0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,152,0,0.06)' : 'none',
+        marginBottom: 8,
+        cursor: 'default',
+      }}
+    >
+      {/* Cliente + fecha */}
+      <div>
+        <div style={{ fontWeight: 600, fontSize: 14, color: '#f1f5f9', marginBottom: 2 }}>
+          {clienteNombre || '— Sin cliente —'}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{formatDateTime(venta.fecha)}</div>
+      </div>
+
+      {/* Sucursal */}
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Sucursal #{venta.sucursal_id}</div>
+
+      {/* Items */}
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+        {venta.items?.length || 0} producto{(venta.items?.length || 0) !== 1 ? 's' : ''}
+      </div>
+
+      {/* Pago */}
+      <div><PagoBadge metodo={venta.metodo_pago} /></div>
+
+      {/* Total */}
+      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, color: '#ff9800' }}>
+        {formatARS(venta.total)}
+      </div>
+
+      {/* Estado */}
+      <div><EstadoBadge estado={venta.estado} /></div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 6, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+        {venta.estado === 'abierta' && (
+          <button
+            onClick={onConfirmar}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'; e.currentTarget.style.color = '#22c55e' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+            style={{
+              background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+            }}>✓</button>
+        )}
+        <button
+          onClick={onEliminar}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#ef4444' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+          style={{
+            background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+          }}>✕</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
+
+export default function Ventas() {
+  const [ventas, setVentas] = useState([])
+  const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null)
-  const [filtroEstado, setFiltroEstado] = useState('todos')
-  const [showDropdownEstado, setShowDropdownEstado] = useState(false)
-  const [filtroSucursal, setFiltroSucursal] = useState('')
+  const [modal, setModal] = useState(false)
+  const [confirm, setConfirm] = useState(null)
+  const [filtro, setFiltro] = useState('')
 
   const cargar = () => {
     setLoading(true)
     Promise.all([
-      ventasApi.listar({}),
-      clientesApi.listar(),
-      productosApi.listar(),
-    ]).then(([v, c, pr]) => {
-      setVentas(v); setClientes(c); setProductos(pr)
+      ventasApi.listar({ estado: filtro || undefined }),
+      clientesApi.listar()
+    ]).then(([v, c]) => {
+      setVentas(v.data)
+      setClientes(c.data)
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [filtro])
 
-  // Auto-set filtro when sucursal changes
-  useEffect(() => {
-    if (sucursalActual) setFiltroSucursal(String(sucursalActual.id))
-  }, [sucursalActual?.id])
+  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.nombre]))
 
-  const eliminar = async (id) => {
-    if (!confirm('¿Eliminar esta venta?')) return
-    try { await ventasApi.eliminar(id); toast('Venta eliminada'); cargar() }
-    catch (e) { toast(e.message, 'error') }
-  }
-
+  const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
   const confirmar = async (id) => {
-    try { await ventasApi.confirmar(id); toast('Pedido confirmado'); cargar() }
-    catch (e) { toast(e.message, 'error') }
+    try { await ventasApi.confirmar(id); toast.success('Confirmado'); cargar() }
+    catch (e) { toast.error(e.response?.data?.detail || 'Error') }
   }
 
-  const ESTADO_LABELS = { confirmada: 'Ventas cerradas', abierta: 'Ventas abiertas', todos: 'Ventas totales' }
+  const filtros = [
+    { key: '', label: 'Todas' },
+    { key: 'abierta', label: 'Pedidos abiertos' },
+    { key: 'confirmada', label: 'Confirmadas' },
+  ]
 
-  const base = filtroEstado === 'todos' ? ventas : ventas.filter(v => v.estado === filtroEstado)
-  const lista = filtroSucursal
-    ? base.filter(v => String(v.sucursal_id) === filtroSucursal)
-    : base
-
-  const getNombreSucursal = (id) => sucursales.find(s => s.id === id)?.nombre || `#${id}`
-  const getNombreCliente = (id) => clientes.find(c => c.id === id)?.nombre || `#${id}`
-
-  return (
-    <>
-      <div className="topbar">
-        <div className="page-title">
-          Ventas
-          {sucursalActual && filtroSucursal && (
-            <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 10 }}>
-              — {getNombreSucursal(Number(filtroSucursal))}
-            </span>
-          )}
-        </div>
-        <div className="topbar-actions">
-          <select
-            className="form-select"
-            style={{ width: 'auto', padding: '9px 14px' }}
-            value={filtroSucursal}
-            onChange={e => setFiltroSucursal(e.target.value)}
-          >
-            <option value="">Todas las sucursales</option>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </select>
-          <div style={{ position: 'relative' }}>
-            <button
-              className={`btn ${filtroEstado !== 'confirmada' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setShowDropdownEstado(v => !v)}
-              style={{ gap: 6 }}
-            >
-              {ESTADO_LABELS[filtroEstado]} ▾
-            </button>
-            {showDropdownEstado && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 10, zIndex: 50, minWidth: 180,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                overflow: 'hidden',
-              }} onMouseLeave={() => setShowDropdownEstado(false)}>
-                {[
-                  { key: 'todos', label: 'Ventas totales' },
-                  { key: 'abierta', label: 'Ventas abiertas' },
-                  { key: 'confirmada', label: 'Ventas cerradas' },
-                ].map(opt => (
-                  <div key={opt.key}
-                    style={{
-                      padding: '11px 16px', cursor: 'pointer', fontSize: 13,
-                      background: filtroEstado === opt.key ? 'var(--surface2)' : 'transparent',
-                      color: filtroEstado === opt.key ? 'var(--gold-light)' : 'var(--text)',
-                      fontWeight: filtroEstado === opt.key ? 600 : 400,
-                      borderBottom: '1px solid var(--border)',
-                    }}
-                    onClick={() => { setFiltroEstado(opt.key); setShowDropdownEstado(false) }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                    onMouseLeave={e => e.currentTarget.style.background = filtroEstado === opt.key ? 'var(--surface2)' : 'transparent'}
-                  >
-                    {opt.label}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar venta</button>
+  return (<>
+    <div className="topbar">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div className="page-title" style={{ fontSize: 22, fontWeight: 800 }}>Ventas</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+          {ventas.length} registros
         </div>
       </div>
-
-      <div className="content page-enter">
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">{ESTADO_LABELS[filtroEstado]}</span>
-          </div>
-          {loading ? <div className="loading">Cargando...</div> : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Fecha</th><th>Cliente</th><th>Sucursal</th><th>Productos</th><th>Pago</th><th>Total</th><th>Estado</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {lista.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Sin registros</td></tr>}
-                  {lista.map(v => (
-                    <tr key={v.id}>
-                      <td style={{ color: 'var(--text-muted)' }}>{new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{v.cliente_id ? getNombreCliente(v.cliente_id) : '—'}</td>
-                      <td>{getNombreSucursal(v.sucursal_id)}</td>
-                      <td>
-                        {v.items?.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {v.items.slice(0, 2).map((item, idx) => {
-                              const variante = productos.flatMap(p => p.variantes?.map(vv => ({ ...vv, marca: p.marca, nombre: p.nombre })) || []).find(vv => vv.id === item.variante_id)
-                              return (
-                                <div key={idx} style={{ fontSize: 12 }}>
-                                  <span style={{ color: 'var(--text)' }}>{variante?.nombre || `#${item.variante_id}`}</span>
-                                  {variante?.marca && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {variante.marca}</span>}
-                                </div>
-                              )
-                            })}
-                            {v.items.length > 2 && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>+{v.items.length - 2} más</div>}
-                          </div>
-                        ) : <span style={{ color: 'var(--text-dim)' }}>—</span>}
-                      </td>
-                      <td><span className={`chip ${CHIP[v.metodo_pago]}`}>{v.metodo_pago}</span></td>
-                      <td><strong>{fmt(v.total)}</strong></td>
-                      <td><span className={`chip ${ESTADO_CHIP[v.estado]}`}>{v.estado}</span></td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {v.estado === 'abierta' && <button className="btn btn-ghost btn-sm" onClick={() => confirmar(v.id)}>Confirmar</button>}
-                          <button className="btn btn-ghost btn-sm" onClick={() => setModal(v)}>Editar</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => eliminar(v.id)}>✕</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      <div className="topbar-actions">
+        {filtros.map(f => {
+          const isActive = filtro === f.key
+          return (
+            <button key={f.key}
+              onClick={() => setFiltro(f.key)}
+              style={{
+                padding: '6px 16px', borderRadius: 999,
+                fontSize: 13, fontWeight: 500,
+                border: isActive ? '1px solid rgba(255,152,0,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                background: isActive ? 'rgba(255,152,0,0.15)' : 'rgba(15,22,41,0.6)',
+                color: isActive ? '#ff9800' : 'rgba(255,255,255,0.45)',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >{f.label}</button>
+          )
+        })}
+        <button className="btn btn-primary" onClick={() => setModal(true)}>+ Registrar venta</button>
       </div>
+    </div>
 
-      {modal && (
-        <ModalVenta
-          venta={modal === 'nuevo' ? null : modal}
-          clientes={clientes}
-          sucursales={sucursales}
-          productos={productos}
-          onClose={() => setModal(null)}
-          onSaved={() => { setModal(null); cargar() }}
-        />
+    <div className="page-content">
+      {loading ? <Loading /> : ventas.length === 0 ? <EmptyState icon="↑" text="Sin ventas." /> : (
+        <>
+          {/* Column headers */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 160px 100px 120px 140px 110px auto',
+            gap: 12, padding: '0 20px 10px',
+            fontSize: 11, color: 'rgba(255,255,255,0.25)',
+            fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+          }}>
+            <div>Cliente</div>
+            <div>Sucursal</div>
+            <div>Items</div>
+            <div>Pago</div>
+            <div>Total</div>
+            <div>Estado</div>
+            <div></div>
+          </div>
+
+          {ventas.map(v => (
+            <VentaRow
+              key={v.id}
+              venta={v}
+              clienteNombre={v.cliente_id ? (clienteMap[v.cliente_id] || `Cliente #${v.cliente_id}`) : null}
+              onConfirmar={() => confirmar(v.id)}
+              onEliminar={() => setConfirm({ msg: '¿Eliminar venta?', fn: () => eliminar(v.id) })}
+            />
+          ))}
+
+          <VentasFooter ventas={ventas} />
+        </>
       )}
-    </>
-  )
+    </div>
+
+    {modal && <ModalVenta onClose={() => setModal(false)} onSaved={cargar} />}
+    {confirm && <ConfirmDialog message={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
+  </>)
 }
