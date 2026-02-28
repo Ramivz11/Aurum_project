@@ -643,23 +643,22 @@ export default function Compras() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)       // null | 'nuevo' | compra
   const [modalIA, setModalIA] = useState(false)
-  const [filtroSucursal, setFiltroSucursal] = useState('')
   const [metodoIA, setMetodoIA] = useState('efectivo')
   const [sucursalIA, setSucursalIA] = useState('')
 
   useEffect(() => {
-    if (sucursalActual) { setFiltroSucursal(String(sucursalActual.id)); setSucursalIA(String(sucursalActual.id)) }
+    if (sucursalActual) { setSucursalIA(String(sucursalActual.id)) }
   }, [sucursalActual?.id])
 
   const cargar = () => {
     setLoading(true)
     Promise.all([
-      comprasApi.listar(filtroSucursal ? { sucursal_id: filtroSucursal } : {}),
+      comprasApi.listar({}),
       productosApi.listar(),
     ]).then(([c, p]) => { setCompras(c); setProductos(p) }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { cargar() }, [filtroSucursal])
+  useEffect(() => { cargar() }, [])
 
   const eliminar = async (id) => {
     if (!confirm('¿Eliminar esta compra? El stock se revertirá.')) return
@@ -672,15 +671,8 @@ export default function Compras() {
   return (
     <>
       <div className="topbar">
-        <div className="page-title">
-          Compras
-          {filtroSucursal && <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 10 }}>— {getNombreSucursal(Number(filtroSucursal))}</span>}
-        </div>
+        <div className="page-title">Compras</div>
         <div className="topbar-actions">
-          <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={filtroSucursal} onChange={e => setFiltroSucursal(e.target.value)}>
-            <option value="">Todas las sucursales</option>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </select>
           <button className="btn btn-ghost" onClick={() => setModalIA(true)} style={{ gap: 6 }}>
             ✨ Cargar con IA
           </button>

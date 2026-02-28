@@ -18,7 +18,6 @@ const NAV = [
     { to: '/clientes', icon: '◯', label: 'Clientes' },
     { to: '/finanzas', icon: '◇', label: 'Finanzas' },
     { to: '/sucursales', icon: '⬙', label: 'Sucursales' },
-    { to: '/categorias', icon: '⊞', label: 'Categorías' },
   ]},
 ]
 
@@ -109,38 +108,6 @@ export default function Sidebar() {
           </div>
         ))}
 
-        <div style={{ marginTop: 8 }}>
-          <div className="nav-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, cursor: 'pointer' }}
-            onClick={() => setSucursalesOpen(v => !v)}>
-            <span>Sucursales</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <span style={{ transform: sucursalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block', transition: 'transform 0.15s', fontSize: 8 }}>▶</span>
-              <button
-                onClick={e => { e.stopPropagation(); setEditando('nuevo') }}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}
-                title="Nueva sucursal"
-              >+</button>
-            </div>
-          </div>
-          {sucursalesOpen && sucursales.map(s => (
-            <div
-              key={s.id}
-              className={`nav-item${sucursalActual?.id === s.id ? ' active' : ''}`}
-              style={{ cursor: 'pointer', paddingRight: 6 }}
-              onClick={() => setSucursalActual(s)}
-            >
-              <span className="nav-icon" style={{ fontSize: 8 }}>●</span>
-              <span style={{ flex: 1, fontSize: 13 }}>{s.nombre}</span>
-              {sucursalActual?.id === s.id && (
-                <button
-                  onClick={e => { e.stopPropagation(); setEditando(s) }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 11, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
-                  title="Editar"
-                >✎</button>
-              )}
-            </div>
-          ))}
-        </div>
       </nav>
 
       {editando && (

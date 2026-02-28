@@ -239,7 +239,7 @@ export default function Stock() {
       <div className="topbar-actions">
         <div className="search-wrap">
           <span className="search-icon">⌕</span>
-          <input className="search-input" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+          <input className="search-input" placeholder="Buscar productos, marcas..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
         <select className="input" style={{ width: 'auto' }} value={categoria} onChange={e => {
           if (e.target.value === '__nueva__') { setModalCats(true) }
@@ -263,41 +263,172 @@ export default function Stock() {
 
     <div className="page-content">
       {loading ? <Loading /> : productos.length === 0 ? <EmptyState icon="⬡" text="Sin productos." /> : (
-        <div className="card"><div className="table-wrap"><table>
-          <thead><tr><th>Producto</th><th>Categoría</th><th>Variantes</th><th>Stock total</th><th>Precio desde</th><th></th></tr></thead>
-          <tbody>{productos.map(p => {
-            const stock = p.variantes?.reduce((a, v) => a + v.stock_actual, 0) || 0
-            const bajo = p.variantes?.some(v => v.stock_actual <= v.stock_minimo)
-            const precio = Math.min(...(p.variantes?.map(v => Number(v.precio_venta)) || [0]))
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+          {productos.map(p => {
+            const variantes = p.variantes?.filter(v => v.activa !== false) || []
+            const stockTotal = variantes.reduce((a, v) => a + (v.stock_actual || 0), 0)
+            const bajoPorVariante = variantes.filter(v => v.stock_actual <= v.stock_minimo)
+            const hayBajo = bajoPorVariante.length > 0
+            const costoMin = variantes.length ? Math.min(...variantes.map(v => Number(v.costo || 0))) : 0
+            const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
+            const margen = costoMin > 0 ? Math.round(((precioMin - costoMin) / precioMin) * 100) : 0
+            const primerVar = variantes[0]
+            const varLabel = primerVar
+              ? [primerVar.sabor, primerVar.tamanio].filter(Boolean).join(' · ')
+              : null
+
+            const statusColor = stockTotal === 0 ? 'var(--red)'
+              : hayBajo ? 'var(--warning)'
+              : 'var(--green)'
+
             return (
-              <tr key={p.id}>
-                <td>
-                  {/* Nombre y marca mismo tamaño, distintos colores */}
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{p.nombre}</span>
-                    {p.marca && <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--gold-light)' }}>{p.marca}</span>}
+              <div key={p.id} className="product-card" style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: 18,
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.18s',
+                cursor: 'default',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'rgba(255,152,0,0.25)'
+                e.currentTarget.style.boxShadow = '0 8px 28px rgba(255,152,0,0.07)'
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.querySelector('.card-actions').style.opacity = '1'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.boxShadow = 'none'
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.querySelector('.card-actions').style.opacity = '0'
+              }}
+              >
+                {/* Inner glow ring */}
+                <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+
+                {/* Action buttons — visible on hover */}
+                <div className="card-actions" style={{
+                  position: 'absolute', top: 12, right: 12,
+                  display: 'flex', gap: 4, opacity: 0,
+                  transition: 'opacity 0.15s',
+                }}>
+                  <button
+                    title="Ajuste de precios"
+                    onClick={() => setModalLote(p)}
+                    style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--gold-light)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                  >%</button>
+                  <button
+                    title="Editar"
+                    onClick={() => setModalProd(p)}
+                    style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--gold-light)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                  >✎</button>
+                  <button
+                    title="Eliminar"
+                    onClick={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: () => eliminar(p.id) })}
+                    style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                  >✕</button>
+                </div>
+
+                {/* Header: nombre + status dot */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingRight: 80 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', lineHeight: 1.3, flex: 1 }}>{p.nombre}</span>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor, flexShrink: 0, marginTop: 5, boxShadow: `0 0 6px ${statusColor}` }} />
+                </div>
+
+                {/* Brand + variant */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {p.marca && (
+                    <span style={{
+                      background: 'rgba(255,152,0,0.15)',
+                      color: 'var(--gold-light)',
+                      border: '1px solid rgba(255,152,0,0.25)',
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      letterSpacing: '0.05em',
+                      textTransform: 'uppercase',
+                    }}>{p.marca}</span>
+                  )}
+                  {varLabel && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {varLabel}{variantes.length > 1 ? ` +${variantes.length - 1}` : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
+
+                {/* Prices + margin */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>c</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
+                    {costoMin > 0 ? formatARS(costoMin) : '—'}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 4 }}>v</span>
+                  <span style={{ fontSize: 19, fontWeight: 700, color: 'var(--text)', fontFamily: 'Syne, sans-serif', letterSpacing: '-0.01em' }}>
+                    {formatARS(precioMin)}
+                  </span>
+                  {margen > 0 && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: 'var(--gold-light)',
+                      background: 'var(--gold-dim)',
+                      borderRadius: 6,
+                      padding: '2px 7px',
+                    }}>{margen}%</span>
+                  )}
+                </div>
+
+                {/* Stock info */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {variantes.length <= 3 ? (
+                      variantes.map((v, i) => (
+                        <div key={v.id || i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                            {[v.sabor, v.tamanio].filter(Boolean).join(' ').slice(0, 8) || `V${i+1}`}
+                          </span>
+                          <span style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: v.stock_actual <= v.stock_minimo ? 'var(--red)' : 'var(--text)',
+                          }}>{v.stock_actual ?? 0}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{variantes.length} variantes</span>
+                        {hayBajo && <span style={{ fontSize: 10, color: 'var(--red)', background: 'rgba(239,68,68,0.1)', borderRadius: 4, padding: '1px 6px' }}>{bajoPorVariante.length} bajo mín.</span>}
+                      </div>
+                    )}
                   </div>
-                </td>
-                <td>{p.categoria ? <Chip color="blue">{p.categoria}</Chip> : <span className="text-dim">—</span>}</td>
-                <td style={{ color: 'var(--text-muted)' }}>{p.variantes?.length || 0}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: bajo ? 'var(--red)' : 'var(--text)' }}>{stock}</span>
-                    {bajo && <Chip color="red">Bajo</Chip>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>total</span>
+                    <span style={{
+                      fontSize: 15, fontWeight: 700,
+                      fontFamily: 'Syne, sans-serif',
+                      color: stockTotal === 0 ? 'var(--red)' : 'var(--text)',
+                    }}>{stockTotal}</span>
                   </div>
-                </td>
-                <td style={{ fontWeight: 500 }}>{formatARS(precio)}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <button className="btn btn-ghost btn-xs" onClick={() => setModalLote(p)}>Precios</button>
-                    <button className="btn btn-ghost btn-xs" onClick={() => setModalProd(p)}>Editar</button>
-                    <button className="btn btn-danger btn-xs" onClick={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: () => eliminar(p.id) })}>✕</button>
-                  </div>
-                </td>
-              </tr>
+                </div>
+              </div>
             )
-          })}</tbody>
-        </table></div></div>
+          })}
+        </div>
       )}
     </div>
 

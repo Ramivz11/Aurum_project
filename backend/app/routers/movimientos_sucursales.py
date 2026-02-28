@@ -51,13 +51,25 @@ def resumen_periodo(
     cantidad = len(ventas)
 
     # Producto más vendido
-    conteo = {}
+    conteo: dict = {}
     for venta in ventas:
         for item in venta.items:
-            nombre = item.variante.producto.nombre
-            conteo[nombre] = conteo.get(nombre, 0) + item.cantidad
+            key = item.variante_id
+            conteo[key] = conteo.get(key, 0) + item.cantidad
 
-    mas_vendido = max(conteo, key=conteo.get) if conteo else None
+    mas_vendido = None
+    if conteo:
+        top_variante_id = max(conteo, key=conteo.get)
+        top_variante = db.query(Variante).filter(Variante.id == top_variante_id).first()
+        if top_variante:
+            partes = [top_variante.producto.nombre]
+            if top_variante.producto.marca:
+                partes.append(top_variante.producto.marca)
+            if top_variante.sabor:
+                partes.append(top_variante.sabor)
+            if top_variante.tamanio:
+                partes.append(top_variante.tamanio)
+            mas_vendido = " · ".join(partes)
 
     return ResumenPeriodo(
         total_ventas=total,
