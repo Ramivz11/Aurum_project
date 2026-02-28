@@ -52,6 +52,11 @@ export const clientesApi = {
   eliminar: (id) => api.delete(`/clientes/${id}`),
 }
 
+export const stockApi = {
+  listar: (params) => api.get('/stock', { params }),
+  ajusteManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
+}
+
 export const finanzasApi = {
   liquidez: () => api.get('/finanzas/liquidez'),
   ajustarSaldo: (data) => api.post('/finanzas/ajuste-saldo', data),
@@ -60,6 +65,7 @@ export const finanzasApi = {
   listarGastos: (params) => api.get('/finanzas/gastos', { params }),
   crearGasto: (data) => api.post('/finanzas/gastos', data),
   categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
+  resumenDia: () => api.get('/finanzas/resumen-dia'),
 }
 
 export const movimientosApi = {
