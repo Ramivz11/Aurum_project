@@ -1,10 +1,16 @@
 import { api } from './client'
 
+// Filtra undefined/null/'' antes de armar la query string
+const buildQuery = (params = {}) => {
+  const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+  const q = new URLSearchParams(clean).toString()
+  return q ? '?' + q : ''
+}
+
 // ── PRODUCTOS ──
 export const productosApi = {
   listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/productos${q ? '?' + q : ''}`)
+    return api.get(`/productos\${buildQuery(params)}`)
   },
   obtener: (id) => api.get(`/productos/${id}`),
   crear: (data) => api.post('/productos', data),
@@ -20,8 +26,7 @@ export const productosApi = {
 // ── VENTAS ──
 export const ventasApi = {
   listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/ventas${q ? '?' + q : ''}`)
+    return api.get(`/ventas\${buildQuery(params)}`)
   },
   pedidosAbiertos: () => api.get('/ventas/pedidos-abiertos'),
   obtener: (id) => api.get(`/ventas/${id}`),
@@ -34,8 +39,7 @@ export const ventasApi = {
 // ── COMPRAS ──
 export const comprasApi = {
   listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/compras${q ? '?' + q : ''}`)
+    return api.get(`/compras\${buildQuery(params)}`)
   },
   crear: (data) => api.post('/compras', data),
   actualizar: (id, data) => api.put(`/compras/${id}`, data),
@@ -46,8 +50,7 @@ export const comprasApi = {
 // ── CLIENTES ──
 export const clientesApi = {
   listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/clientes${q ? '?' + q : ''}`)
+    return api.get(`/clientes\${buildQuery(params)}`)
   },
   topMes: () => api.get('/clientes/top-mes'),
   obtener: (id) => api.get(`/clientes/${id}`),
@@ -61,16 +64,13 @@ export const finanzasApi = {
   liquidez: () => api.get('/finanzas/liquidez'),
   ajustarSaldo: (data) => api.post('/finanzas/ajuste-saldo', data),
   analisisMes: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/finanzas/analisis-mes${q ? '?' + q : ''}`)
+    return api.get(`/finanzas/analisis-mes\${buildQuery(params)}`)
   },
   productosTop: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/finanzas/productos-top${q ? '?' + q : ''}`)
+    return api.get(`/finanzas/productos-top\${buildQuery(params)}`)
   },
   listarGastos: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/finanzas/gastos${q ? '?' + q : ''}`)
+    return api.get(`/finanzas/gastos\${buildQuery(params)}`)
   },
   crearGasto: (data) => api.post('/finanzas/gastos', data),
   categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
@@ -81,30 +81,25 @@ export const finanzasApi = {
 // ── MOVIMIENTOS ──
 export const movimientosApi = {
   resumen: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/movimientos/resumen${q ? '?' + q : ''}`)
+    return api.get(`/movimientos/resumen\${buildQuery(params)}`)
   },
   ventas: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/movimientos/ventas${q ? '?' + q : ''}`)
+    return api.get(`/movimientos/ventas\${buildQuery(params)}`)
   },
   compras: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/movimientos/compras${q ? '?' + q : ''}`)
+    return api.get(`/movimientos/compras\${buildQuery(params)}`)
   },
 }
 
 // ── STOCK (con desglose por sucursal) ──
 export const stockApi = {
   listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/stock${q ? '?' + q : ''}`)
+    return api.get(`/stock\${buildQuery(params)}`)
   },
   ajustarManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
   transferir: (data) => api.post('/stock/transferencia', data),
   listarTransferencias: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/stock/transferencias${q ? '?' + q : ''}`)
+    return api.get(`/stock/transferencias\${buildQuery(params)}`)
   },
 }
 export const sucursalesApi = {
@@ -113,20 +108,17 @@ export const sucursalesApi = {
   actualizar: (id, data) => api.put(`/sucursales/${id}`, data),
   eliminar: (id) => api.delete(`/sucursales/${id}`),
   comparacion: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/sucursales/comparacion${q ? '?' + q : ''}`)
+    return api.get(`/sucursales/comparacion\${buildQuery(params)}`)
   },
   dashboard: (id, params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/sucursales/${id}/dashboard${q ? '?' + q : ''}`)
+    return api.get(`/sucursales/${id}/dashboard\${buildQuery(params)}`)
   },
 }
 
 // ── DEUDAS ──
 export const deudasApi = {
   listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/deudas${q ? '?' + q : ''}`)
+    return api.get(`/deudas\${buildQuery(params)}`)
   },
   resumen: () => api.get('/deudas/resumen'),
   crear: (data) => api.post('/deudas', data),
@@ -138,8 +130,7 @@ export const deudasApi = {
 // ── RECORDATORIOS ──
 export const recordatoriosApi = {
   listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/recordatorios${q ? '?' + q : ''}`)
+    return api.get(`/recordatorios\${buildQuery(params)}`)
   },
   crear: (data) => api.post('/recordatorios', data),
   actualizar: (id, data) => api.put(`/recordatorios/${id}`, data),
