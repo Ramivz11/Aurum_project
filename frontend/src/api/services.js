@@ -10,7 +10,7 @@ const buildQuery = (params = {}) => {
 // ── PRODUCTOS ──
 export const productosApi = {
   listar: (params = {}) => {
-    return api.get(`/productos\${buildQuery(params)}`)
+    return api.get(`/productos${buildQuery(params)}`)
   },
   obtener: (id) => api.get(`/productos/${id}`),
   crear: (data) => api.post('/productos', data),
@@ -26,7 +26,7 @@ export const productosApi = {
 // ── VENTAS ──
 export const ventasApi = {
   listar: (params = {}) => {
-    return api.get(`/ventas\${buildQuery(params)}`)
+    return api.get(`/ventas${buildQuery(params)}`)
   },
   pedidosAbiertos: () => api.get('/ventas/pedidos-abiertos'),
   obtener: (id) => api.get(`/ventas/${id}`),
@@ -39,7 +39,7 @@ export const ventasApi = {
 // ── COMPRAS ──
 export const comprasApi = {
   listar: (params = {}) => {
-    return api.get(`/compras\${buildQuery(params)}`)
+    return api.get(`/compras${buildQuery(params)}`)
   },
   crear: (data) => api.post('/compras', data),
   actualizar: (id, data) => api.put(`/compras/${id}`, data),
@@ -50,7 +50,7 @@ export const comprasApi = {
 // ── CLIENTES ──
 export const clientesApi = {
   listar: (params = {}) => {
-    return api.get(`/clientes\${buildQuery(params)}`)
+    return api.get(`/clientes${buildQuery(params)}`)
   },
   topMes: () => api.get('/clientes/top-mes'),
   obtener: (id) => api.get(`/clientes/${id}`),
@@ -64,13 +64,13 @@ export const finanzasApi = {
   liquidez: () => api.get('/finanzas/liquidez'),
   ajustarSaldo: (data) => api.post('/finanzas/ajuste-saldo', data),
   analisisMes: (params = {}) => {
-    return api.get(`/finanzas/analisis-mes\${buildQuery(params)}`)
+    return api.get(`/finanzas/analisis-mes${buildQuery(params)}`)
   },
   productosTop: (params = {}) => {
-    return api.get(`/finanzas/productos-top\${buildQuery(params)}`)
+    return api.get(`/finanzas/productos-top${buildQuery(params)}`)
   },
   listarGastos: (params = {}) => {
-    return api.get(`/finanzas/gastos\${buildQuery(params)}`)
+    return api.get(`/finanzas/gastos${buildQuery(params)}`)
   },
   crearGasto: (data) => api.post('/finanzas/gastos', data),
   categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
@@ -81,25 +81,25 @@ export const finanzasApi = {
 // ── MOVIMIENTOS ──
 export const movimientosApi = {
   resumen: (params = {}) => {
-    return api.get(`/movimientos/resumen\${buildQuery(params)}`)
+    return api.get(`/movimientos/resumen${buildQuery(params)}`)
   },
   ventas: (params = {}) => {
-    return api.get(`/movimientos/ventas\${buildQuery(params)}`)
+    return api.get(`/movimientos/ventas${buildQuery(params)}`)
   },
   compras: (params = {}) => {
-    return api.get(`/movimientos/compras\${buildQuery(params)}`)
+    return api.get(`/movimientos/compras${buildQuery(params)}`)
   },
 }
 
 // ── STOCK (con desglose por sucursal) ──
 export const stockApi = {
   listar: (params = {}) => {
-    return api.get(`/stock\${buildQuery(params)}`)
+    return api.get(`/stock${buildQuery(params)}`)
   },
   ajustarManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
   transferir: (data) => api.post('/stock/transferencia', data),
   listarTransferencias: (params = {}) => {
-    return api.get(`/stock/transferencias\${buildQuery(params)}`)
+    return api.get(`/stock/transferencias${buildQuery(params)}`)
   },
 }
 export const sucursalesApi = {
@@ -108,17 +108,17 @@ export const sucursalesApi = {
   actualizar: (id, data) => api.put(`/sucursales/${id}`, data),
   eliminar: (id) => api.delete(`/sucursales/${id}`),
   comparacion: (params = {}) => {
-    return api.get(`/sucursales/comparacion\${buildQuery(params)}`)
+    return api.get(`/sucursales/comparacion${buildQuery(params)}`)
   },
   dashboard: (id, params = {}) => {
-    return api.get(`/sucursales/${id}/dashboard\${buildQuery(params)}`)
+    return api.get(`/sucursales/${id}/dashboard${buildQuery(params)}`)
   },
 }
 
 // ── DEUDAS ──
 export const deudasApi = {
   listar: (params = {}) => {
-    return api.get(`/deudas\${buildQuery(params)}`)
+    return api.get(`/deudas${buildQuery(params)}`)
   },
   resumen: () => api.get('/deudas/resumen'),
   crear: (data) => api.post('/deudas', data),
@@ -130,7 +130,7 @@ export const deudasApi = {
 // ── RECORDATORIOS ──
 export const recordatoriosApi = {
   listar: (params = {}) => {
-    return api.get(`/recordatorios\${buildQuery(params)}`)
+    return api.get(`/recordatorios${buildQuery(params)}`)
   },
   crear: (data) => api.post('/recordatorios', data),
   actualizar: (id, data) => api.put(`/recordatorios/${id}`, data),
