@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { productosApi, categoriasProductoApi } from '../../api/services'
-import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS } from '../../components/ui'
+import {
+  productosApi,
+  categoriasProductoApi,
+  stockApi,
+  sucursalesApi,
+  finanzasApi,
+} from '../../api/index'
+import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
 
 // ─── Modal: Gestionar categorías ─────────────────────────────────────────────
 
@@ -11,33 +17,27 @@ function ModalCategorias({ onClose }) {
   const [editando, setEditando] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
-  const cargar = () => categoriasProductoApi.listar().then(r => setCategorias(r.data))
+  const cargar = () => categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
   useEffect(() => { cargar() }, [])
 
   const crear = async () => {
     if (!nueva.trim()) return toast.error('Ingresá un nombre')
     try {
       await categoriasProductoApi.crear({ nombre: nueva.trim() })
-      setNueva('')
-      cargar()
-      toast.success('Categoría creada')
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+      setNueva(''); cargar(); toast.success('Categoría creada')
+    } catch (e) { toast.error(e.message || 'Error') }
   }
 
   const guardarEdicion = async () => {
     if (!editando?.nombre.trim()) return toast.error('El nombre no puede estar vacío')
     try {
       await categoriasProductoApi.actualizar(editando.id, { nombre: editando.nombre.trim() })
-      setEditando(null)
-      cargar()
-      toast.success('Categoría actualizada')
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+      setEditando(null); cargar(); toast.success('Categoría actualizada')
+    } catch (e) { toast.error(e.message || 'Error') }
   }
 
   const eliminar = async (id) => {
-    await categoriasProductoApi.eliminar(id)
-    cargar()
-    toast.success('Categoría eliminada')
+    await categoriasProductoApi.eliminar(id); cargar(); toast.success('Categoría eliminada')
   }
 
   return (
@@ -45,13 +45,9 @@ function ModalCategorias({ onClose }) {
       footer={<button className="btn btn-ghost" onClick={onClose}>Cerrar</button>}
     >
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <input
-          className="input"
-          placeholder="Nueva categoría (ej: Magnesio)"
-          value={nueva}
-          onChange={e => setNueva(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && crear()}
-        />
+        <input className="input" placeholder="Nueva categoría (ej: Magnesio)"
+          value={nueva} onChange={e => setNueva(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && crear()} />
         <button className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} onClick={crear}>+ Agregar</button>
       </div>
       {categorias.length === 0
@@ -87,10 +83,8 @@ function ModalCategorias({ onClose }) {
 function ModalProducto({ producto, categorias, onClose, onSaved }) {
   const isEdit = !!producto?.id
   const [form, setForm] = useState({
-    nombre: producto?.nombre || '',
-    marca: producto?.marca || '',
-    categoria: producto?.categoria || '',
-    imagen_url: producto?.imagen_url || ''
+    nombre: producto?.nombre || '', marca: producto?.marca || '',
+    categoria: producto?.categoria || '', imagen_url: producto?.imagen_url || ''
   })
   const [variantes, setVariantes] = useState(
     producto?.variantes?.length
@@ -100,22 +94,17 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
   const [loading, setLoading] = useState(false)
 
   const addVar = () => setVariantes(v => [...v, { sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }])
-  const rmVar = (i) => setVariantes(v => v.filter((_, idx) => idx !== i))
+  const rmVar = i => setVariantes(v => v.filter((_, idx) => idx !== i))
   const upVar = (i, f, v) => setVariantes(arr => arr.map((item, idx) => idx === i ? { ...item, [f]: v } : item))
 
   const submit = async () => {
     if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
     setLoading(true)
     try {
-      if (isEdit) {
-        await productosApi.actualizar(producto.id, form)
-        toast.success('Actualizado')
-      } else {
-        await productosApi.crear({ ...form, variantes })
-        toast.success('Creado')
-      }
+      if (isEdit) { await productosApi.actualizar(producto.id, form); toast.success('Actualizado') }
+      else { await productosApi.crear({ ...form, variantes }); toast.success('Creado') }
       onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+    } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
 
   return (
@@ -175,7 +164,7 @@ function ModalLote({ producto, onClose, onSaved }) {
     try {
       await productosApi.ajustarPrecioLote({ producto_id: producto.id, modo, valor: parseFloat(valor) })
       toast.success('Precios actualizados'); onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+    } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
 
   return (
@@ -194,98 +183,90 @@ function ModalLote({ producto, onClose, onSaved }) {
   )
 }
 
-// ─── Stock Footer Widget ──────────────────────────────────────────────────────
+// ─── Panel de Filtros Avanzados ───────────────────────────────────────────────
 
-function StockFooter({ productos }) {
-  const variantes = productos.flatMap(p => p.variantes?.filter(v => v.activa !== false) || [])
-  const stockBajo = variantes.filter(v => v.stock_actual <= v.stock_minimo).length
-  const sinStock = variantes.filter(v => !v.stock_actual || v.stock_actual === 0).length
-  const precios = variantes.filter(v => v.precio_venta && v.costo && v.costo > 0)
-  const margenPromedio = precios.length
-    ? Math.round(precios.reduce((a, v) => a + ((v.precio_venta - v.costo) / v.precio_venta) * 100, 0) / precios.length)
-    : 0
+function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales }) {
+  const ref = useRef(null)
 
-  const sparkPoints = [40, 55, 35, 60, 45, 70, 50, 65, 42, 58, 48, 72]
-  const sparkMax = Math.max(...sparkPoints)
-  const sparkMin = Math.min(...sparkPoints)
-  const range = sparkMax - sparkMin || 1
-  const W = 220; const H = 38
-  const pts = sparkPoints.map((v, i) => {
-    const x = (i / (sparkPoints.length - 1)) * W
-    const y = H - ((v - sparkMin) / range) * H
-    return `${x},${y}`
-  }).join(' ')
+  useEffect(() => {
+    if (!visible) return
+    const handleClick = e => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [visible, onClose])
+
+  if (!visible) return null
+
+  const btnStyle = active => ({
+    padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    border: active ? '1px solid rgba(255,152,0,0.5)' : '1px solid rgba(255,255,255,0.07)',
+    background: active ? 'rgba(255,152,0,0.15)' : 'rgba(255,255,255,0.03)',
+    color: active ? '#ff9800' : 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+  })
+
+  const inputStyle = {
+    flex: 1, padding: '8px 12px', background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
+    color: '#f1f5f9', fontSize: 12, outline: 'none',
+  }
+
+  const hayFiltros = Object.values(filtros).some(Boolean)
 
   return (
-    <div style={{
-      margin: '24px 0 8px',
-      borderRadius: 20,
-      background: 'linear-gradient(135deg, rgba(15,22,41,0.97) 0%, rgba(26,32,53,0.92) 100%)',
-      border: '1px solid rgba(255,152,0,0.15)',
-      boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
-      overflow: 'hidden',
+    <div ref={ref} style={{
+      position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, zIndex: 100,
+      background: 'linear-gradient(145deg, rgba(18,25,45,0.99), rgba(22,30,52,0.98))',
+      border: '1px solid rgba(255,152,0,0.2)', borderRadius: 16, padding: 20,
+      boxShadow: '0 20px 60px rgba(0,0,0,0.6)', backdropFilter: 'blur(20px)',
     }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-        {/* Stat 1 - Productos */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14,
-            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
-            border: '1px solid rgba(255,152,0,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20, flexShrink: 0,
-          }}>$</div>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Total Productos</div>
-            <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#f1f5f9', lineHeight: 1 }}>
-              {productos.length}
-            </div>
-            {stockBajo > 0 && (
-              <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ background: 'rgba(251,191,36,0.15)', borderRadius: 999, padding: '1px 8px' }}>
-                  +{stockBajo}% bajo mínimo
-                </span>
-              </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
+          Filtros avanzados
+        </span>
+        {hayFiltros && (
+          <button onClick={() => onChange({ stockEstado: '', sucursalId: '', precioMin: '', precioMax: '', margenMin: '' })}
+            style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}>
+            Limpiar todo
+          </button>
+        )}
+      </div>
+
+      {/* Estado de stock */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Estado de stock</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[{ key: '', label: 'Todos' }, { key: 'bajo', label: '⚠ Stock bajo' }, { key: 'sin', label: '● Sin stock' }, { key: 'ok', label: '✓ Normal' }]
+            .map(opt => <button key={opt.key} onClick={() => onChange({ ...filtros, stockEstado: opt.key })} style={btnStyle(filtros.stockEstado === opt.key)}>{opt.label}</button>)}
+        </div>
+      </div>
+
+      {/* Sucursal — solo si hay más de una */}
+      {sucursales.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Sucursal</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[{ id: '', nombre: 'Todas' }, ...sucursales].map(s =>
+              <button key={s.id} onClick={() => onChange({ ...filtros, sucursalId: s.id })} style={btnStyle(filtros.sucursalId === s.id)}>{s.nombre}</button>
             )}
           </div>
         </div>
+      )}
 
-        {/* Stat 2 - Sparkline */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Tendencia de stock</div>
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, overflow: 'visible' }}>
-              <defs>
-                <linearGradient id="sk-g" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#ff9800" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#ffb74d" stopOpacity="1" />
-                </linearGradient>
-              </defs>
-              <polyline points={pts} fill="none" stroke="url(#sk-g)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          {sinStock > 0 && (
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 2 }}>Sin stock</div>
-              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#ef4444' }}>{sinStock}</div>
-            </div>
-          )}
+      {/* Rango de precio */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Precio de venta</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="number" placeholder="Mín $" value={filtros.precioMin || ''} onChange={e => onChange({ ...filtros, precioMin: e.target.value })} style={inputStyle} />
+          <input type="number" placeholder="Máx $" value={filtros.precioMax || ''} onChange={e => onChange({ ...filtros, precioMax: e.target.value })} style={inputStyle} />
         </div>
+      </div>
 
-        {/* Stat 3 - Margen */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px' }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14,
-            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
-            border: '1px solid rgba(255,152,0,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, flexShrink: 0,
-          }}>◇</div>
-          <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Margen Promedio</div>
-            <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#ff9800', lineHeight: 1 }}>{margenPromedio}%</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>{precios.length} variantes activas</div>
-          </div>
+      {/* Margen mínimo */}
+      <div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Margen mínimo</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[{ key: '', label: 'Cualquiera' }, { key: '20', label: '+20%' }, { key: '30', label: '+30%' }, { key: '40', label: '+40%' }]
+            .map(opt => <button key={opt.key} onClick={() => onChange({ ...filtros, margenMin: opt.key })} style={btnStyle(filtros.margenMin === opt.key)}>{opt.label}</button>)}
         </div>
       </div>
     </div>
@@ -294,19 +275,39 @@ function StockFooter({ productos }) {
 
 // ─── Tarjeta de producto ──────────────────────────────────────────────────────
 
-function ProductCard({ p, onEdit, onLote, onDelete }) {
+function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
   const [hovered, setHovered] = useState(false)
   const variantes = p.variantes?.filter(v => v.activa !== false) || []
-  const stockTotal = variantes.reduce((a, v) => a + (v.stock_actual || 0), 0)
-  const bajoPorVariante = variantes.filter(v => v.stock_actual <= v.stock_minimo)
-  const hayBajo = bajoPorVariante.length > 0
+
+  // stock_total viene del backend /stock (central + sucursales)
+  const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
+  const hayBajo = variantes.some(v => (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
+
   const costoMin = variantes.length ? Math.min(...variantes.map(v => Number(v.costo || 0))) : 0
   const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
-  const margen = costoMin > 0 ? Math.round(((precioMin - costoMin) / precioMin) * 100) : 0
+  const margen = costoMin > 0 && precioMin > 0 ? Math.round(((precioMin - costoMin) / precioMin) * 100) : 0
+
   const primerVar = variantes[0]
   const varLabel = primerVar ? [primerVar.sabor, primerVar.tamanio].filter(Boolean).join(' · ') : null
   const statusColor = stockTotal === 0 ? '#ef4444' : hayBajo ? '#fbbf24' : '#22c55e'
-  const sucursalLabels = ['CTR', 'NRT', 'WEB']
+
+  // Desglose de stock por sucursal dinámico
+  // stocks_sucursal: [{sucursal_id, sucursal_nombre, cantidad}] — viene de /stock
+  const stockSucursalDisplay = (() => {
+    if (!primerVar) return []
+    if (sucursales.length === 0) {
+      // Sin sucursales configuradas: mostrar solo central
+      const c = primerVar.stock_central ?? primerVar.stock_actual ?? 0
+      return [{ label: 'CTR', cantidad: c, bajo: c <= primerVar.stock_minimo }]
+    }
+    // Hay sucursales: mostrar las primeras 3
+    return sucursales.slice(0, 3).map(suc => {
+      const ss = primerVar.stocks_sucursal?.find(s => s.sucursal_id === suc.id)
+      const cantidad = ss?.cantidad ?? 0
+      const label = suc.nombre.slice(0, 3).toUpperCase()
+      return { label, cantidad, bajo: cantidad === 0 }
+    })
+  })()
 
   return (
     <div
@@ -318,9 +319,7 @@ function ProductCard({ p, onEdit, onLote, onDelete }) {
           ? 'linear-gradient(145deg, rgba(26,32,53,0.98), rgba(22,28,48,0.95))'
           : 'linear-gradient(145deg, rgba(15,22,41,0.95), rgba(20,26,46,0.9))',
         border: hovered ? '1px solid rgba(255,152,0,0.3)' : '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 18,
-        padding: 18,
-        display: 'flex', flexDirection: 'column', gap: 10,
+        borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 10,
         transition: 'all 0.2s ease',
         transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
         boxShadow: hovered
@@ -329,18 +328,13 @@ function ProductCard({ p, onEdit, onLote, onDelete }) {
         cursor: 'default', overflow: 'hidden',
       }}
     >
-      {/* Subtle inner glow */}
-      <div style={{
-        position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none',
+      <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none',
         background: hovered ? 'radial-gradient(ellipse at top left, rgba(255,152,0,0.05), transparent 60%)' : 'none',
-        transition: 'all 0.2s',
-      }} />
+        transition: 'all 0.2s' }} />
 
-      {/* Action buttons */}
-      <div style={{
-        position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4,
-        opacity: hovered ? 1 : 0, transition: 'opacity 0.15s', zIndex: 2,
-      }}>
+      {/* Botones acción */}
+      <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4,
+        opacity: hovered ? 1 : 0, transition: 'opacity 0.15s', zIndex: 2 }}>
         {[
           { label: '%', title: 'Ajuste de precios', action: onLote, hoverColor: '#ff9800' },
           { label: '✎', title: 'Editar', action: onEdit, hoverColor: '#ff9800' },
@@ -349,31 +343,26 @@ function ProductCard({ p, onEdit, onLote, onDelete }) {
           <button key={btn.label} title={btn.title} onClick={btn.action}
             onMouseEnter={e => { e.currentTarget.style.color = btn.hoverColor; e.currentTarget.style.borderColor = btn.hoverColor + '55' }}
             onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
-            style={{
-              background: 'rgba(10,16,36,0.9)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 8, width: 28, height: 28,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: 'rgba(255,255,255,0.35)', fontSize: 12,
-              transition: 'all 0.15s', backdropFilter: 'blur(8px)',
-            }}>{btn.label}</button>
+            style={{ background: 'rgba(10,16,36,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.35)',
+              fontSize: 12, transition: 'all 0.15s', backdropFilter: 'blur(8px)' }}>{btn.label}</button>
         ))}
       </div>
 
-      {/* Name + status dot */}
+      {/* Nombre + estado */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingRight: 90 }}>
         <span style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9', lineHeight: 1.3, flex: 1 }}>{p.nombre}</span>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0, marginTop: 4, boxShadow: `0 0 8px ${statusColor}` }} />
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor,
+          flexShrink: 0, marginTop: 4, boxShadow: `0 0 8px ${statusColor}` }} />
       </div>
 
-      {/* Brand + variant label */}
+      {/* Marca + variante */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {p.marca && (
-          <span style={{
-            background: 'rgba(255,152,0,0.12)', color: '#ffb74d',
-            border: '1px solid rgba(255,152,0,0.22)',
-            borderRadius: 6, fontSize: 9, fontWeight: 700,
-            padding: '2px 8px', letterSpacing: '0.07em', textTransform: 'uppercase',
-          }}>{p.marca}</span>
+          <span style={{ background: 'rgba(255,152,0,0.12)', color: '#ffb74d',
+            border: '1px solid rgba(255,152,0,0.22)', borderRadius: 6, fontSize: 9,
+            fontWeight: 700, padding: '2px 8px', letterSpacing: '0.07em', textTransform: 'uppercase' }}>{p.marca}</span>
         )}
         {varLabel && (
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
@@ -382,10 +371,9 @@ function ProductCard({ p, onEdit, onLote, onDelete }) {
         )}
       </div>
 
-      {/* Divider */}
       <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '2px 0' }} />
 
-      {/* Prices + margin */}
+      {/* Precios + margen */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', fontWeight: 500 }}>c</span>
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', fontWeight: 500 }}>
@@ -396,40 +384,144 @@ function ProductCard({ p, onEdit, onLote, onDelete }) {
           {formatARS(precioMin)}
         </span>
         {margen > 0 && (
-          <span style={{
-            marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#ff9800',
+          <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#ff9800',
             background: 'rgba(255,152,0,0.1)', border: '1px solid rgba(255,152,0,0.18)',
-            borderRadius: 6, padding: '2px 7px',
-          }}>{margen}%</span>
+            borderRadius: 6, padding: '2px 7px' }}>{margen}%</span>
         )}
       </div>
 
-      {/* Stock breakdown per sucursal */}
+      {/* Stock por sucursal — dinámico */}
       <div style={{ display: 'flex', alignItems: 'center' }}>
-        {variantes.slice(0, 3).map((v, i) => {
-          const label = sucursalLabels[i] || `V${i + 1}`
-          const isBajo = v.stock_actual <= v.stock_minimo
-          return (
-            <div key={v.id || i} style={{ display: 'flex', alignItems: 'center', gap: 5, marginRight: 14 }}>
-              <span style={{
-                fontSize: 9, color: isBajo ? '#ef4444' : 'rgba(255,255,255,0.28)',
-                fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-              }}>
-                {isBajo ? '●' : '○'} {label}
-              </span>
-              <span style={{
-                fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
-                color: isBajo ? '#ef4444' : 'rgba(255,255,255,0.82)',
-              }}>{v.stock_actual ?? 0}</span>
-            </div>
-          )
-        })}
+        {stockSucursalDisplay.map((item, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, marginRight: 14 }}>
+            <span style={{ fontSize: 9, color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.28)',
+              fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              {item.bajo ? '●' : '○'} {item.label}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
+              color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)' }}>{item.cantidad}</span>
+          </div>
+        ))}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
           <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>total</span>
-          <span style={{
-            fontSize: 16, fontWeight: 800, fontFamily: 'Syne, sans-serif',
-            color: stockTotal === 0 ? '#ef4444' : '#f1f5f9',
-          }}>{stockTotal}</span>
+          <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Syne, sans-serif',
+            color: stockTotal === 0 ? '#ef4444' : '#f1f5f9' }}>{stockTotal}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Footer: Ingresos del día / Tendencia / Margen ───────────────────────────
+
+function StockFooter({ resumenDia, loadingResumen }) {
+  const ingresosHoy = resumenDia?.ingresos_hoy ?? 0
+  const delta = resumenDia?.delta_hoy ?? null
+  const tendencia = resumenDia?.tendencia_mensual ?? []
+  const margenPromedio = resumenDia?.margen_promedio ?? 0
+
+  const sparkPoints = tendencia.length >= 2 ? tendencia : [0, 10, 5, 20, 15, 30, 25, 40, 35, 50, 42, 55]
+  const sparkMax = Math.max(...sparkPoints, 1)
+  const sparkMin = Math.min(...sparkPoints, 0)
+  const range = sparkMax - sparkMin || 1
+  const W = 220; const H = 38
+  const pts = sparkPoints.map((v, i) => {
+    const x = (i / (sparkPoints.length - 1)) * W
+    const y = H - ((v - sparkMin) / range) * (H - 4) - 2
+    return `${x},${y}`
+  }).join(' ')
+
+  return (
+    <div style={{
+      margin: '24px 0 8px', borderRadius: 20,
+      background: 'linear-gradient(135deg, rgba(15,22,41,0.97) 0%, rgba(26,32,53,0.92) 100%)',
+      border: '1px solid rgba(255,152,0,0.15)',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+
+        {/* Ingresos del día */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
+            border: '1px solid rgba(255,152,0,0.25)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 20, flexShrink: 0, color: '#ff9800' }}>$</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+              Ingresos del día
+            </div>
+            {loadingResumen
+              ? <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+              : <>
+                  <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#f1f5f9', lineHeight: 1 }}>
+                    {formatARS(ingresosHoy)}
+                  </div>
+                  {delta !== null && (
+                    <div style={{ fontSize: 11, marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{
+                        background: delta >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: delta >= 0 ? '#22c55e' : '#ef4444',
+                        borderRadius: 999, padding: '1px 8px', fontWeight: 700,
+                      }}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%</span>
+                      <span style={{ color: 'rgba(255,255,255,0.25)' }}>vs ayer</span>
+                    </div>
+                  )}
+                </>
+            }
+          </div>
+        </div>
+
+        {/* Tendencia mensual */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
+              Tendencia mensual
+            </div>
+            {loadingResumen
+              ? <div style={{ height: H, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+                </div>
+              : <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, overflow: 'visible' }}>
+                  <defs>
+                    <linearGradient id="sk-g-stock" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#ff9800" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#ffb74d" stopOpacity="1" />
+                    </linearGradient>
+                  </defs>
+                  <polyline points={pts} fill="none" stroke="url(#sk-g-stock)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            }
+            {!loadingResumen && tendencia.length > 0 && (
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+                {tendencia.length} días registrados este mes
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Margen promedio */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
+            border: '1px solid rgba(255,152,0,0.25)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>◇</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+              Margen Promedio
+            </div>
+            {loadingResumen
+              ? <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+              : <>
+                  <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#ff9800', lineHeight: 1 }}>
+                    {margenPromedio}%
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+                    global · todas las variantes
+                  </div>
+                </>
+            }
+          </div>
         </div>
       </div>
     </div>
@@ -441,27 +533,78 @@ function ProductCard({ p, onEdit, onLote, onDelete }) {
 export default function Stock() {
   const [productos, setProductos] = useState([])
   const [categorias, setCategorias] = useState([])
+  const [sucursales, setSucursales] = useState([])
+  const [resumenDia, setResumenDia] = useState(null)
+  const [loadingResumen, setLoadingResumen] = useState(true)
   const [loading, setLoading] = useState(true)
+
   const [busqueda, setBusqueda] = useState('')
   const [categoria, setCategoria] = useState('')
+  const [filtros, setFiltros] = useState({
+    stockEstado: '',
+    sucursalId: '',
+    precioMin: '',
+    precioMax: '',
+    margenMin: '',
+  })
+  const [showFiltros, setShowFiltros] = useState(false)
+
   const [modalProd, setModalProd] = useState(null)
   const [modalLote, setModalLote] = useState(null)
   const [modalCats, setModalCats] = useState(false)
   const [confirm, setConfirm] = useState(null)
 
-  const cargarCategorias = () => categoriasProductoApi.listar().then(r => setCategorias(r.data))
+  // Carga inicial: categorías, sucursales y resumen del día en paralelo
+  useEffect(() => {
+    categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
+    sucursalesApi.listar().then(r => setSucursales(r)).catch(() => {})
+    finanzasApi.resumenDia()
+      .then(r => setResumenDia(r))
+      .catch(() => {})
+      .finally(() => setLoadingResumen(false))
+  }, [])
 
-  const cargar = () => {
+  // Carga de productos via /stock — incluye desglose por sucursal
+  // Parámetros al backend: busqueda, categoria, sucursal_id
+  const cargar = useCallback(() => {
     setLoading(true)
-    productosApi.listar({ busqueda: busqueda || undefined, categoria: categoria || undefined })
-      .then(r => setProductos(r.data))
+    const params = {}
+    if (busqueda) params.busqueda = busqueda
+    if (categoria) params.categoria = categoria
+    if (filtros.sucursalId) params.sucursal_id = filtros.sucursalId
+
+    stockApi.listar(params)
+      .then(r => setProductos(r))
+      .catch(() => toast.error('Error al cargar productos'))
       .finally(() => setLoading(false))
+  }, [busqueda, categoria, filtros.sucursalId])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  // Filtros frontend: estado de stock, precio, margen
+  const productosFiltrados = productos.filter(p => {
+    const variantes = p.variantes?.filter(v => v.activa !== false) || []
+    const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
+    const hayBajo = variantes.some(v => (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
+    const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
+    const costoMin = variantes.length ? Math.min(...variantes.map(v => Number(v.costo || 0))) : 0
+    const margen = costoMin > 0 && precioMin > 0 ? ((precioMin - costoMin) / precioMin) * 100 : 0
+
+    if (filtros.stockEstado === 'sin' && stockTotal > 0) return false
+    if (filtros.stockEstado === 'bajo' && !hayBajo) return false
+    if (filtros.stockEstado === 'ok' && (stockTotal === 0 || hayBajo)) return false
+    if (filtros.precioMin && precioMin < Number(filtros.precioMin)) return false
+    if (filtros.precioMax && precioMin > Number(filtros.precioMax)) return false
+    if (filtros.margenMin && margen < Number(filtros.margenMin)) return false
+
+    return true
+  })
+
+  const eliminar = async id => {
+    await productosApi.eliminar(id); toast.success('Eliminado'); cargar()
   }
 
-  useEffect(() => { cargarCategorias() }, [])
-  useEffect(() => { cargar() }, [busqueda, categoria])
-
-  const eliminar = async (id) => { await productosApi.eliminar(id); toast.success('Eliminado'); cargar() }
+  const recargarCategorias = () => categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
 
   const categoriasFiltro = [
     'Todo',
@@ -472,13 +615,15 @@ export default function Stock() {
     ...(categorias.some(c => c.nombre.toLowerCase() === 'otras') ? ['Otras'] : [])
   ]
 
+  const filtrosActivos = Object.values(filtros).filter(Boolean).length
+
   return (<>
     {/* ── Topbar ── */}
     <div className="topbar">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <div className="page-title" style={{ fontSize: 22, fontWeight: 800 }}>Gestion de Inventario</div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
-          {productos.length} productos en {categorias.length} categorías
+          {productosFiltrados.length} productos en {categorias.length} categorías
         </div>
       </div>
       <div className="topbar-actions">
@@ -488,34 +633,69 @@ export default function Stock() {
     </div>
 
     <div className="page-content">
-      {/* ── Search bar ── */}
+
+      {/* ── Search bar + botón filtros avanzados ── */}
       <div style={{ position: 'relative', marginBottom: 20 }}>
-        <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.25)', fontSize: 16 }}>⌕</span>
-        <input
-          style={{
-            width: '100%', padding: '12px 48px 12px 44px',
-            background: 'rgba(15,22,41,0.8)', border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: 14, color: '#f1f5f9', fontSize: 14, outline: 'none',
-            transition: 'border-color 0.2s, box-shadow 0.2s',
-          }}
-          placeholder="Buscar productos, marcas, categorías..."
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
-          onFocus={e => { e.target.style.borderColor = 'rgba(255,152,0,0.35)'; e.target.style.boxShadow = '0 0 0 3px rgba(255,152,0,0.08)' }}
-          onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.07)'; e.target.style.boxShadow = 'none' }}
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+            color: 'rgba(255,255,255,0.25)', fontSize: 16, pointerEvents: 'none' }}>⌕</span>
+
+          <input
+            style={{ width: '100%', padding: '13px 52px 13px 44px',
+              background: 'rgba(15,22,41,0.8)', border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 14, color: '#f1f5f9', fontSize: 14, outline: 'none',
+              transition: 'border-color 0.2s, box-shadow 0.2s' }}
+            placeholder="Buscar productos, marcas, categorías..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            onFocus={e => { e.target.style.borderColor = 'rgba(255,152,0,0.35)'; e.target.style.boxShadow = '0 0 0 3px rgba(255,152,0,0.08)' }}
+            onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.07)'; e.target.style.boxShadow = 'none' }}
+          />
+
+          {/* Botón filtros avanzados */}
+          <button
+            onClick={() => setShowFiltros(v => !v)}
+            title="Filtros avanzados"
+            style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              width: 34, height: 34, borderRadius: 9, cursor: 'pointer',
+              background: showFiltros || filtrosActivos > 0 ? 'rgba(255,152,0,0.15)' : 'rgba(255,255,255,0.04)',
+              border: showFiltros || filtrosActivos > 0 ? '1px solid rgba(255,152,0,0.4)' : '1px solid rgba(255,255,255,0.08)',
+              color: showFiltros || filtrosActivos > 0 ? '#ff9800' : 'rgba(255,255,255,0.35)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+          >
+            {filtrosActivos > 0
+              ? <span style={{ background: '#ff9800', color: '#000', borderRadius: '50%',
+                  width: 16, height: 16, fontSize: 9, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{filtrosActivos}</span>
+              : <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M1 3h12M3 7h8M5 11h4" />
+                </svg>
+            }
+          </button>
+        </div>
+
+        {/* Panel de filtros avanzados */}
+        <FiltrosPanel
+          visible={showFiltros}
+          onClose={() => setShowFiltros(false)}
+          filtros={filtros}
+          onChange={setFiltros}
+          sucursales={sucursales}
         />
       </div>
 
-      {/* ── Category filter pills ── */}
+      {/* ── Filtros por categoría ── */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
         {categoriasFiltro.map(cat => {
           const isActive = cat === 'Todo' ? !categoria : categoria === cat
           return (
             <button key={cat}
-              onClick={() => cat === 'Todo' ? setCategoria('') : setCategoria(cat)}
+              onClick={() => setCategoria(cat === 'Todo' ? '' : cat)}
               style={{
-                padding: '6px 16px', borderRadius: 999,
-                fontSize: 13, fontWeight: 500,
+                padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 500,
                 border: isActive ? '1px solid rgba(255,152,0,0.5)' : '1px solid rgba(255,255,255,0.08)',
                 background: isActive ? 'rgba(255,152,0,0.15)' : 'rgba(15,22,41,0.6)',
                 color: isActive ? '#ff9800' : 'rgba(255,255,255,0.45)',
@@ -526,26 +706,32 @@ export default function Stock() {
         })}
       </div>
 
-      {/* ── Bento Grid ── */}
-      {loading ? <Loading /> : productos.length === 0 ? <EmptyState icon="⬡" text="Sin productos." /> : (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
-            {productos.map(p => (
-              <ProductCard key={p.id} p={p}
-                onEdit={() => setModalProd(p)}
-                onLote={() => setModalLote(p)}
-                onDelete={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: () => eliminar(p.id) })}
-              />
-            ))}
-          </div>
-          <StockFooter productos={productos} />
-        </>
-      )}
+      {/* ── Grilla de tarjetas ── */}
+      {loading
+        ? <Loading />
+        : productosFiltrados.length === 0
+          ? <EmptyState icon="⬡" text="Sin productos." />
+          : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
+                {productosFiltrados.map(p => (
+                  <ProductCard
+                    key={p.id} p={p} sucursales={sucursales}
+                    onEdit={() => setModalProd(p)}
+                    onLote={() => setModalLote(p)}
+                    onDelete={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: () => eliminar(p.id) })}
+                  />
+                ))}
+              </div>
+              <StockFooter resumenDia={resumenDia} loadingResumen={loadingResumen} />
+            </>
+          )
+      }
     </div>
 
     {modalProd !== null && <ModalProducto producto={modalProd} categorias={categorias} onClose={() => setModalProd(null)} onSaved={cargar} />}
     {modalLote && <ModalLote producto={modalLote} onClose={() => setModalLote(null)} onSaved={cargar} />}
-    {modalCats && <ModalCategorias onClose={() => { setModalCats(false); cargarCategorias() }} />}
+    {modalCats && <ModalCategorias onClose={() => { setModalCats(false); recargarCategorias() }} />}
     {confirm && <ConfirmDialog message={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
   </>)
 }
