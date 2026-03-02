@@ -1,540 +1,737 @@
-import { useState, useEffect } from 'react'
-import { productosApi, stockApi, sucursalesApi, categoriasProductoApi } from '../api'
-import { useToast } from '../components/Toast'
-import { useSucursal } from '../context/SucursalContext'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import toast from 'react-hot-toast'
+import {
+  productosApi,
+  categoriasProductoApi,
+  stockApi,
+  sucursalesApi,
+  finanzasApi,
+} from '../../api/services'
+import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
 
-const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
-const EMOJI = { proteina: '🥛', creatina: '⚡', 'pre-workout': '🔥', bcaa: '💊', otro: '📦' }
-const getEmoji = (cat) => EMOJI[cat?.toLowerCase()] || '📦'
+// ─── Modal: Gestionar categorías ─────────────────────────────────────────────
 
-// ─── MODAL TRANSFERENCIA ─────────────────────────────────────────────────────
-function ModalTransferencia({ variante, sucursales, onClose, onSaved }) {
-  const toast = useToast()
-  const [origenTipo, setOrigenTipo] = useState('central') // 'central' | 'sucursal'
-  const [origenId, setOrigenId] = useState('')
-  const [destinoTipo, setDestinoTipo] = useState('sucursal')
-  const [destinoId, setDestinoId] = useState(sucursales[0]?.id || '')
-  const [cantidad, setCantidad] = useState('')
-  const [notas, setNotas] = useState('')
-  const [saving, setSaving] = useState(false)
+function ModalCategorias({ onClose }) {
+  const [categorias, setCategorias] = useState([])
+  const [nueva, setNueva] = useState('')
+  const [editando, setEditando] = useState(null)
+  const [confirm, setConfirm] = useState(null)
 
-  const stockCentral = variante.stock_central ?? variante.stock_actual ?? 0
-  const stockEnSucursal = (id) => variante.stocks_sucursal?.find(s => s.sucursal_id === id)?.cantidad ?? 0
+  const cargar = () => categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
+  useEffect(() => { cargar() }, [])
 
-  const save = async () => {
-    if (!cantidad || parseInt(cantidad) <= 0) return toast('Ingresá una cantidad válida', 'error')
-    const origen = origenTipo === 'central' ? null : parseInt(origenId)
-    const destino = destinoTipo === 'central' ? null : parseInt(destinoId)
-    if (origen === destino) return toast('El origen y destino no pueden ser iguales', 'error')
-    setSaving(true)
+  const crear = async () => {
+    if (!nueva.trim()) return toast.error('Ingresá un nombre')
     try {
-      await stockApi.transferir({
-        variante_id: variante.id,
-        cantidad: parseInt(cantidad),
-        sucursal_origen_id: origen,
-        sucursal_destino_id: destino,
-        notas: notas || null,
-      })
-      toast('Transferencia realizada')
-      onSaved()
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
+      await categoriasProductoApi.crear({ nombre: nueva.trim() })
+      setNueva(''); cargar(); toast.success('Categoría creada')
+    } catch (e) { toast.error(e.message || 'Error') }
+  }
+
+  const guardarEdicion = async () => {
+    if (!editando?.nombre.trim()) return toast.error('El nombre no puede estar vacío')
+    try {
+      await categoriasProductoApi.actualizar(editando.id, { nombre: editando.nombre.trim() })
+      setEditando(null); cargar(); toast.success('Categoría actualizada')
+    } catch (e) { toast.error(e.message || 'Error') }
+  }
+
+  const eliminar = async (id) => {
+    await categoriasProductoApi.eliminar(id); cargar(); toast.success('Categoría eliminada')
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">Transferir stock — {variante.sabor || variante.tamanio || 'Variante'}</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Origen</label>
-              <select className="form-select" value={origenTipo} onChange={e => setOrigenTipo(e.target.value)}>
-                <option value="central">Central ({stockCentral} u.)</option>
-                {sucursales.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre} ({stockEnSucursal(s.id)} u.)
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Destino</label>
-              <select className="form-select"
-                value={destinoTipo !== 'central' ? destinoId : 'central'}
-                onChange={e => {
-                  if (e.target.value === 'central') { setDestinoTipo('central'); setDestinoId('') }
-                  else { setDestinoTipo('sucursal'); setDestinoId(e.target.value) }
-                }}>
-                <option value="central">Central</option>
-                {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Cantidad</label>
-            <input className="form-input" type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} placeholder="0" autoFocus />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Notas (opcional)</label>
-            <input className="form-input" value={notas} onChange={e => setNotas(e.target.value)} placeholder="Motivo de la transferencia..." />
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Transfiriendo...' : 'Transferir'}</button>
-        </div>
+    <Modal title="Gestionar categorías" onClose={onClose}
+      footer={<button className="btn btn-ghost" onClick={onClose}>Cerrar</button>}
+    >
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <input className="input" placeholder="Nueva categoría (ej: Magnesio)"
+          value={nueva} onChange={e => setNueva(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && crear()} />
+        <button className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} onClick={crear}>+ Agregar</button>
       </div>
-    </div>
+      {categorias.length === 0
+        ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>No hay categorías todavía.</p>
+        : categorias.map(cat => (
+          <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+            {editando?.id === cat.id ? (
+              <>
+                <input className="input" style={{ flex: 1 }} value={editando.nombre}
+                  onChange={e => setEditando(ed => ({ ...ed, nombre: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') guardarEdicion(); if (e.key === 'Escape') setEditando(null) }}
+                  autoFocus />
+                <button className="btn btn-primary btn-sm" onClick={guardarEdicion}>Guardar</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditando(null)}>Cancelar</button>
+              </>
+            ) : (
+              <>
+                <span style={{ flex: 1, fontSize: 14 }}>{cat.nombre}</span>
+                <button className="btn btn-ghost btn-xs" onClick={() => setEditando({ id: cat.id, nombre: cat.nombre })}>Editar</button>
+                <button className="btn btn-danger btn-xs" onClick={() => setConfirm({ msg: `¿Eliminar "${cat.nombre}"?`, fn: () => eliminar(cat.id) })}>✕</button>
+              </>
+            )}
+          </div>
+        ))
+      }
+      {confirm && <ConfirmDialog message={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
+    </Modal>
   )
 }
 
-// ─── MODAL PRODUCTO ───────────────────────────────────────────────────────────
-function ModalProducto({ prod, categorias, onClose, onSaved }) {
-  const toast = useToast()
-  const [form, setForm] = useState(prod || { nombre: '', marca: '', categoria: 'proteina', imagen_url: '' })
+// ─── Modal: Crear / editar producto ──────────────────────────────────────────
+
+function ModalProducto({ producto, categorias, onClose, onSaved }) {
+  const isEdit = !!producto?.id
+  const [form, setForm] = useState({
+    nombre: producto?.nombre || '', marca: producto?.marca || '',
+    categoria: producto?.categoria || '', imagen_url: producto?.imagen_url || ''
+  })
   const [variantes, setVariantes] = useState(
-    prod?.variantes?.length > 0
-      ? prod.variantes.filter(v => v.activa)
+    producto?.variantes?.length
+      ? producto.variantes
       : [{ sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }]
   )
-  const [saving, setSaving] = useState(false)
-  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
-  const setV = (i, k, v) => setVariantes(vs => vs.map((x, j) => j === i ? { ...x, [k]: v } : x))
-  const addVariante = () => setVariantes(vs => [...vs, { sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }])
-  const removeVariante = (i) => setVariantes(vs => vs.filter((_, j) => j !== i))
+  const [loading, setLoading] = useState(false)
 
-  const save = async () => {
-    if (!form.nombre) return toast('El nombre es obligatorio', 'error')
-    setSaving(true)
+  const addVar = () => setVariantes(v => [...v, { sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }])
+  const rmVar = i => setVariantes(v => v.filter((_, idx) => idx !== i))
+  const upVar = (i, f, v) => setVariantes(arr => arr.map((item, idx) => idx === i ? { ...item, [f]: v } : item))
+
+  const submit = async () => {
+    if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
+    setLoading(true)
     try {
-      if (prod) {
-        await productosApi.actualizar(prod.id, {
-          nombre: form.nombre, marca: form.marca, categoria: form.categoria, imagen_url: form.imagen_url
-        })
-        for (const v of variantes) {
-          const payload = {
-            sabor: v.sabor, tamanio: v.tamanio, sku: v.sku,
-            costo: parseFloat(v.costo) || 0,
-            precio_venta: parseFloat(v.precio_venta) || 0,
-            stock_minimo: parseInt(v.stock_minimo) || 0,
-          }
-          if (v.id) {
-            await productosApi.actualizarVariante(v.id, payload)
-          } else {
-            await productosApi.crearVariante(prod.id, payload)
-          }
-        }
-      } else {
-        await productosApi.crear({
-          ...form,
-          variantes: variantes.map(v => ({
-            sabor: v.sabor, tamanio: v.tamanio, sku: v.sku,
-            costo: parseFloat(v.costo) || 0,
-            precio_venta: parseFloat(v.precio_venta) || 0,
-            stock_minimo: parseInt(v.stock_minimo) || 0,
-          }))
-        })
-      }
-      toast(prod ? 'Producto actualizado' : 'Producto creado')
-      onSaved()
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
+      if (isEdit) { await productosApi.actualizar(producto.id, form); toast.success('Actualizado') }
+      else { await productosApi.crear({ ...form, variantes }); toast.success('Creado') }
+      onSaved(); onClose()
+    } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal modal-lg">
-        <div className="modal-header">
-          <div className="modal-title">{prod ? 'Editar producto' : 'Nuevo producto'}</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Nombre *</label>
-              <input className="form-input" value={form.nombre} onChange={e => setF('nombre', e.target.value)} placeholder="Ej: Whey Gold Standard" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Marca</label>
-              <input className="form-input" value={form.marca || ''} onChange={e => setF('marca', e.target.value)} placeholder="Ej: Optimum Nutrition" />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Categoría</label>
-              <select className="form-select" value={form.categoria || ''} onChange={e => setF('categoria', e.target.value)}>
-                <option value="">Sin categoría</option>
-                {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">URL de imagen</label>
-              <input className="form-input" value={form.imagen_url || ''} onChange={e => setF('imagen_url', e.target.value)} placeholder="https://..." />
-            </div>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div className="form-label" style={{ margin: 0 }}>Variantes</div>
-              <button className="btn btn-ghost btn-sm" onClick={addVariante}>+ Agregar variante</button>
-            </div>
-            {variantes.map((v, i) => (
-              <div key={i} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, marginBottom: 10, position: 'relative' }}>
-                <div className="form-row-3">
-                  <div className="form-group"><label className="form-label">Sabor</label><input className="form-input" value={v.sabor || ''} onChange={e => setV(i, 'sabor', e.target.value)} placeholder="Chocolate" /></div>
-                  <div className="form-group"><label className="form-label">Tamaño</label><input className="form-input" value={v.tamanio || ''} onChange={e => setV(i, 'tamanio', e.target.value)} placeholder="1kg" /></div>
-                  <div className="form-group"><label className="form-label">SKU</label><input className="form-input" value={v.sku || ''} onChange={e => setV(i, 'sku', e.target.value)} placeholder="WHY-CHOC-1K" /></div>
-                </div>
-                <div className="form-row-3">
-                  <div className="form-group" style={{ margin: 0 }}><label className="form-label">Costo ($)</label><input className="form-input" type="number" value={v.costo || ''} onChange={e => setV(i, 'costo', e.target.value)} placeholder="0" /></div>
-                  <div className="form-group" style={{ margin: 0 }}><label className="form-label">Precio venta ($)</label><input className="form-input" type="number" value={v.precio_venta || ''} onChange={e => setV(i, 'precio_venta', e.target.value)} placeholder="0" /></div>
-                  <div className="form-group" style={{ margin: 0 }}><label className="form-label">Stock mínimo</label><input className="form-input" type="number" value={v.stock_minimo || ''} onChange={e => setV(i, 'stock_minimo', e.target.value)} placeholder="0" /></div>
-                </div>
-                {variantes.length > 1 && (
-                  <button onClick={() => removeVariante(i)} style={{ position: 'absolute', top: 10, right: 10, background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16 }}>✕</button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
-        </div>
+    <Modal title={isEdit ? 'Editar producto' : 'Nuevo producto'} onClose={onClose} size="modal-lg"
+      footer={<><button className="btn btn-ghost" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={submit} disabled={loading}>{loading ? 'Guardando...' : 'Guardar'}</button></>}
+    >
+      <div className="grid-2" style={{ marginBottom: 0 }}>
+        <div className="form-group"><label className="input-label">Nombre *</label><input className="input" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} /></div>
+        <div className="form-group"><label className="input-label">Marca</label><input className="input" value={form.marca} onChange={e => setForm(f => ({ ...f, marca: e.target.value }))} /></div>
       </div>
-    </div>
+      <div className="grid-2" style={{ marginBottom: 0 }}>
+        <div className="form-group">
+          <label className="input-label">Categoría</label>
+          <select className="input" value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}>
+            <option value="">Seleccionar...</option>
+            {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+          </select>
+        </div>
+        <div className="form-group"><label className="input-label">URL imagen</label><input className="input" value={form.imagen_url} onChange={e => setForm(f => ({ ...f, imagen_url: e.target.value }))} /></div>
+      </div>
+      {!isEdit && (<>
+        <hr className="divider" />
+        <div className="flex items-center justify-between mb-12">
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Variantes</div>
+          <button className="btn btn-ghost btn-sm" onClick={addVar}>+ Agregar</button>
+        </div>
+        {variantes.map((v, i) => (
+          <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+            <div className="grid-2" style={{ marginBottom: 8 }}>
+              <div><label className="input-label">Sabor</label><input className="input" value={v.sabor} onChange={e => upVar(i, 'sabor', e.target.value)} /></div>
+              <div><label className="input-label">Tamaño</label><input className="input" value={v.tamanio} onChange={e => upVar(i, 'tamanio', e.target.value)} /></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+              <div><label className="input-label">Costo $</label><input className="input" type="number" value={v.costo} onChange={e => upVar(i, 'costo', e.target.value)} /></div>
+              <div><label className="input-label">Precio $</label><input className="input" type="number" value={v.precio_venta} onChange={e => upVar(i, 'precio_venta', e.target.value)} /></div>
+              <div><label className="input-label">Stock mín.</label><input className="input" type="number" value={v.stock_minimo} onChange={e => upVar(i, 'stock_minimo', e.target.value)} /></div>
+              {variantes.length > 1 && <button className="btn btn-danger btn-sm" onClick={() => rmVar(i)}>✕</button>}
+            </div>
+          </div>
+        ))}
+      </>)}
+    </Modal>
   )
 }
 
-// ─── MODAL AJUSTE DE PRECIOS ─────────────────────────────────────────────────
+// ─── Modal: Ajuste de precios por lote ───────────────────────────────────────
+
 function ModalLote({ producto, onClose, onSaved }) {
-  const toast = useToast()
   const [modo, setModo] = useState('porcentaje')
   const [valor, setValor] = useState('')
-  const [saving, setSaving] = useState(false)
-  const modos = [
-    { id: 'porcentaje', label: '+/- %', hint: 'Ej: 10 sube 10%, -5 baja 5%' },
-    { id: 'margen_deseado', label: 'Margen', hint: 'Ej: 40 = 40% sobre el costo' },
-    { id: 'precio_fijo', label: 'Precio fijo', hint: 'Sobreescribe con un valor fijo' },
-  ]
-  const save = async () => {
-    if (!valor) return toast('Ingresá un valor', 'error')
-    setSaving(true)
+  const [loading, setLoading] = useState(false)
+  const modos = [{ key: 'porcentaje', label: '+/- %' }, { key: 'margen_deseado', label: 'Margen %' }, { key: 'precio_fijo', label: 'Precio fijo $' }]
+
+  const aplicar = async () => {
+    if (!valor) return toast.error('Ingresá un valor')
+    setLoading(true)
     try {
       await productosApi.ajustarPrecioLote({ producto_id: producto.id, modo, valor: parseFloat(valor) })
-      toast('Precios actualizados'); onSaved()
-    } catch (e) { toast(e.message, 'error') } finally { setSaving(false) }
-  }
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">Ajuste de precios — {producto.nombre}</div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-            {modos.map(m => <button key={m.id} className={`btn ${modo === m.id ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 12 }} onClick={() => setModo(m.id)}>{m.label}</button>)}
-          </div>
-          <div className="form-group">
-            <label className="form-label">{modos.find(m => m.id === modo)?.hint}</label>
-            <input className="form-input" type="number" value={valor} onChange={e => setValor(e.target.value)} />
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Aplicando...' : 'Aplicar'}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── STOCK EDITABLE INLINE ───────────────────────────────────────────────────
-function StockEditable({ variante, sucursalId, onSaved }) {
-  const toast = useToast()
-  const [editing, setEditing] = useState(false)
-  const cantidad = sucursalId
-    ? (variante.stocks_sucursal?.find(s => s.sucursal_id === sucursalId)?.cantidad ?? 0)
-    : (variante.stock_central ?? variante.stock_actual ?? 0)
-  const [val, setVal] = useState(cantidad)
-
-  const color = cantidad <= 0 ? 'var(--red)' : cantidad <= variante.stock_minimo ? 'var(--red)' : cantidad <= variante.stock_minimo * 2 ? 'var(--gold)' : 'var(--green)'
-
-  const save = async () => {
-    try {
-      await stockApi.ajustarManual(variante.id, { cantidad: parseInt(val) || 0, sucursal_id: sucursalId || null })
-      toast('Stock actualizado'); setEditing(false); onSaved()
-    } catch (e) { toast(e.message, 'error') }
+      toast.success('Precios actualizados'); onSaved(); onClose()
+    } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
 
-  if (editing) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <input type="number" min="0" value={val} onChange={e => setVal(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
-        autoFocus
-        style={{ width: 60, background: 'var(--surface3)', border: '1px solid var(--gold)', borderRadius: 6, color: 'var(--text)', padding: '4px 8px', fontSize: 14, textAlign: 'center', fontFamily: 'Syne, sans-serif', fontWeight: 700 }}
-      />
-      <button onClick={save} style={{ background: 'var(--gold)', border: 'none', borderRadius: 4, color: '#000', cursor: 'pointer', padding: '4px 8px', fontSize: 11 }}>✓</button>
-      <button onClick={() => setEditing(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 11 }}>✕</button>
-    </div>
-  )
-
   return (
-    <div onClick={() => { setVal(cantidad); setEditing(true) }} style={{ cursor: 'pointer', textAlign: 'right', minWidth: 60 }} title="Click para editar">
-      <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 16, color }}>{cantidad}</div>
-      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>u. ✎</div>
-    </div>
-  )
-}
-
-// ─── FILA DE VARIANTE CON DESGLOSE ───────────────────────────────────────────
-function VarianteRow({ variante, sucursales, filtroSucursal, onTransferir, onSaved }) {
-  const [expandido, setExpandido] = useState(false)
-
-  // Stock a mostrar según filtro
-  const stockDisplay = filtroSucursal
-    ? (variante.stocks_sucursal?.find(s => s.sucursal_id === filtroSucursal)?.cantidad ?? 0)
-    : variante.stock_total
-
-  const stockMin = variante.stock_minimo
-  const color = stockDisplay <= 0 ? 'var(--red)' : stockDisplay <= stockMin ? 'var(--red)' : stockDisplay <= stockMin * 2 ? 'var(--gold)' : 'var(--green)'
-  const pct = Math.min(100, Math.max(5, (stockDisplay / Math.max(stockMin * 3, 10)) * 100))
-
-  return (
-    <>
-      <div className="stock-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="stock-info" style={{ flex: 1 }}>
-            <div className="stock-name">{[variante.sabor, variante.tamanio].filter(Boolean).join(' · ') || 'Sin variante'}</div>
-            <div className="stock-variant">Costo: {fmt(variante.costo)} · Precio: {fmt(variante.precio_venta)}</div>
-          </div>
-          <div className="stock-bar-wrap">
-            <div className="stock-bar" style={{ width: `${pct}%`, background: color }} />
-          </div>
-          <StockEditable
-            variante={variante}
-            sucursalId={filtroSucursal || null}
-            onSaved={onSaved}
-          />
-          <button
-            onClick={() => onTransferir(variante)}
-            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 8px', fontSize: 11, whiteSpace: 'nowrap' }}
-            title="Transferir stock"
-          >⇄</button>
-          {!filtroSucursal && (
-            <button
-              onClick={() => setExpandido(v => !v)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12, padding: '4px' }}
-              title="Ver desglose por sucursal"
-            >{expandido ? '▲' : '▼'}</button>
-          )}
-        </div>
-
-        {/* Desglose por sucursal */}
-        {expandido && !filtroSucursal && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Desglose</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {/* Central */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface3)', borderRadius: 8, padding: '6px 12px', minWidth: 140 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-dim)' }} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>Central</span>
-                <StockEditable variante={variante} sucursalId={null} onSaved={onSaved} />
-              </div>
-              {/* Sucursales con stock */}
-              {sucursales.map(s => {
-                const ss = variante.stocks_sucursal?.find(x => x.sucursal_id === s.id)
-                const cant = ss?.cantidad ?? 0
-                const c = cant <= 0 ? 'var(--text-dim)' : 'var(--green)'
-                return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface3)', borderRadius: 8, padding: '6px 12px', minWidth: 140 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: c }} />
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>{s.nombre}</span>
-                    <StockEditable variante={variante} sucursalId={s.id} onSaved={onSaved} />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+    <Modal title={`Ajuste por lote — ${producto.nombre}`} onClose={onClose}
+      footer={<><button className="btn btn-ghost" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={aplicar} disabled={loading}>{loading ? 'Aplicando...' : 'Aplicar'}</button></>}
+    >
+      <div style={{ marginBottom: 20 }}>
+        <label className="input-label">Modo de ajuste</label>
+        <div style={{ display: 'flex', gap: 8 }}>{modos.map(m => <button key={m.key} className={`btn btn-sm ${modo === m.key ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setModo(m.key)}>{m.label}</button>)}</div>
       </div>
-    </>
+      <div className="form-group"><label className="input-label">Valor</label><input className="input" type="number" value={valor} onChange={e => setValor(e.target.value)} /></div>
+      <div style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+        Afecta <strong style={{ color: 'var(--text)' }}>{producto.variantes?.length || 0} variantes</strong>
+      </div>
+    </Modal>
   )
 }
 
-// ─── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────
-export default function Stock() {
-  const toast = useToast()
-  const { sucursales, sucursalActual } = useSucursal()
-  const [productos, setProductos] = useState([])
-  const [categorias, setCategorias] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [busqueda, setBusqueda] = useState('')
-  const [categoria, setCategoria] = useState('')
-  const [filtroSucursal, setFiltroSucursal] = useState('')
-  const [modal, setModal] = useState(null)
-  const [modalLote, setModalLote] = useState(null)
-  const [modalTransferencia, setModalTransferencia] = useState(null)
+// ─── Panel de Filtros Avanzados ───────────────────────────────────────────────
 
-  // Sin auto-filtro: el usuario elige desde el selector del topbar
+function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales }) {
+  const ref = useRef(null)
 
   useEffect(() => {
-    categoriasProductoApi.listar().then(setCategorias).catch(() => {})
+    if (!visible) return
+    const handleClick = e => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [visible, onClose])
+
+  if (!visible) return null
+
+  const btnStyle = active => ({
+    padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    border: active ? '1px solid rgba(255,152,0,0.5)' : '1px solid rgba(255,255,255,0.07)',
+    background: active ? 'rgba(255,152,0,0.15)' : 'rgba(255,255,255,0.03)',
+    color: active ? '#ff9800' : 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+  })
+
+  const inputStyle = {
+    flex: 1, padding: '8px 12px', background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
+    color: '#f1f5f9', fontSize: 12, outline: 'none',
+  }
+
+  const hayFiltros = Object.values(filtros).some(Boolean)
+
+  return (
+    <div ref={ref} style={{
+      position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, zIndex: 100,
+      background: 'linear-gradient(145deg, rgba(18,25,45,0.99), rgba(22,30,52,0.98))',
+      border: '1px solid rgba(255,152,0,0.2)', borderRadius: 16, padding: 20,
+      boxShadow: '0 20px 60px rgba(0,0,0,0.6)', backdropFilter: 'blur(20px)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
+          Filtros avanzados
+        </span>
+        {hayFiltros && (
+          <button onClick={() => onChange({ stockEstado: '', sucursalId: '', precioMin: '', precioMax: '', margenMin: '' })}
+            style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}>
+            Limpiar todo
+          </button>
+        )}
+      </div>
+
+      {/* Estado de stock */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Estado de stock</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[{ key: '', label: 'Todos' }, { key: 'bajo', label: '⚠ Stock bajo' }, { key: 'sin', label: '● Sin stock' }, { key: 'ok', label: '✓ Normal' }]
+            .map(opt => <button key={opt.key} onClick={() => onChange({ ...filtros, stockEstado: opt.key })} style={btnStyle(filtros.stockEstado === opt.key)}>{opt.label}</button>)}
+        </div>
+      </div>
+
+      {/* Sucursal — solo si hay más de una */}
+      {sucursales.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Sucursal</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[{ id: '', nombre: 'Todas' }, ...sucursales].map(s =>
+              <button key={s.id} onClick={() => onChange({ ...filtros, sucursalId: s.id })} style={btnStyle(filtros.sucursalId === s.id)}>{s.nombre}</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Rango de precio */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Precio de venta</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="number" placeholder="Mín $" value={filtros.precioMin || ''} onChange={e => onChange({ ...filtros, precioMin: e.target.value })} style={inputStyle} />
+          <input type="number" placeholder="Máx $" value={filtros.precioMax || ''} onChange={e => onChange({ ...filtros, precioMax: e.target.value })} style={inputStyle} />
+        </div>
+      </div>
+
+      {/* Margen mínimo */}
+      <div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Margen mínimo</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[{ key: '', label: 'Cualquiera' }, { key: '20', label: '+20%' }, { key: '30', label: '+30%' }, { key: '40', label: '+40%' }]
+            .map(opt => <button key={opt.key} onClick={() => onChange({ ...filtros, margenMin: opt.key })} style={btnStyle(filtros.margenMin === opt.key)}>{opt.label}</button>)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Tarjeta de producto ──────────────────────────────────────────────────────
+
+function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
+  const [hovered, setHovered] = useState(false)
+  const variantes = p.variantes?.filter(v => v.activa !== false) || []
+
+  // stock_total viene del backend /stock (central + sucursales)
+  const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
+  const hayBajo = variantes.some(v => (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
+
+  const costoMin = variantes.length ? Math.min(...variantes.map(v => Number(v.costo || 0))) : 0
+  const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
+  const margen = costoMin > 0 && precioMin > 0 ? Math.round(((precioMin - costoMin) / precioMin) * 100) : 0
+
+  const primerVar = variantes[0]
+  const varLabel = primerVar ? [primerVar.sabor, primerVar.tamanio].filter(Boolean).join(' · ') : null
+  const statusColor = stockTotal === 0 ? '#ef4444' : hayBajo ? '#fbbf24' : '#22c55e'
+
+  // Desglose de stock por sucursal dinámico
+  // stocks_sucursal: [{sucursal_id, sucursal_nombre, cantidad}] — viene de /stock
+  const stockSucursalDisplay = (() => {
+    if (!primerVar) return []
+    if (sucursales.length === 0) {
+      // Sin sucursales configuradas: mostrar solo central
+      const c = primerVar.stock_central ?? primerVar.stock_actual ?? 0
+      return [{ label: 'CTR', cantidad: c, bajo: c <= primerVar.stock_minimo }]
+    }
+    // Hay sucursales: mostrar las primeras 3
+    return sucursales.slice(0, 3).map(suc => {
+      const ss = primerVar.stocks_sucursal?.find(s => s.sucursal_id === suc.id)
+      const cantidad = ss?.cantidad ?? 0
+      const label = suc.nombre.slice(0, 3).toUpperCase()
+      return { label, cantidad, bajo: cantidad === 0 }
+    })
+  })()
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        background: hovered
+          ? 'linear-gradient(145deg, rgba(26,32,53,0.98), rgba(22,28,48,0.95))'
+          : 'linear-gradient(145deg, rgba(15,22,41,0.95), rgba(20,26,46,0.9))',
+        border: hovered ? '1px solid rgba(255,152,0,0.3)' : '1px solid rgba(255,255,255,0.06)',
+        borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 10,
+        transition: 'all 0.2s ease',
+        transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
+        boxShadow: hovered
+          ? '0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,152,0,0.08), 0 8px 20px rgba(255,152,0,0.07)'
+          : '0 2px 12px rgba(0,0,0,0.3)',
+        cursor: 'default', overflow: 'hidden',
+      }}
+    >
+      <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', pointerEvents: 'none',
+        background: hovered ? 'radial-gradient(ellipse at top left, rgba(255,152,0,0.05), transparent 60%)' : 'none',
+        transition: 'all 0.2s' }} />
+
+      {/* Botones acción */}
+      <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4,
+        opacity: hovered ? 1 : 0, transition: 'opacity 0.15s', zIndex: 2 }}>
+        {[
+          { label: '%', title: 'Ajuste de precios', action: onLote, hoverColor: '#ff9800' },
+          { label: '✎', title: 'Editar', action: onEdit, hoverColor: '#ff9800' },
+          { label: '✕', title: 'Eliminar', action: onDelete, hoverColor: '#ef4444' },
+        ].map(btn => (
+          <button key={btn.label} title={btn.title} onClick={btn.action}
+            onMouseEnter={e => { e.currentTarget.style.color = btn.hoverColor; e.currentTarget.style.borderColor = btn.hoverColor + '55' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+            style={{ background: 'rgba(10,16,36,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.35)',
+              fontSize: 12, transition: 'all 0.15s', backdropFilter: 'blur(8px)' }}>{btn.label}</button>
+        ))}
+      </div>
+
+      {/* Nombre + estado */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingRight: 90 }}>
+        <span style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9', lineHeight: 1.3, flex: 1 }}>{p.nombre}</span>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor,
+          flexShrink: 0, marginTop: 4, boxShadow: `0 0 8px ${statusColor}` }} />
+      </div>
+
+      {/* Marca + variante */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {p.marca && (
+          <span style={{ background: 'rgba(255,152,0,0.12)', color: '#ffb74d',
+            border: '1px solid rgba(255,152,0,0.22)', borderRadius: 6, fontSize: 9,
+            fontWeight: 700, padding: '2px 8px', letterSpacing: '0.07em', textTransform: 'uppercase' }}>{p.marca}</span>
+        )}
+        {varLabel && (
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+            {varLabel}{variantes.length > 1 ? ` +${variantes.length - 1}` : ''}
+          </span>
+        )}
+      </div>
+
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '2px 0' }} />
+
+      {/* Precios + margen */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', fontWeight: 500 }}>c</span>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', fontWeight: 500 }}>
+          {costoMin > 0 ? formatARS(costoMin) : '—'}
+        </span>
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', marginLeft: 6 }}>v</span>
+        <span style={{ fontSize: 20, fontWeight: 800, color: '#f1f5f9', fontFamily: 'Syne, sans-serif', letterSpacing: '-0.02em', lineHeight: 1 }}>
+          {formatARS(precioMin)}
+        </span>
+        {margen > 0 && (
+          <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#ff9800',
+            background: 'rgba(255,152,0,0.1)', border: '1px solid rgba(255,152,0,0.18)',
+            borderRadius: 6, padding: '2px 7px' }}>{margen}%</span>
+        )}
+      </div>
+
+      {/* Stock por sucursal — dinámico */}
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        {stockSucursalDisplay.map((item, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, marginRight: 14 }}>
+            <span style={{ fontSize: 9, color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.28)',
+              fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              {item.bajo ? '●' : '○'} {item.label}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
+              color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)' }}>{item.cantidad}</span>
+          </div>
+        ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>total</span>
+          <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Syne, sans-serif',
+            color: stockTotal === 0 ? '#ef4444' : '#f1f5f9' }}>{stockTotal}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Footer: Ingresos del día / Tendencia / Margen ───────────────────────────
+
+function StockFooter({ resumenDia, loadingResumen }) {
+  const ingresosHoy = resumenDia?.ingresos_hoy ?? 0
+  const delta = resumenDia?.delta_hoy ?? null
+  const tendencia = resumenDia?.tendencia_mensual ?? []
+  const margenPromedio = resumenDia?.margen_promedio ?? 0
+
+  const sparkPoints = tendencia.length >= 2 ? tendencia : [0, 10, 5, 20, 15, 30, 25, 40, 35, 50, 42, 55]
+  const sparkMax = Math.max(...sparkPoints, 1)
+  const sparkMin = Math.min(...sparkPoints, 0)
+  const range = sparkMax - sparkMin || 1
+  const W = 220; const H = 38
+  const pts = sparkPoints.map((v, i) => {
+    const x = (i / (sparkPoints.length - 1)) * W
+    const y = H - ((v - sparkMin) / range) * (H - 4) - 2
+    return `${x},${y}`
+  }).join(' ')
+
+  return (
+    <div style={{
+      margin: '24px 0 8px', borderRadius: 20,
+      background: 'linear-gradient(135deg, rgba(15,22,41,0.97) 0%, rgba(26,32,53,0.92) 100%)',
+      border: '1px solid rgba(255,152,0,0.15)',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+
+        {/* Ingresos del día */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
+            border: '1px solid rgba(255,152,0,0.25)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 20, flexShrink: 0, color: '#ff9800' }}>$</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+              Ingresos del día
+            </div>
+            {loadingResumen
+              ? <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+              : <>
+                  <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#f1f5f9', lineHeight: 1 }}>
+                    {formatARS(ingresosHoy)}
+                  </div>
+                  {delta !== null && (
+                    <div style={{ fontSize: 11, marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{
+                        background: delta >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: delta >= 0 ? '#22c55e' : '#ef4444',
+                        borderRadius: 999, padding: '1px 8px', fontWeight: 700,
+                      }}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%</span>
+                      <span style={{ color: 'rgba(255,255,255,0.25)' }}>vs ayer</span>
+                    </div>
+                  )}
+                </>
+            }
+          </div>
+        </div>
+
+        {/* Tendencia mensual */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
+              Tendencia mensual
+            </div>
+            {loadingResumen
+              ? <div style={{ height: H, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+                </div>
+              : <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, overflow: 'visible' }}>
+                  <defs>
+                    <linearGradient id="sk-g-stock" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#ff9800" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#ffb74d" stopOpacity="1" />
+                    </linearGradient>
+                  </defs>
+                  <polyline points={pts} fill="none" stroke="url(#sk-g-stock)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            }
+            {!loadingResumen && tendencia.length > 0 && (
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+                {tendencia.length} días registrados este mes
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Margen promedio */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
+            border: '1px solid rgba(255,152,0,0.25)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>◇</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+              Margen Promedio
+            </div>
+            {loadingResumen
+              ? <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+              : <>
+                  <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#ff9800', lineHeight: 1 }}>
+                    {margenPromedio}%
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+                    global · todas las variantes
+                  </div>
+                </>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
+
+export default function Stock() {
+  const [productos, setProductos] = useState([])
+  const [categorias, setCategorias] = useState([])
+  const [sucursales, setSucursales] = useState([])
+  const [resumenDia, setResumenDia] = useState(null)
+  const [loadingResumen, setLoadingResumen] = useState(true)
+  const [loading, setLoading] = useState(true)
+
+  const [busqueda, setBusqueda] = useState('')
+  const [categoria, setCategoria] = useState('')
+  const [filtros, setFiltros] = useState({
+    stockEstado: '',
+    sucursalId: '',
+    precioMin: '',
+    precioMax: '',
+    margenMin: '',
+  })
+  const [showFiltros, setShowFiltros] = useState(false)
+
+  const [modalProd, setModalProd] = useState(null)
+  const [modalLote, setModalLote] = useState(null)
+  const [modalCats, setModalCats] = useState(false)
+  const [confirm, setConfirm] = useState(null)
+
+  // Carga inicial: categorías, sucursales y resumen del día en paralelo
+  useEffect(() => {
+    categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
+    sucursalesApi.listar().then(r => setSucursales(r)).catch(() => {})
+    finanzasApi.resumenDia()
+      .then(r => setResumenDia(r))
+      .catch(() => {})
+      .finally(() => setLoadingResumen(false))
   }, [])
 
-  const cargar = () => {
+  // Carga de productos via /stock — incluye desglose por sucursal
+  // Parámetros al backend: busqueda, categoria, sucursal_id
+  const cargar = useCallback(() => {
     setLoading(true)
     const params = {}
     if (busqueda) params.busqueda = busqueda
     if (categoria) params.categoria = categoria
+    if (filtros.sucursalId) params.sucursal_id = filtros.sucursalId
+
     stockApi.listar(params)
-      .then(data => {
-        if (!Array.isArray(data)) throw new Error('formato inesperado')
-        setProductos(data)
-      })
-      .catch(() => {
-        // Fallback al endpoint viejo si el nuevo no está disponible aún
-        productosApi.listar(params).then(data => {
-          const normalizado = (Array.isArray(data) ? data : []).map(p => ({
-            ...p,
-            variantes: (p.variantes || []).map(v => ({
-              ...v,
-              stock_central: v.stock_actual ?? 0,
-              stock_total: v.stock_actual ?? 0,
-              stocks_sucursal: [],
-            }))
-          }))
-          setProductos(normalizado)
-        }).catch(() => setProductos([]))
-      })
+      .then(r => setProductos(r))
+      .catch(() => toast.error('Error al cargar productos'))
       .finally(() => setLoading(false))
+  }, [busqueda, categoria, filtros.sucursalId])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  // Filtros frontend: estado de stock, precio, margen
+  const productosFiltrados = productos.filter(p => {
+    const variantes = p.variantes?.filter(v => v.activa !== false) || []
+    const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
+    const hayBajo = variantes.some(v => (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
+    const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
+    const costoMin = variantes.length ? Math.min(...variantes.map(v => Number(v.costo || 0))) : 0
+    const margen = costoMin > 0 && precioMin > 0 ? ((precioMin - costoMin) / precioMin) * 100 : 0
+
+    if (filtros.stockEstado === 'sin' && stockTotal > 0) return false
+    if (filtros.stockEstado === 'bajo' && !hayBajo) return false
+    if (filtros.stockEstado === 'ok' && (stockTotal === 0 || hayBajo)) return false
+    if (filtros.precioMin && precioMin < Number(filtros.precioMin)) return false
+    if (filtros.precioMax && precioMin > Number(filtros.precioMax)) return false
+    if (filtros.margenMin && margen < Number(filtros.margenMin)) return false
+
+    return true
+  })
+
+  const eliminar = async id => {
+    await productosApi.eliminar(id); toast.success('Eliminado'); cargar()
   }
 
-  useEffect(() => { cargar() }, [busqueda, categoria])
+  const recargarCategorias = () => categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
 
-  const eliminar = async (id) => {
-    if (!confirm('¿Eliminar este producto?')) return
-    try { await productosApi.eliminar(id); toast('Producto eliminado'); cargar() }
-    catch (e) { toast(e.message, 'error') }
-  }
+  const categoriasFiltro = [
+    'Todo',
+    ...[...categorias]
+      .filter(c => c.nombre.toLowerCase() !== 'otras')
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      .map(c => c.nombre),
+    ...(categorias.some(c => c.nombre.toLowerCase() === 'otras') ? ['Otras'] : [])
+  ]
 
-  // Filtrar productos por sucursal si hay filtro
-  const productosFiltrados = filtroSucursal
-    ? productos.filter(p => p.variantes?.some(v =>
-        (v.stocks_sucursal?.find(s => s.sucursal_id === filtroSucursal)?.cantidad ?? 0) > 0
-      ))
-    : productos
+  const filtrosActivos = Object.values(filtros).filter(Boolean).length
 
-  const nombreFiltro = filtroSucursal
-    ? sucursales.find(s => s.id === filtroSucursal)?.nombre
-    : null
-
-  return (
-    <>
-      <div className="topbar">
-        <div className="page-title">
-          Stock
-          {nombreFiltro && <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 10 }}>— {nombreFiltro}</span>}
+  return (<>
+    {/* ── Topbar ── */}
+    <div className="topbar">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div className="page-title" style={{ fontSize: 22, fontWeight: 800 }}>Gestion de Inventario</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+          {productosFiltrados.length} productos en {categorias.length} categorías
         </div>
-        <div className="topbar-actions">
-          <div className="search-wrap">
-            <span className="search-icon">⌕</span>
-            <input className="search-input" placeholder="Buscar por nombre, marca..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-          </div>
-          <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={categoria} onChange={e => {
-              if (e.target.value === '__nueva__') {
-                const nombre = prompt('Nombre de la nueva categoría:')
-                if (nombre?.trim()) {
-                  categoriasProductoApi.crear({ nombre: nombre.trim() })
-                    .then(() => categoriasProductoApi.listar().then(setCategorias))
-                    .catch(err => toast(err.message || 'Error al crear categoría', 'error'))
-                }
-              } else {
-                setCategoria(e.target.value)
-              }
-            }}>
-            <option value="">Todas las categorías</option>
-            {/* Orden fijo de categorías principales */}
-            {['Proteína', 'Creatina', 'Colágeno', 'Magnesio'].map(nombre => {
-              const cat = categorias.find(c => c.nombre.toLowerCase() === nombre.toLowerCase())
-              return cat ? <option key={cat.id} value={cat.nombre}>{cat.nombre}</option> : null
-            })}
-            {/* Resto de categorías no fijas */}
-            {categorias
-              .filter(c => !['Proteína', 'Creatina', 'Colágeno', 'Magnesio'].map(n => n.toLowerCase()).includes(c.nombre.toLowerCase()))
-              .map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)
+      </div>
+      <div className="topbar-actions">
+        <button className="btn btn-ghost" onClick={() => setModalCats(true)}>Categorías</button>
+        <button className="btn btn-primary" onClick={() => setModalProd({})}>+ Nuevo producto</button>
+      </div>
+    </div>
+
+    <div className="page-content">
+
+      {/* ── Search bar + botón filtros avanzados ── */}
+      <div style={{ position: 'relative', marginBottom: 20 }}>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+            color: 'rgba(255,255,255,0.25)', fontSize: 16, pointerEvents: 'none' }}>⌕</span>
+
+          <input
+            style={{ width: '100%', padding: '13px 52px 13px 44px',
+              background: 'rgba(15,22,41,0.8)', border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 14, color: '#f1f5f9', fontSize: 14, outline: 'none',
+              transition: 'border-color 0.2s, box-shadow 0.2s' }}
+            placeholder="Buscar productos, marcas, categorías..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            onFocus={e => { e.target.style.borderColor = 'rgba(255,152,0,0.35)'; e.target.style.boxShadow = '0 0 0 3px rgba(255,152,0,0.08)' }}
+            onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.07)'; e.target.style.boxShadow = 'none' }}
+          />
+
+          {/* Botón filtros avanzados */}
+          <button
+            onClick={() => setShowFiltros(v => !v)}
+            title="Filtros avanzados"
+            style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              width: 34, height: 34, borderRadius: 9, cursor: 'pointer',
+              background: showFiltros || filtrosActivos > 0 ? 'rgba(255,152,0,0.15)' : 'rgba(255,255,255,0.04)',
+              border: showFiltros || filtrosActivos > 0 ? '1px solid rgba(255,152,0,0.4)' : '1px solid rgba(255,255,255,0.08)',
+              color: showFiltros || filtrosActivos > 0 ? '#ff9800' : 'rgba(255,255,255,0.35)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+          >
+            {filtrosActivos > 0
+              ? <span style={{ background: '#ff9800', color: '#000', borderRadius: '50%',
+                  width: 16, height: 16, fontSize: 9, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{filtrosActivos}</span>
+              : <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M1 3h12M3 7h8M5 11h4" />
+                </svg>
             }
-            <option value="__nueva__">＋ Crear nueva categoría</option>
-          </select>
-          <select className="form-select" style={{ width: 'auto', padding: '9px 14px' }} value={filtroSucursal} onChange={e => setFiltroSucursal(e.target.value ? Number(e.target.value) : '')}>
-            <option value="">Vista global</option>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Nuevo producto</button>
+          </button>
         </div>
-      </div>
 
-      <div className="content page-enter">
-        {loading
-          ? <div className="loading">Cargando...</div>
-          : productosFiltrados.length === 0
-          ? <div className="empty">{filtroSucursal ? 'Sin stock en esta sucursal.' : 'No hay productos.'}</div>
-          : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
-              {productosFiltrados.map(prod => (
-                <div className="card" key={prod.id} style={{ height: 'fit-content', marginBottom: 0 }}>
-                  <div className="card-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 18 }}>{getEmoji(prod.categoria)}</span>
-                      <div>
-                        <span style={{ fontWeight: 500, fontSize: 13.5 }}>{prod.nombre}</span>
-                        {prod.marca && (
-                          <span style={{ fontWeight: 500, fontSize: 13.5, color: 'var(--text-muted)', marginLeft: 6 }}>· {prod.marca}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setModalLote(prod)}>Precios</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setModal(prod)}>Editar</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => eliminar(prod.id)}>✕</button>
-                    </div>
-                  </div>
-                  {prod.variantes?.filter(v => v.activa).length > 0
-                    ? prod.variantes.filter(v => v.activa).map(v => (
-                      <VarianteRow
-                        key={v.id}
-                        variante={v}
-                        sucursales={sucursales}
-                        filtroSucursal={filtroSucursal || null}
-                        onTransferir={(variante) => setModalTransferencia(variante)}
-                        onSaved={cargar}
-                      />
-                    ))
-                    : <div className="empty">Sin variantes</div>
-                  }
-                </div>
-              ))}
-            </div>
-          )
-        }
-      </div>
-
-      {modal && (
-        <ModalProducto prod={modal === 'nuevo' ? null : modal} categorias={categorias} onClose={() => setModal(null)} onSaved={() => { setModal(null); cargar() }} />
-      )}
-      {modalLote && (
-        <ModalLote producto={modalLote} onClose={() => setModalLote(null)} onSaved={() => { setModalLote(null); cargar() }} />
-      )}
-      {modalTransferencia && (
-        <ModalTransferencia
-          variante={modalTransferencia}
+        {/* Panel de filtros avanzados */}
+        <FiltrosPanel
+          visible={showFiltros}
+          onClose={() => setShowFiltros(false)}
+          filtros={filtros}
+          onChange={setFiltros}
           sucursales={sucursales}
-          onClose={() => setModalTransferencia(null)}
-          onSaved={() => { setModalTransferencia(null); cargar() }}
         />
-      )}
-    </>
-  )
+      </div>
+
+      {/* ── Filtros por categoría ── */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
+        {categoriasFiltro.map(cat => {
+          const isActive = cat === 'Todo' ? !categoria : categoria === cat
+          return (
+            <button key={cat}
+              onClick={() => setCategoria(cat === 'Todo' ? '' : cat)}
+              style={{
+                padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 500,
+                border: isActive ? '1px solid rgba(255,152,0,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                background: isActive ? 'rgba(255,152,0,0.15)' : 'rgba(15,22,41,0.6)',
+                color: isActive ? '#ff9800' : 'rgba(255,255,255,0.45)',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >{cat}</button>
+          )
+        })}
+      </div>
+
+      {/* ── Grilla de tarjetas ── */}
+      {loading
+        ? <Loading />
+        : productosFiltrados.length === 0
+          ? <EmptyState icon="⬡" text="Sin productos." />
+          : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
+                {productosFiltrados.map(p => (
+                  <ProductCard
+                    key={p.id} p={p} sucursales={sucursales}
+                    onEdit={() => setModalProd(p)}
+                    onLote={() => setModalLote(p)}
+                    onDelete={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: () => eliminar(p.id) })}
+                  />
+                ))}
+              </div>
+              <StockFooter resumenDia={resumenDia} loadingResumen={loadingResumen} />
+            </>
+          )
+      }
+    </div>
+
+    {modalProd !== null && <ModalProducto producto={modalProd} categorias={categorias} onClose={() => setModalProd(null)} onSaved={cargar} />}
+    {modalLote && <ModalLote producto={modalLote} onClose={() => setModalLote(null)} onSaved={cargar} />}
+    {modalCats && <ModalCategorias onClose={() => { setModalCats(false); recargarCategorias() }} />}
+    {confirm && <ConfirmDialog message={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
+  </>)
 }
