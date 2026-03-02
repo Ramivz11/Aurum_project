@@ -1,7 +1,7 @@
 // ── MOVIMIENTOS ──────────────────────────────────────────────────────────────
 import { useState, useEffect } from 'react'
-import { movimientosApi } from '../../api/services'
-import { Loading, EmptyState, Chip, StatCard, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
+import { movimientosApi } from '../api/services'
+import { Loading, EmptyState, Chip, StatCard, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../components/ui'
 
 export function Movimientos() {
   const [ventas, setVentas] = useState([])
@@ -87,8 +87,8 @@ export function Movimientos() {
 }
 
 // ── CLIENTES ─────────────────────────────────────────────────────────────────
-import { clientesApi } from '../../api/services'
-import { Modal, ConfirmDialog } from '../../components/ui'
+import { clientesApi } from '../api/services'
+import { Modal, ConfirmDialog } from '../components/ui'
 import toast from 'react-hot-toast'
 
 export function Clientes() {
@@ -221,7 +221,7 @@ export function Clientes() {
 }
 
 // ── FINANZAS ─────────────────────────────────────────────────────────────────
-import { finanzasApi } from '../../api/services'
+import { finanzasApi } from '../api/services'
 
 export function Finanzas() {
   const [liquidez, setLiquidez] = useState(null)
@@ -414,7 +414,7 @@ export function Finanzas() {
 }
 
 // ── SUCURSALES ────────────────────────────────────────────────────────────────
-import { sucursalesApi, deudasApi } from '../../api/services'
+import { sucursalesApi, deudasApi } from '../api/services'
 
 export function Sucursales() {
   const [comparacion, setComparacion] = useState([])
