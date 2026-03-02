@@ -75,6 +75,7 @@ export const finanzasApi = {
   crearGasto: (data) => api.post('/finanzas/gastos', data),
   categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
   crearCategoria: (nombre) => api.post(`/finanzas/categorias-gasto?nombre=${encodeURIComponent(nombre)}`),
+  resumenDia: () => api.get('/finanzas/resumen-dia'),
 }
 
 // ── MOVIMIENTOS ──
