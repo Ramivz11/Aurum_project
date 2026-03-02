@@ -10,7 +10,8 @@ async function request(path, options = {}) {
     throw new Error(error.detail || 'Error desconocido')
   }
   if (res.status === 204) return null
-  return res.json()
+  const data = await res.json()
+  return { data }
 }
 
 export const api = {
