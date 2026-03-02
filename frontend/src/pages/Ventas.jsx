@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../api/services'
+import { ventasApi, clientesApi, productosApi, sucursalesApi, finanzasApi } from '../api/services'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../components/ui'
 
 function ModalVenta({ onClose, onSaved }) {
@@ -201,26 +201,24 @@ function EstadoBadge({ estado }) {
 
 // ─── Ventas Footer ────────────────────────────────────────────────────────────
 
-function VentasFooter({ ventas }) {
-  const confirmadas = ventas.filter(v => v.estado === 'confirmada')
-  const ingresosDia = confirmadas.reduce((a, v) => a + (Number(v.total) || 0), 0)
+function VentasFooter({ ventas, resumenDia, loadingResumen }) {
   const pendientes = ventas.filter(v => v.estado === 'abierta').length
 
-  const sparkPoints = [30, 45, 38, 62, 54, 70, 48, 66, 52, 74, 60, 82]
-  const sparkMax = Math.max(...sparkPoints); const sparkMin = Math.min(...sparkPoints)
+  const ingresosHoy = resumenDia?.ingresos_hoy ?? 0
+  const delta = resumenDia?.delta_hoy ?? null
+  const tendencia = resumenDia?.tendencia_mensual ?? []
+  const margenPromedio = resumenDia?.margen_promedio ?? 0
+
+  const sparkPoints = tendencia.length >= 2 ? tendencia : [0, 10, 5, 20, 15, 30, 25, 40, 35, 50, 42, 55]
+  const sparkMax = Math.max(...sparkPoints, 1)
+  const sparkMin = Math.min(...sparkPoints, 0)
   const range = sparkMax - sparkMin || 1
   const W = 220; const H = 38
   const pts = sparkPoints.map((v, i) => {
     const x = (i / (sparkPoints.length - 1)) * W
-    const y = H - ((v - sparkMin) / range) * H
+    const y = H - ((v - sparkMin) / range) * (H - 4) - 2
     return `${x},${y}`
   }).join(' ')
-
-  const ventasByMetodo = { efectivo: 0, transferencia: 0, tarjeta: 0 }
-  confirmadas.forEach(v => { ventasByMetodo[v.metodo_pago] = (ventasByMetodo[v.metodo_pago] || 0) + Number(v.total || 0) })
-  const margenTotal = confirmadas.length > 0
-    ? Math.round((confirmadas.length / Math.max(ventas.length, 1)) * 100)
-    : 0
 
   return (
     <div style={{
@@ -232,6 +230,7 @@ function VentasFooter({ ventas }) {
       overflow: 'hidden',
     }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+
         {/* Ingresos del día */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{
@@ -239,40 +238,62 @@ function VentasFooter({ ventas }) {
             background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
             border: '1px solid rgba(255,152,0,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20, flexShrink: 0,
+            fontSize: 20, flexShrink: 0, color: '#ff9800',
           }}>$</div>
           <div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Ingresos del Día</div>
-            <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#f1f5f9', lineHeight: 1 }}>
-              {formatARS(ingresosDia)}
-            </div>
-            {pendientes > 0 && (
-              <div style={{ fontSize: 11, marginTop: 4 }}>
-                <span style={{ background: 'rgba(255,152,0,0.15)', color: '#ff9800', borderRadius: 999, padding: '1px 8px' }}>
-                  +{pendientes} pendientes
-                </span>
+            {loadingResumen
+              ? <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+              : <>
+                  <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#f1f5f9', lineHeight: 1 }}>
+                    {formatARS(ingresosHoy)}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+                    {delta !== null && (
+                      <span style={{
+                        background: delta >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: delta >= 0 ? '#22c55e' : '#ef4444',
+                        borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 700,
+                      }}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}% vs ayer</span>
+                    )}
+                    {pendientes > 0 && (
+                      <span style={{ background: 'rgba(255,152,0,0.15)', color: '#ff9800', borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>
+                        +{pendientes} pendientes
+                      </span>
+                    )}
+                  </div>
+                </>
+            }
+          </div>
+        </div>
+
+        {/* Tendencia mensual */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Tendencia Mensual</div>
+            {loadingResumen
+              ? <div style={{ height: H, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+                </div>
+              : <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, overflow: 'visible' }}>
+                  <defs>
+                    <linearGradient id="vk-g" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#ff9800" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#ffb74d" stopOpacity="1" />
+                    </linearGradient>
+                  </defs>
+                  <polyline points={pts} fill="none" stroke="url(#vk-g)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            }
+            {!loadingResumen && tendencia.length > 0 && (
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+                {tendencia.length} días registrados este mes
               </div>
             )}
           </div>
         </div>
 
-        {/* Tendencia mensual sparkline */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Tendencia Mensual</div>
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, overflow: 'visible' }}>
-              <defs>
-                <linearGradient id="vk-g" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#ff9800" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#ffb74d" stopOpacity="1" />
-                </linearGradient>
-              </defs>
-              <polyline points={pts} fill="none" stroke="url(#vk-g)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Margen / tasa confirmación */}
+        {/* Margen promedio */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px' }}>
           <div style={{
             width: 48, height: 48, borderRadius: 14,
@@ -283,10 +304,16 @@ function VentasFooter({ ventas }) {
           }}>◇</div>
           <div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Margen Promedio</div>
-            <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#ff9800', lineHeight: 1 }}>{margenTotal}%</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>{confirmadas.length} confirmadas</div>
+            {loadingResumen
+              ? <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Cargando...</div>
+              : <>
+                  <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: '#ff9800', lineHeight: 1 }}>{margenPromedio}%</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>global · todas las variantes</div>
+                </>
+            }
           </div>
         </div>
+
       </div>
     </div>
   )
@@ -379,10 +406,19 @@ function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar }) {
 export default function Ventas() {
   const [ventas, setVentas] = useState([])
   const [clientes, setClientes] = useState([])
+  const [resumenDia, setResumenDia] = useState(null)
+  const [loadingResumen, setLoadingResumen] = useState(true)
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [confirm, setConfirm] = useState(null)
   const [filtro, setFiltro] = useState('')
+
+  useEffect(() => {
+    finanzasApi.resumenDia()
+      .then(r => setResumenDia(r.data))
+      .catch(() => {})
+      .finally(() => setLoadingResumen(false))
+  }, [])
 
   const cargar = () => {
     setLoading(true)
@@ -470,7 +506,7 @@ export default function Ventas() {
             />
           ))}
 
-          <VentasFooter ventas={ventas} />
+          <VentasFooter ventas={ventas} resumenDia={resumenDia} loadingResumen={loadingResumen} />
         </>
       )}
     </div>
