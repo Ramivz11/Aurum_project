@@ -6,8 +6,8 @@ import {
   stockApi,
   sucursalesApi,
   finanzasApi,
-} from '../../api/services'
-import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
+} from '../api/services'
+import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../components/ui'
 
 // ─── Modal: Gestionar categorías ─────────────────────────────────────────────
 
