@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../../api/services'
-import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
+import { ventasApi, clientesApi, productosApi, sucursalesApi } from '../api/services'
+import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../components/ui'
 
 function ModalVenta({ onClose, onSaved }) {
   const [sucursales, setSucursales] = useState([])
