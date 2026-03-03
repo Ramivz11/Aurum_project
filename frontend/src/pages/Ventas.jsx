@@ -370,7 +370,7 @@ function VentasFooter({ ventas, resumenDia, loadingResumen }) {
 
 // ─── Row Card ─────────────────────────────────────────────────────────────────
 
-function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar, onEditar }) {
+function VentaRow({ venta, clienteNombre, sucursalNombre, onConfirmar, onEliminar, onEditar }) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -404,7 +404,7 @@ function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar, onEditar }) {
       </div>
 
       {/* Sucursal */}
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Sucursal #{venta.sucursal_id}</div>
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{sucursalNombre}</div>
 
       {/* Items */}
       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
@@ -466,6 +466,7 @@ function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar, onEditar }) {
 export default function Ventas() {
   const [ventas, setVentas] = useState([])
   const [clientes, setClientes] = useState([])
+  const [sucursales, setSucursales] = useState([])
   const [resumenDia, setResumenDia] = useState(null)
   const [loadingResumen, setLoadingResumen] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -485,10 +486,12 @@ export default function Ventas() {
     setLoading(true)
     Promise.all([
       ventasApi.listar({ estado: filtro || undefined }),
-      clientesApi.listar()
-    ]).then(([v, c]) => {
+      clientesApi.listar(),
+      sucursalesApi.listar(),
+    ]).then(([v, c, s]) => {
       setVentas(v.data)
       setClientes(c.data)
+      setSucursales(s.data)
     }).catch(err => {
       console.error('Error cargando ventas:', err)
       toast.error('Error al cargar ventas: ' + (err.message || 'Sin conexión'))
@@ -498,6 +501,7 @@ export default function Ventas() {
   useEffect(() => { cargar() }, [filtro])
 
   const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.nombre]))
+  const sucursalMap = Object.fromEntries(sucursales.map(s => [s.id, s.nombre]))
 
   const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
   const confirmar = async (id) => {
@@ -565,6 +569,7 @@ export default function Ventas() {
               key={v.id}
               venta={v}
               clienteNombre={v.cliente_id ? (clienteMap[v.cliente_id] || `Cliente #${v.cliente_id}`) : null}
+              sucursalNombre={sucursalMap[v.sucursal_id] || `Sucursal #${v.sucursal_id}`}
               onConfirmar={() => confirmar(v.id)}
               onEditar={() => setVentaEditando(v)}
               onEliminar={() => setConfirm({ msg: '¿Eliminar venta?', fn: () => eliminar(v.id) })}
