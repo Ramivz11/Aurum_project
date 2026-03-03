@@ -273,9 +273,10 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales }) {
   )
 }
 
+
 // ─── Tarjeta de producto ──────────────────────────────────────────────────────
 
-function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
+function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
   const [hovered, setHovered] = useState(false)
   const variantes = p.variantes?.filter(v => v.activa !== false) || []
 
@@ -291,22 +292,59 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
   const varLabel = primerVar ? [primerVar.sabor, primerVar.tamanio].filter(Boolean).join(' · ') : null
   const statusColor = stockTotal === 0 ? '#ef4444' : hayBajo ? '#fbbf24' : '#22c55e'
 
-  // Desglose de stock por sucursal dinámico
-  // stocks_sucursal: [{sucursal_id, sucursal_nombre, cantidad}] — viene de /stock
-  const stockSucursalDisplay = (() => {
-    if (!primerVar) return []
-    if (sucursales.length === 0) {
-      // Sin sucursales configuradas: mostrar solo central
-      const c = primerVar.stock_central ?? primerVar.stock_actual ?? 0
-      return [{ label: 'CTR', cantidad: c, bajo: c <= primerVar.stock_minimo }]
+  // Inline stock editing state
+  const [editingKey, setEditingKey] = useState(null) // "varId_sucId" | "varId_central"
+  const [editingVal, setEditingVal] = useState('')
+  const [savingKey, setSavingKey] = useState(null)
+
+  const startEdit = (key, cantidad) => {
+    setEditingKey(key)
+    setEditingVal(String(cantidad))
+  }
+
+  const commitEdit = async (key, varianteId, sucursalId) => {
+    const n = parseInt(editingVal, 10)
+    if (isNaN(n) || n < 0) { setEditingKey(null); return }
+    setSavingKey(key)
+    setEditingKey(null)
+    try {
+      await stockApi.ajustarManual(varianteId, { cantidad: n, sucursal_id: sucursalId ?? null })
+      onStockSaved()
+    } catch (e) {
+      toast.error(e.message || 'Error al guardar stock')
+    } finally {
+      setSavingKey(null)
     }
-    // Hay sucursales: mostrar las primeras 3
-    return sucursales.slice(0, 3).map(suc => {
-      const ss = primerVar.stocks_sucursal?.find(s => s.sucursal_id === suc.id)
-      const cantidad = ss?.cantidad ?? 0
-      const label = suc.nombre.slice(0, 3).toUpperCase()
-      return { label, cantidad, bajo: cantidad === 0 }
+  }
+
+  // Desglose de stock: todas las variantes × todas las sucursales
+  // Items: { key, varianteId, sucursalId, label, cantidad, bajo, isCentral }
+  const stockItems = (() => {
+    if (variantes.length === 0) return []
+    const items = []
+    variantes.forEach((v, vi) => {
+      const varPrefix = variantes.length > 1
+        ? ([v.sabor, v.tamanio].filter(Boolean).join('/') || `V${vi + 1}`) + ' '
+        : ''
+      // Central
+      const cQty = v.stock_central ?? v.stock_actual ?? 0
+      items.push({
+        key: `${v.id}_central`, varianteId: v.id, sucursalId: null,
+        label: varPrefix + 'CTR', cantidad: cQty,
+        bajo: cQty <= v.stock_minimo, isCentral: true,
+      })
+      // Sucursales de venta
+      sucursales.filter(s => !s.es_central).forEach(s => {
+        const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+        const qty = ss?.cantidad ?? 0
+        items.push({
+          key: `${v.id}_${s.id}`, varianteId: v.id, sucursalId: s.id,
+          label: varPrefix + s.nombre.slice(0, 3).toUpperCase(), cantidad: qty,
+          bajo: qty === 0, isCentral: false,
+        })
+      })
     })
+    return items
   })()
 
   return (
@@ -390,16 +428,55 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
         )}
       </div>
 
-      {/* Stock por sucursal — dinámico */}
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        {stockSucursalDisplay.map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, marginRight: 14 }}>
-            <span style={{ fontSize: 9, color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.28)',
-              fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+      {/* Stock por sucursal — inline editable */}
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 0' }}>
+        {stockItems.map(item => (
+          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+              color: item.bajo ? '#ef4444' : item.isCentral ? 'rgba(255,152,0,0.6)' : 'rgba(255,255,255,0.28)',
+            }}>
               {item.bajo ? '●' : '○'} {item.label}
             </span>
-            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
-              color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)' }}>{item.cantidad}</span>
+            {editingKey === item.key ? (
+              <input
+                autoFocus
+                type="number" min="0"
+                value={editingVal}
+                onChange={e => setEditingVal(e.target.value)}
+                onBlur={() => commitEdit(item.key, item.varianteId, item.sucursalId)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitEdit(item.key, item.varianteId, item.sucursalId)
+                  if (e.key === 'Escape') setEditingKey(null)
+                }}
+                style={{
+                  width: 44, padding: '1px 4px', textAlign: 'center',
+                  background: 'rgba(255,152,0,0.12)', border: '1px solid rgba(255,152,0,0.5)',
+                  borderRadius: 6, color: '#ff9800', fontFamily: 'Syne, sans-serif',
+                  fontSize: 13, fontWeight: 700, outline: 'none',
+                }}
+              />
+            ) : (
+              <span
+                title="Click para editar"
+                onClick={() => startEdit(item.key, item.cantidad)}
+                style={{
+                  fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
+                  color: savingKey === item.key ? 'rgba(255,152,0,0.5)'
+                       : item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)',
+                  cursor: 'text',
+                  borderBottom: '1px dashed rgba(255,255,255,0.15)',
+                  transition: 'color 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#ff9800'; e.currentTarget.style.borderBottomColor = 'rgba(255,152,0,0.5)' }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = savingKey === item.key ? 'rgba(255,152,0,0.5)' : item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)'
+                  e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,0.15)'
+                }}
+              >
+                {savingKey === item.key ? '…' : item.cantidad}
+              </span>
+            )}
           </div>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
@@ -719,6 +796,7 @@ export default function Stock() {
                     key={p.id} p={p} sucursales={sucursales}
                     onEdit={() => setModalProd(p)}
                     onLote={() => setModalLote(p)}
+                    onStockSaved={cargar}
                     onDelete={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: () => eliminar(p.id) })}
                   />
                 ))}
