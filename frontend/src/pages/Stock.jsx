@@ -88,7 +88,14 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
   })
   const [variantes, setVariantes] = useState(
     producto?.variantes?.length
-      ? producto.variantes
+      ? producto.variantes.filter(v => v.activa !== false).map(v => ({
+          id: v.id,
+          sabor: v.sabor || '',
+          tamanio: v.tamanio || '',
+          costo: v.costo ?? '',
+          precio_venta: v.precio_venta ?? '',
+          stock_minimo: v.stock_minimo ?? 0,
+        }))
       : [{ sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }]
   )
   const [loading, setLoading] = useState(false)
@@ -213,7 +220,6 @@ function ModalLote({ producto, onClose, onSaved }) {
   const [modo, setModo] = useState('porcentaje')
   const [valor, setValor] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showVariantes, setShowVariantes] = useState(false)
   const modos = [{ key: 'porcentaje', label: '+/- %' }, { key: 'margen_deseado', label: 'Margen %' }, { key: 'precio_fijo', label: 'Precio fijo $' }]
 
   const aplicar = async () => {
