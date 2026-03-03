@@ -3,12 +3,28 @@ import toast from 'react-hot-toast'
 import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '../api/services'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../components/ui'
 
-function ModalVenta({ onClose, onSaved }) {
+function ModalVenta({ onClose, onSaved, ventaEditar = null }) {
+  const esEdicion = ventaEditar !== null
   const [sucursales, setSucursales] = useState([])
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
-  const [form, setForm] = useState({ cliente_id: '', sucursal_id: '', metodo_pago: 'efectivo', estado: 'confirmada', notas: '' })
-  const [carrito, setCarrito] = useState([])
+  const [form, setForm] = useState({
+    cliente_id: ventaEditar ? String(ventaEditar.cliente_id || '') : '',
+    sucursal_id: ventaEditar ? String(ventaEditar.sucursal_id) : '',
+    metodo_pago: ventaEditar?.metodo_pago || 'efectivo',
+    estado: ventaEditar?.estado || 'confirmada',
+    notas: ventaEditar?.notas || '',
+  })
+  const [carrito, setCarrito] = useState(
+    ventaEditar?.items?.map(it => ({
+      key: `v${it.variante_id}`,
+      variante_id: it.variante_id,
+      cantidad: it.cantidad,
+      precio_unitario: Number(it.precio_unitario),
+      nombre: it.variante ? [it.variante.producto?.nombre, it.variante.producto?.marca].filter(Boolean).join(' · ') : `Variante #${it.variante_id}`,
+      detalle: it.variante ? [it.variante.sabor, it.variante.tamanio].filter(Boolean).join(' / ') : '',
+    })) || []
+  )
   const [busqueda, setBusqueda] = useState('')
   const [loading, setLoading] = useState(false)
   const [nuevoCliente, setNuevoCliente] = useState(null)
@@ -62,26 +78,41 @@ function ModalVenta({ onClose, onSaved }) {
 
   const total = carrito.reduce((a, i) => a + i.precio_unitario * i.cantidad, 0)
 
-  const submit = async () => {
+  const submit = async (estadoOverride) => {
     if (!form.sucursal_id) return toast.error('Seleccioná una sucursal')
     if (!carrito.length) return toast.error('El carrito está vacío')
     setLoading(true)
+    const estadoFinal = estadoOverride || form.estado
+    const payload = {
+      cliente_id: form.cliente_id ? Number(form.cliente_id) : null,
+      sucursal_id: Number(form.sucursal_id),
+      metodo_pago: form.metodo_pago,
+      estado: estadoFinal,
+      notas: form.notas || null,
+      items: carrito.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario }))
+    }
     try {
-      await ventasApi.crear({
-        ...form, cliente_id: form.cliente_id || null, sucursal_id: Number(form.sucursal_id),
-        items: carrito.map(i => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario }))
-      })
-      toast.success(form.estado === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
+      if (esEdicion) {
+        await ventasApi.actualizar(ventaEditar.id, payload)
+        toast.success('Pedido actualizado')
+      } else {
+        await ventasApi.crear(payload)
+        toast.success(estadoFinal === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
+      }
       onSaved(); onClose()
     } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
 
   return (
-    <Modal title="Registrar venta" onClose={onClose} size="modal-lg"
+    <Modal title={esEdicion ? 'Editar pedido' : 'Registrar venta'} onClose={onClose} size="modal-lg"
       footer={<>
         <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-        <button className="btn btn-ghost" onClick={() => { setForm(f => ({ ...f, estado: 'abierta' })); setTimeout(submit, 50) }}>Guardar como pedido</button>
-        <button className="btn btn-primary" onClick={submit} disabled={loading}>{loading ? 'Registrando...' : `Confirmar ${formatARS(total)}`}</button>
+        {!esEdicion && (
+          <button className="btn btn-ghost" onClick={() => submit('abierta')}>Guardar como pedido</button>
+        )}
+        <button className="btn btn-primary" onClick={() => submit(esEdicion ? 'abierta' : null)} disabled={loading}>
+          {loading ? (esEdicion ? 'Guardando...' : 'Registrando...') : (esEdicion ? `Guardar cambios ${formatARS(total)}` : `Confirmar ${formatARS(total)}`)}
+        </button>
       </>}
     >
       <div className="grid-2" style={{ marginBottom: 0 }}>
@@ -339,7 +370,7 @@ function VentasFooter({ ventas, resumenDia, loadingResumen }) {
 
 // ─── Row Card ─────────────────────────────────────────────────────────────────
 
-function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar }) {
+function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar, onEditar }) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -395,6 +426,17 @@ function VentaRow({ venta, clienteNombre, onConfirmar, onEliminar }) {
       <div style={{ display: 'flex', gap: 6, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
         {venta.estado === 'abierta' && (
           <button
+            onClick={onEditar}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(91,143,232,0.15)'; e.currentTarget.style.borderColor = 'rgba(91,143,232,0.4)'; e.currentTarget.style.color = '#5b8fe8' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+            style={{
+              background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+            }}>✎</button>
+        )}
+        {venta.estado === 'abierta' && (
+          <button
             onClick={onConfirmar}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'; e.currentTarget.style.color = '#22c55e' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
@@ -428,6 +470,7 @@ export default function Ventas() {
   const [loadingResumen, setLoadingResumen] = useState(true)
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
+  const [ventaEditando, setVentaEditando] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [filtro, setFiltro] = useState('')
 
@@ -523,6 +566,7 @@ export default function Ventas() {
               venta={v}
               clienteNombre={v.cliente_id ? (clienteMap[v.cliente_id] || `Cliente #${v.cliente_id}`) : null}
               onConfirmar={() => confirmar(v.id)}
+              onEditar={() => setVentaEditando(v)}
               onEliminar={() => setConfirm({ msg: '¿Eliminar venta?', fn: () => eliminar(v.id) })}
             />
           ))}
@@ -533,6 +577,7 @@ export default function Ventas() {
     </div>
 
     {modal && <ModalVenta onClose={() => setModal(false)} onSaved={cargar} />}
+    {ventaEditando && <ModalVenta onClose={() => setVentaEditando(null)} onSaved={cargar} ventaEditar={ventaEditando} />}
     {confirm && <ConfirmDialog message={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
   </>)
 }
