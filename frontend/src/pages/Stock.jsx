@@ -92,6 +92,7 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
       : [{ sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }]
   )
   const [loading, setLoading] = useState(false)
+  const [showVariantes, setShowVariantes] = useState(false)
 
   const addVar = () => setVariantes(v => [...v, { sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }])
   const rmVar = i => setVariantes(v => v.filter((_, idx) => idx !== i))
@@ -101,8 +102,39 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
     if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
     setLoading(true)
     try {
-      if (isEdit) { await productosApi.actualizar(producto.id, form); toast.success('Actualizado') }
-      else { await productosApi.crear({ ...form, variantes }); toast.success('Creado') }
+      if (isEdit) {
+        await productosApi.actualizar(producto.id, form)
+        if (showVariantes) {
+          // Procesar variantes: eliminar, actualizar, crear
+          const ops = []
+          for (const v of variantes) {
+            if (v._eliminada && v.id) {
+              ops.push(productosApi.eliminarVariante(v.id))
+            } else if (v.id) {
+              ops.push(productosApi.actualizarVariante(v.id, {
+                sabor: v.sabor || null,
+                tamanio: v.tamanio || null,
+                costo: parseFloat(v.costo) || 0,
+                precio_venta: parseFloat(v.precio_venta) || 0,
+                stock_minimo: parseInt(v.stock_minimo) || 0,
+              }))
+            } else {
+              ops.push(productosApi.crearVariante(producto.id, {
+                sabor: v.sabor || null,
+                tamanio: v.tamanio || null,
+                costo: parseFloat(v.costo) || 0,
+                precio_venta: parseFloat(v.precio_venta) || 0,
+                stock_minimo: parseInt(v.stock_minimo) || 0,
+              }))
+            }
+          }
+          await Promise.all(ops)
+        }
+        toast.success('Actualizado')
+      } else {
+        await productosApi.crear({ ...form, variantes })
+        toast.success('Creado')
+      }
       onSaved(); onClose()
     } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
@@ -125,27 +157,52 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
         </div>
         <div className="form-group"><label className="input-label">URL imagen</label><input className="input" value={form.imagen_url} onChange={e => setForm(f => ({ ...f, imagen_url: e.target.value }))} /></div>
       </div>
-      {!isEdit && (<>
+      <>
         <hr className="divider" />
-        <div className="flex items-center justify-between mb-12">
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Variantes</div>
-          <button className="btn btn-ghost btn-sm" onClick={addVar}>+ Agregar</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showVariantes ? 12 : 0 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowVariantes(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700,
+              letterSpacing: '0.06em', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+          >
+            <span style={{ display: 'inline-block', transition: 'transform 0.2s',
+              transform: showVariantes ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+            Variantes ({variantes.length})
+          </button>
+          {showVariantes && <button className="btn btn-ghost btn-sm" onClick={addVar}>+ Agregar</button>}
         </div>
-        {variantes.map((v, i) => (
-          <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
-            <div className="grid-2" style={{ marginBottom: 8 }}>
-              <div><label className="input-label">Sabor</label><input className="input" value={v.sabor} onChange={e => upVar(i, 'sabor', e.target.value)} /></div>
-              <div><label className="input-label">Tamaño</label><input className="input" value={v.tamanio} onChange={e => upVar(i, 'tamanio', e.target.value)} /></div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-              <div><label className="input-label">Costo $</label><input className="input" type="number" value={v.costo} onChange={e => upVar(i, 'costo', e.target.value)} /></div>
-              <div><label className="input-label">Precio $</label><input className="input" type="number" value={v.precio_venta} onChange={e => upVar(i, 'precio_venta', e.target.value)} /></div>
-              <div><label className="input-label">Stock mín.</label><input className="input" type="number" value={v.stock_minimo} onChange={e => upVar(i, 'stock_minimo', e.target.value)} /></div>
-              {variantes.length > 1 && <button className="btn btn-danger btn-sm" onClick={() => rmVar(i)}>✕</button>}
-            </div>
+        {showVariantes && variantes.map((v, i) => (
+          <div key={v.id || i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 10,
+            border: v._eliminada ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
+            opacity: v._eliminada ? 0.5 : 1 }}>
+            {v._eliminada ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  {[v.sabor, v.tamanio].filter(Boolean).join(' · ') || `Variante ${i + 1}`} — <em>se eliminará al guardar</em>
+                </span>
+                <button className="btn btn-ghost btn-sm" onClick={() => upVar(i, '_eliminada', false)}>Deshacer</button>
+              </div>
+            ) : (
+              <>
+                <div className="grid-2" style={{ marginBottom: 8 }}>
+                  <div><label className="input-label">Sabor</label><input className="input" value={v.sabor || ''} onChange={e => upVar(i, 'sabor', e.target.value)} /></div>
+                  <div><label className="input-label">Tamaño</label><input className="input" value={v.tamanio || ''} onChange={e => upVar(i, 'tamanio', e.target.value)} /></div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+                  <div><label className="input-label">Costo $</label><input className="input" type="number" value={v.costo || ''} onChange={e => upVar(i, 'costo', e.target.value)} /></div>
+                  <div><label className="input-label">Precio $</label><input className="input" type="number" value={v.precio_venta || ''} onChange={e => upVar(i, 'precio_venta', e.target.value)} /></div>
+                  <div><label className="input-label">Stock mín.</label><input className="input" type="number" value={v.stock_minimo || 0} onChange={e => upVar(i, 'stock_minimo', e.target.value)} /></div>
+                  <button className="btn btn-danger btn-sm" onClick={() => {
+                    if (v.id) upVar(i, '_eliminada', true)
+                    else rmVar(i)
+                  }}>✕</button>
+                </div>
+              </>
+            )}
           </div>
         ))}
-      </>)}
+      </>
     </Modal>
   )
 }
@@ -156,6 +213,7 @@ function ModalLote({ producto, onClose, onSaved }) {
   const [modo, setModo] = useState('porcentaje')
   const [valor, setValor] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showVariantes, setShowVariantes] = useState(false)
   const modos = [{ key: 'porcentaje', label: '+/- %' }, { key: 'margen_deseado', label: 'Margen %' }, { key: 'precio_fijo', label: 'Precio fijo $' }]
 
   const aplicar = async () => {
