@@ -41,10 +41,23 @@ function ModalVenta({ onClose, onSaved }) {
     setBusqueda('')
   }
 
+  const [creandoCliente, setCreandoCliente] = useState(false)
+
   const crearCliente = async () => {
-    if (!formCliente.nombre) return toast.error('El nombre es obligatorio')
-    const { data } = await clientesApi.crear(formCliente)
-    setClientes(c => [...c, data]); setForm(f => ({ ...f, cliente_id: data.id })); setNuevoCliente(null); toast.success('Cliente creado')
+    if (!formCliente.nombre.trim()) return toast.error('El nombre es obligatorio')
+    setCreandoCliente(true)
+    try {
+      const { data } = await clientesApi.crear(formCliente)
+      setClientes(c => [...c, data])
+      setForm(f => ({ ...f, cliente_id: String(data.id) }))
+      setFormCliente({ nombre: '', ubicacion: '', telefono: '' })
+      setNuevoCliente(null)
+      toast.success('Cliente creado')
+    } catch (e) {
+      toast.error(e.message || 'Error al crear cliente')
+    } finally {
+      setCreandoCliente(false)
+    }
   }
 
   const total = carrito.reduce((a, i) => a + i.precio_unitario * i.cantidad, 0)
@@ -163,7 +176,7 @@ function ModalVenta({ onClose, onSaved }) {
           <input className="input mb-8" placeholder="Teléfono" value={formCliente.telefono} onChange={e => setFormCliente(n => ({ ...n, telefono: e.target.value }))} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setNuevoCliente(null)}>Cancelar</button>
-            <button className="btn btn-primary btn-sm" onClick={crearCliente}>Crear</button>
+            <button className="btn btn-primary btn-sm" onClick={crearCliente} disabled={creandoCliente}>{creandoCliente ? 'Creando...' : 'Crear'}</button>
           </div>
         </div>
       )}
