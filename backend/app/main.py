@@ -2,6 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.database import Base, engine, SessionLocal
 from app.routers import productos, ventas, compras, clientes, finanzas, deudas, stock, recordatorios
@@ -15,8 +16,9 @@ def _run_migrations():
     """Migraciones SQL manuales — safe para DB ya existentes."""
     with engine.connect() as conn:
         # Agregar es_central si no existe (no rompe DB existentes)
+        # SQLAlchemy 2.x requiere text() para SQL crudo
         conn.execute(
-            "ALTER TABLE sucursales ADD COLUMN IF NOT EXISTS es_central BOOLEAN DEFAULT FALSE NOT NULL"
+            text("ALTER TABLE sucursales ADD COLUMN IF NOT EXISTS es_central BOOLEAN DEFAULT FALSE NOT NULL")
         )
         conn.commit()
 
