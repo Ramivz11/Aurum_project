@@ -634,7 +634,9 @@ export default function Compras() {
     Promise.all([
       comprasApi.listar({}),
       productosApi.listar(),
-    ]).then(([c, p]) => { setCompras(c.data); setProductos(p.data) }).finally(() => setLoading(false))
+    ]).then(([c, p]) => { setCompras(c.data); setProductos(p.data) })
+    .catch(err => { console.error('Error cargando compras:', err); toast(err.message || 'Error al cargar', 'error') })
+    .finally(() => setLoading(false))
   }
 
   useEffect(() => { cargar() }, [])

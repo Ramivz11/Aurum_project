@@ -15,6 +15,7 @@ export function Movimientos() {
     setLoading(true)
     Promise.all([movimientosApi.ventas(), movimientosApi.compras(), movimientosApi.resumen()])
       .then(([v, c, r]) => { setVentas(v.data); setCompras(c.data); setResumen(r.data) })
+      .catch(err => { console.error('Error cargando movimientos:', err) })
       .finally(() => setLoading(false))
   }, [])
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { ventasApi, clientesApi, productosApi, sucursalesApi, finanzasApi } from '../api/services'
+import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '../api/services'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../components/ui'
 
 function ModalVenta({ onClose, onSaved }) {
@@ -15,8 +15,8 @@ function ModalVenta({ onClose, onSaved }) {
   const [formCliente, setFormCliente] = useState({ nombre: '', ubicacion: '', telefono: '' })
 
   useEffect(() => {
-    Promise.all([sucursalesApi.listar(), clientesApi.listar(), productosApi.listar()])
-      .then(([s, c, p]) => { setSucursales(s.data); setClientes(c.data); setProductos(p.data) })
+    Promise.all([sucursalesApi.listar(), clientesApi.listar(), stockApi.listar()])
+      .then(([s, c, p]) => { setSucursales(s.data.filter(x => !x.es_central)); setClientes(c.data); setProductos(p.data) })
   }, [])
 
   const filtrados = busqueda
@@ -117,7 +117,12 @@ function ModalVenta({ onClose, onSaved }) {
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                     {[v.sabor, v.tamanio].filter(Boolean).join(' · ')}
-                    {' — '}Stock: <strong style={{ color: v.stock_actual <= (v.stock_minimo || 0) ? 'var(--red)' : 'var(--text-muted)' }}>{v.stock_actual}</strong>
+                    {' — '}Stock en sucursal:{' '}
+                    {(() => {
+                      const ss = v.stocks_sucursal?.find(s => s.sucursal_id === Number(form.sucursal_id))
+                      const cant = ss ? ss.cantidad : (v.stock_central || 0)
+                      return <strong style={{ color: cant <= (v.stock_minimo || 0) ? 'var(--red)' : 'var(--text-muted)' }}>{cant}</strong>
+                    })()}
                   </div>
                 </div>
                 <div style={{ fontWeight: 600, marginLeft: 12, whiteSpace: 'nowrap' }}>{formatARS(v.precio_venta)}</div>
@@ -428,6 +433,9 @@ export default function Ventas() {
     ]).then(([v, c]) => {
       setVentas(v.data)
       setClientes(c.data)
+    }).catch(err => {
+      console.error('Error cargando ventas:', err)
+      toast.error('Error al cargar ventas: ' + (err.message || 'Sin conexión'))
     }).finally(() => setLoading(false))
   }
 
@@ -438,7 +446,7 @@ export default function Ventas() {
   const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
   const confirmar = async (id) => {
     try { await ventasApi.confirmar(id); toast.success('Confirmado'); cargar() }
-    catch (e) { toast.error(e.message || 'Error') }
+    catch (e) { toast.error(e.message || 'Error al confirmar') }
   }
 
   const filtros = [
