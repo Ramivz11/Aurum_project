@@ -117,7 +117,7 @@ export default function Sidebar() {
   const location = useLocation()
 
   useEffect(() => {
-    ventasApi.pedidosAbiertos().then(d => setPedidosAbiertos(d.length)).catch(() => {})
+    ventasApi.pedidosAbiertos().then(d => setPedidosAbiertos(d.data.length)).catch(() => {})
   }, [])
 
   // Cerrar drawer al cambiar de ruta

@@ -51,6 +51,7 @@ class Sucursal(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     activa = Column(Boolean, default=True)
+    es_central = Column(Boolean, default=False)   # depósito central — reemplaza variante.stock_actual
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     ventas = relationship("Venta", back_populates="sucursal")

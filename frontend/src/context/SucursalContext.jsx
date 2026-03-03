@@ -8,16 +8,20 @@ export function SucursalProvider({ children }) {
   const [sucursalActual, setSucursalActual] = useState(null)
 
   const cargarSucursales = () => {
-    sucursalesApi.listar().then(d => {
-      setSucursales(d)
-      setSucursalActual(prev => {
-        if (prev) {
-          const updated = d.find(s => s.id === prev.id)
-          return updated || (d.length > 0 ? d[0] : null)
-        }
-        return d.length > 0 ? d[0] : null
+    sucursalesApi.listar()
+      .then(({ data: lista }) => {
+        // Excluir el depósito central del selector de sucursales de venta
+        const sucursalesVenta = lista.filter(s => !s.es_central)
+        setSucursales(lista)          // lista completa (para stock, transfers, etc.)
+        setSucursalActual(prev => {
+          if (prev) {
+            const updated = sucursalesVenta.find(s => s.id === prev.id)
+            return updated || (sucursalesVenta.length > 0 ? sucursalesVenta[0] : null)
+          }
+          return sucursalesVenta.length > 0 ? sucursalesVenta[0] : null
+        })
       })
-    }).catch(() => {})
+      .catch(() => {})
   }
 
   useEffect(() => { cargarSucursales() }, [])

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from typing import Optional, List
@@ -6,7 +6,7 @@ from decimal import Decimal
 from datetime import datetime
 
 from app.database import get_db
-from app.models import Venta, Compra, VentaItem, Sucursal, StockSucursal, Variante
+from app.models import Venta, Compra, VentaItem, Sucursal, StockSucursal, Variante  # Variante usado para producto_mas_vendido
 from pydantic import BaseModel
 from app.schemas import (
     VentaResponse, CompraResponse, ResumenPeriodo,
@@ -159,7 +159,7 @@ def comparar_sucursales(
         Venta.estado == "confirmada",
         extract("month", Venta.fecha) == mes,
         extract("year", Venta.fecha) == anio,
-    ).scalar() or Decimal("1")
+    ).scalar() or Decimal("0")
 
     resultado = []
     for sucursal in sucursales:
@@ -201,7 +201,6 @@ def comparar_sucursales(
 def actualizar_sucursal(sucursal_id: int, data: SucursalUpdate, db: Session = Depends(get_db)):
     sucursal = db.query(Sucursal).filter(Sucursal.id == sucursal_id).first()
     if not sucursal:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
     sucursal.nombre = data.nombre
     db.commit()
@@ -213,7 +212,6 @@ def actualizar_sucursal(sucursal_id: int, data: SucursalUpdate, db: Session = De
 def eliminar_sucursal(sucursal_id: int, db: Session = Depends(get_db)):
     sucursal = db.query(Sucursal).filter(Sucursal.id == sucursal_id).first()
     if not sucursal:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
     sucursal.activa = False
     db.commit()
@@ -227,7 +225,6 @@ def dashboard_sucursal(
     db: Session = Depends(get_db)
 ):
     """Dashboard completo para una sucursal: ventas, stock, producto top."""
-    from fastapi import HTTPException
     sucursal = db.query(Sucursal).filter(Sucursal.id == sucursal_id, Sucursal.activa == True).first()
     if not sucursal:
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
@@ -253,7 +250,7 @@ def dashboard_sucursal(
         Venta.estado == "confirmada",
         extract("month", Venta.fecha) == mes,
         extract("year", Venta.fecha) == anio,
-    ).scalar() or Decimal("1")
+    ).scalar() or Decimal("0")
     porcentaje = float(total_ventas / total_global * 100) if total_global > 0 else 0.0
 
     # ── Rentabilidad ─────────────────────────────────────────────────────────
@@ -289,9 +286,7 @@ def dashboard_sucursal(
     stock_total_sucursal = sum(s.cantidad for s in stocks)
 
     # Stock total global (todas las sucursales + central)
-    stock_total_global_sucursales = db.query(func.sum(StockSucursal.cantidad)).scalar() or 0
-    stock_total_central = db.query(func.sum(Variante.stock_actual)).filter(Variante.activa == True).scalar() or 0
-    stock_total_global = int(stock_total_global_sucursales) + int(stock_total_central)
+    stock_total_global = int(db.query(func.sum(StockSucursal.cantidad)).scalar() or 0)
     porcentaje_stock = float(stock_total_sucursal / stock_total_global * 100) if stock_total_global > 0 else 0.0
 
     # Desglose de stock por producto

@@ -111,7 +111,10 @@ def listar_productos(
     if con_stock_bajo:
         productos = [
             p for p in productos
-            if any(v.stock_actual <= v.stock_minimo for v in p.variantes if v.activa)
+            if any(
+                sum(ss.cantidad for ss in v.stocks_sucursal) <= v.stock_minimo
+                for v in p.variantes if v.activa
+            )
         ]
 
     return productos

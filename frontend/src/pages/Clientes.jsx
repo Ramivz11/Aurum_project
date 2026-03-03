@@ -63,7 +63,7 @@ export function Clientes() {
   const cargar = () => {
     setLoading(true)
     Promise.all([clientesApi.listar({ busqueda }), clientesApi.topMes()])
-      .then(([c, t]) => { setClientes(c); setTop(t) })
+      .then(([c, t]) => { setClientes(c.data); setTop(t.data) })
       .finally(() => setLoading(false))
   }
   useEffect(() => { cargar() }, [busqueda])

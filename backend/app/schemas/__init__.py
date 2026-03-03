@@ -318,6 +318,7 @@ class SucursalResponse(BaseModel):
     id: int
     nombre: str
     activa: bool
+    es_central: bool = False
 
     class Config:
         from_attributes = True

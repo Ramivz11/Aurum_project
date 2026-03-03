@@ -67,7 +67,7 @@ function ModalVenta({ onClose, onSaved }) {
       })
       toast.success(form.estado === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
       onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+    } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
 
   return (
@@ -93,7 +93,7 @@ function ModalVenta({ onClose, onSaved }) {
           <label className="input-label">Sucursal *</label>
           <select className="input" value={form.sucursal_id} onChange={e => setForm(f => ({ ...f, sucursal_id: e.target.value }))}>
             <option value="">Seleccionar...</option>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            {sucursales.filter(s => !s.es_central).map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
         </div>
       </div>
@@ -128,7 +128,7 @@ function ModalVenta({ onClose, onSaved }) {
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                     {[v.sabor, v.tamanio].filter(Boolean).join(' · ')}
-                    {' — '}Stock: <strong style={{ color: v.stock_actual <= (v.stock_minimo || 0) ? 'var(--red)' : 'var(--text-muted)' }}>{v.stock_actual}</strong>
+                    {' — '}Stock: <strong style={{ color: ((v.stock_total ?? 0) <= (v.stock_minimo || 0)) ? 'var(--red)' : 'var(--text-muted)' }}>{v.stock_total ?? 0}</strong>
                   </div>
                 </div>
                 <div style={{ fontWeight: 600, marginLeft: 12, whiteSpace: 'nowrap' }}>{formatARS(v.precio_venta)}</div>
@@ -206,7 +206,7 @@ export default function Ventas() {
   const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
   const confirmar = async (id) => {
     try { await ventasApi.confirmar(id); toast.success('Confirmado'); cargar() }
-    catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+    catch (e) { toast.error(e.message || 'Error') }
   }
 
   return (<>

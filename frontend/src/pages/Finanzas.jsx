@@ -82,7 +82,7 @@ export function Finanzas() {
   const cargar = () => {
     setLoading(true)
     Promise.all([finanzasApi.liquidez(), finanzasApi.analisisMes(), finanzasApi.productosTop(), finanzasApi.listarGastos(), finanzasApi.categoriasGasto()])
-      .then(([l, a, t, g, c]) => { setLiquidez(l); setAnalisis(a); setTop(t); setGastos(g); setCategorias(c) })
+      .then(([l, a, t, g, c]) => { setLiquidez(l.data); setAnalisis(a.data); setTop(t.data); setGastos(g.data); setCategorias(c.data) })
       .finally(() => setLoading(false))
   }
   useEffect(() => { cargar() }, [])

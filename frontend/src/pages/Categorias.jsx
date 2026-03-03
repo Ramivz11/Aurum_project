@@ -13,7 +13,7 @@ export function Categorias() {
   const cargar = () => {
     setLoading(true)
     categoriasProductoApi.listar()
-      .then(setCategorias)
+      .then(r => setCategorias(r.data))
       .finally(() => setLoading(false))
   }
 

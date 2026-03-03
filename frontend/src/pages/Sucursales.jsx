@@ -14,7 +14,7 @@ function DashboardSucursal({ sucursal, onClose }) {
   useEffect(() => {
     setLoading(true)
     sucursalesApi.dashboard(sucursal.id)
-      .then(setData)
+      .then(r => setData(r.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false))
   }, [sucursal.id])
@@ -234,7 +234,7 @@ export function Sucursales() {
   const cargar = () => {
     setLoading(true)
     Promise.all([sucursalesApi.comparacion(), deudasApi.listar(), deudasApi.resumen()])
-      .then(([c, d, r]) => { setComparacion(c); setDeudas(d); setResumenDeudas(r) })
+      .then(([c, d, r]) => { setComparacion(c.data); setDeudas(d.data); setResumenDeudas(r.data) })
       .finally(() => setLoading(false))
   }
 

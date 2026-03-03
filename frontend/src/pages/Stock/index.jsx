@@ -17,7 +17,7 @@ function ModalCategorias({ onClose }) {
   const [editando, setEditando] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
-  const cargar = () => categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
+  const cargar = () => categoriasProductoApi.listar().then(r => setCategorias(r.data)).catch(() => {})
   useEffect(() => { cargar() }, [])
 
   const crear = async () => {
@@ -556,10 +556,10 @@ export default function Stock() {
 
   // Carga inicial: categorías, sucursales y resumen del día en paralelo
   useEffect(() => {
-    categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
-    sucursalesApi.listar().then(r => setSucursales(r)).catch(() => {})
+    categoriasProductoApi.listar().then(r => setCategorias(r.data)).catch(() => {})
+    sucursalesApi.listar().then(r => setSucursales(r.data)).catch(() => {})
     finanzasApi.resumenDia()
-      .then(r => setResumenDia(r))
+      .then(r => setResumenDia(r.data))
       .catch(() => {})
       .finally(() => setLoadingResumen(false))
   }, [])
@@ -574,7 +574,7 @@ export default function Stock() {
     if (filtros.sucursalId) params.sucursal_id = filtros.sucursalId
 
     stockApi.listar(params)
-      .then(r => setProductos(r))
+      .then(r => setProductos(r.data))
       .catch(() => toast.error('Error al cargar productos'))
       .finally(() => setLoading(false))
   }, [busqueda, categoria, filtros.sucursalId])
@@ -604,7 +604,7 @@ export default function Stock() {
     await productosApi.eliminar(id); toast.success('Eliminado'); cargar()
   }
 
-  const recargarCategorias = () => categoriasProductoApi.listar().then(r => setCategorias(r)).catch(() => {})
+  const recargarCategorias = () => categoriasProductoApi.listar().then(r => setCategorias(r.data)).catch(() => {})
 
   const categoriasFiltro = [
     'Todo',

@@ -14,7 +14,7 @@ export function Movimientos() {
   useEffect(() => {
     setLoading(true)
     Promise.all([movimientosApi.ventas(), movimientosApi.compras(), movimientosApi.resumen()])
-      .then(([v, c, r]) => { setVentas(v); setCompras(c); setResumen(r) })
+      .then(([v, c, r]) => { setVentas(v.data); setCompras(c.data); setResumen(r.data) })
       .finally(() => setLoading(false))
   }, [])
 
