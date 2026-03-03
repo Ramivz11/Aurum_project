@@ -634,7 +634,7 @@ export default function Compras() {
     Promise.all([
       comprasApi.listar({}),
       productosApi.listar(),
-    ]).then(([c, p]) => { setCompras(c); setProductos(p) }).finally(() => setLoading(false))
+    ]).then(([c, p]) => { setCompras(c.data); setProductos(p.data) }).finally(() => setLoading(false))
   }
 
   useEffect(() => { cargar() }, [])

@@ -169,7 +169,7 @@ export default function Dashboard() {
       finanzasApi.productosTop({ limite: 5 }),
       ventasApi.pedidosAbiertos(),
     ]).then(([a, l, p, pd]) => {
-      setAnalisis(a); setLiquidez(l); setTopProducts(p); setPedidos(pd)
+      setAnalisis(a.data); setLiquidez(l.data); setTopProducts(p.data); setPedidos(pd.data)
     }).catch(console.error).finally(() => setLoading(false))
   }, [])
 

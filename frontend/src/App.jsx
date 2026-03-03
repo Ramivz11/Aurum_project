@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import Layout from './components/Layout'
 import { ToastProvider } from './components/Toast'
 import Dashboard from './pages/Dashboard'
@@ -16,6 +17,7 @@ import './styles/globals.css'
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster position="bottom-right" toastOptions={{ style: { background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' } }} />
       <ToastProvider>
       <SucursalProvider>
         <Routes>

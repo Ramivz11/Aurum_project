@@ -60,7 +60,7 @@ function ModalVenta({ onClose, onSaved }) {
       })
       toast.success(form.estado === 'confirmada' ? 'Venta registrada' : 'Pedido guardado')
       onSaved(); onClose()
-    } catch (e) { toast.error(e.response?.data?.detail || 'Error') } finally { setLoading(false) }
+    } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
 
   return (
@@ -438,7 +438,7 @@ export default function Ventas() {
   const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
   const confirmar = async (id) => {
     try { await ventasApi.confirmar(id); toast.success('Confirmado'); cargar() }
-    catch (e) { toast.error(e.response?.data?.detail || 'Error') }
+    catch (e) { toast.error(e.message || 'Error') }
   }
 
   const filtros = [
