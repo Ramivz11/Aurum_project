@@ -185,7 +185,7 @@ function ModalLote({ producto, onClose, onSaved }) {
 
 // ─── Panel de Filtros Avanzados ───────────────────────────────────────────────
 
-function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales }) {
+function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas }) {
   const ref = useRef(null)
 
   useEffect(() => {
@@ -204,17 +204,20 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales }) {
     color: active ? '#ff9800' : 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
   })
 
-  const inputStyle = {
-    flex: 1, padding: '8px 12px', background: 'rgba(255,255,255,0.04)',
+  const selectStyle = {
+    width: '100%', padding: '8px 12px',
+    background: 'rgba(255,255,255,0.04)',
     border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
-    color: '#f1f5f9', fontSize: 12, outline: 'none',
+    color: filtros.marca ? '#f1f5f9' : 'rgba(255,255,255,0.35)',
+    fontSize: 12, outline: 'none', cursor: 'pointer',
+    appearance: 'none', WebkitAppearance: 'none',
   }
 
   const hayFiltros = Object.values(filtros).some(Boolean)
 
   return (
     <div ref={ref} style={{
-      position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, zIndex: 100,
+      position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 300, zIndex: 100,
       background: 'linear-gradient(145deg, rgba(18,25,45,0.99), rgba(22,30,52,0.98))',
       border: '1px solid rgba(255,152,0,0.2)', borderRadius: 16, padding: 20,
       boxShadow: '0 20px 60px rgba(0,0,0,0.6)', backdropFilter: 'blur(20px)',
@@ -224,25 +227,37 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales }) {
           Filtros avanzados
         </span>
         {hayFiltros && (
-          <button onClick={() => onChange({ stockEstado: '', sucursalId: '', precioMin: '', precioMax: '', margenMin: '' })}
+          <button onClick={() => onChange({ marca: '', sucursalId: '' })}
             style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}>
             Limpiar todo
           </button>
         )}
       </div>
 
-      {/* Estado de stock */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Estado de stock</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[{ key: '', label: 'Todos' }, { key: 'bajo', label: '⚠ Stock bajo' }, { key: 'sin', label: '● Sin stock' }, { key: 'ok', label: '✓ Normal' }]
-            .map(opt => <button key={opt.key} onClick={() => onChange({ ...filtros, stockEstado: opt.key })} style={btnStyle(filtros.stockEstado === opt.key)}>{opt.label}</button>)}
+      {/* Marca */}
+      {marcas.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Marca</div>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={filtros.marca}
+              onChange={e => onChange({ ...filtros, marca: e.target.value })}
+              style={selectStyle}
+            >
+              <option value="">Todas las marcas</option>
+              {marcas.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <span style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              color: 'rgba(255,255,255,0.3)', fontSize: 10, pointerEvents: 'none',
+            }}>▼</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Sucursal — solo si hay más de una */}
       {sucursales.length > 1 && (
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 4 }}>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Sucursal</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[{ id: '', nombre: 'Todas' }, ...sucursales].map(s =>
@@ -251,24 +266,6 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales }) {
           </div>
         </div>
       )}
-
-      {/* Rango de precio */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Precio de venta</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input type="number" placeholder="Mín $" value={filtros.precioMin || ''} onChange={e => onChange({ ...filtros, precioMin: e.target.value })} style={inputStyle} />
-          <input type="number" placeholder="Máx $" value={filtros.precioMax || ''} onChange={e => onChange({ ...filtros, precioMax: e.target.value })} style={inputStyle} />
-        </div>
-      </div>
-
-      {/* Margen mínimo */}
-      <div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Margen mínimo</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {[{ key: '', label: 'Cualquiera' }, { key: '20', label: '+20%' }, { key: '30', label: '+30%' }, { key: '40', label: '+40%' }]
-            .map(opt => <button key={opt.key} onClick={() => onChange({ ...filtros, margenMin: opt.key })} style={btnStyle(filtros.margenMin === opt.key)}>{opt.label}</button>)}
-        </div>
-      </div>
     </div>
   )
 }
@@ -540,12 +537,10 @@ export default function Stock() {
 
   const [busqueda, setBusqueda] = useState('')
   const [categoria, setCategoria] = useState('')
+  const [marcas, setMarcas] = useState([])
   const [filtros, setFiltros] = useState({
-    stockEstado: '',
+    marca: '',
     sucursalId: '',
-    precioMin: '',
-    precioMax: '',
-    margenMin: '',
   })
   const [showFiltros, setShowFiltros] = useState(false)
 
@@ -558,6 +553,7 @@ export default function Stock() {
   useEffect(() => {
     categoriasProductoApi.listar().then(r => setCategorias(r.data)).catch(() => {})
     sucursalesApi.listar().then(r => setSucursales(r.data)).catch(() => {})
+    stockApi.marcas().then(r => setMarcas(r.data)).catch(() => {})
     finanzasApi.resumenDia()
       .then(r => setResumenDia(r.data))
       .catch(() => {})
@@ -565,40 +561,25 @@ export default function Stock() {
   }, [])
 
   // Carga de productos via /stock — incluye desglose por sucursal
-  // Parámetros al backend: busqueda, categoria, sucursal_id
+  // Parámetros al backend: busqueda, categoria, marca, sucursal_id
   const cargar = useCallback(() => {
     setLoading(true)
     const params = {}
     if (busqueda) params.busqueda = busqueda
     if (categoria) params.categoria = categoria
+    if (filtros.marca) params.marca = filtros.marca
     if (filtros.sucursalId) params.sucursal_id = filtros.sucursalId
 
     stockApi.listar(params)
       .then(r => setProductos(r.data))
       .catch(() => toast.error('Error al cargar productos'))
       .finally(() => setLoading(false))
-  }, [busqueda, categoria, filtros.sucursalId])
+  }, [busqueda, categoria, filtros.marca, filtros.sucursalId])
 
   useEffect(() => { cargar() }, [cargar])
 
-  // Filtros frontend: estado de stock, precio, margen
-  const productosFiltrados = productos.filter(p => {
-    const variantes = p.variantes?.filter(v => v.activa !== false) || []
-    const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
-    const hayBajo = variantes.some(v => (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
-    const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
-    const costoMin = variantes.length ? Math.min(...variantes.map(v => Number(v.costo || 0))) : 0
-    const margen = costoMin > 0 && precioMin > 0 ? ((precioMin - costoMin) / precioMin) * 100 : 0
-
-    if (filtros.stockEstado === 'sin' && stockTotal > 0) return false
-    if (filtros.stockEstado === 'bajo' && !hayBajo) return false
-    if (filtros.stockEstado === 'ok' && (stockTotal === 0 || hayBajo)) return false
-    if (filtros.precioMin && precioMin < Number(filtros.precioMin)) return false
-    if (filtros.precioMax && precioMin > Number(filtros.precioMax)) return false
-    if (filtros.margenMin && margen < Number(filtros.margenMin)) return false
-
-    return true
-  })
+  // Sin filtros frontend adicionales: marca y sucursal se resuelven en el backend
+  const productosFiltrados = productos
 
   const eliminar = async id => {
     await productosApi.eliminar(id); toast.success('Eliminado'); cargar()
@@ -684,6 +665,7 @@ export default function Stock() {
           filtros={filtros}
           onChange={setFiltros}
           sucursales={sucursales}
+          marcas={marcas}
         />
       </div>
 
