@@ -96,6 +96,7 @@ export const stockApi = {
   listar: (params = {}) => {
     return api.get(`/stock${buildQuery(params)}`)
   },
+  marcas: () => api.get('/stock/marcas'),
   ajustarManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
   transferir: (data) => api.post('/stock/transferencia', data),
   listarTransferencias: (params = {}) => {
