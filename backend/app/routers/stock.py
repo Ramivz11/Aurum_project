@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, distinct
 from typing import Optional, List
 
 from app.database import get_db
@@ -82,10 +82,23 @@ def _get_variante_con_stock(variante: Variante) -> VarianteConStockResponse:
 
 # ─── ENDPOINTS DE STOCK ───────────────────────────────────────────────────────
 
+@router.get("/marcas", response_model=List[str])
+def listar_marcas(db: Session = Depends(get_db)):
+    """Retorna la lista de marcas distintas de productos activos."""
+    rows = (
+        db.query(distinct(Producto.marca))
+        .filter(Producto.activo == True, Producto.marca != None, Producto.marca != "")
+        .order_by(Producto.marca)
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
 @router.get("", response_model=List[ProductoConStockResponse])
 def listar_stock(
     busqueda: Optional[str] = Query(None),
     categoria: Optional[str] = Query(None),
+    marca: Optional[str] = Query(None, description="Filtrar por marca"),
     sucursal_id: Optional[int] = Query(None, description="Filtrar por sucursal específica"),
     db: Session = Depends(get_db)
 ):
@@ -94,6 +107,8 @@ def listar_stock(
 
     if categoria:
         query = query.filter(Producto.categoria.ilike(f"%{categoria}%"))
+    if marca:
+        query = query.filter(Producto.marca.ilike(f"%{marca}%"))
     if busqueda:
         query = query.filter(
             or_(Producto.nombre.ilike(f"%{busqueda}%"), Producto.marca.ilike(f"%{busqueda}%"))
