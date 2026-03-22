@@ -557,7 +557,8 @@ export default function Stock() {
   const [loading, setLoading] = useState(true)
 
   const [busqueda, setBusqueda] = useState('')
-  const [marcas, setMarcas] = useState([])\n  const [filtros, setFiltros] = useState({
+  const [marcas, setMarcas] = useState([])
+  const [filtros, setFiltros] = useState({
     marca: '',
     sucursalId: '',
     categoria: '',
