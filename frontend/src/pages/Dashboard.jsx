@@ -13,7 +13,7 @@ const PRIORIDAD_CONFIG = {
 
 function Recordatorios() {
   const toast = useToast()
-  const [todos, setTodos] = useState([])P
+  const [todos, setTodos] = useState([])
   const [expandido, setExpandido] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ titulo: '', descripcion: '', prioridad: 'alta' })
