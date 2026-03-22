@@ -20,7 +20,7 @@ function Recordatorios() {
   const [saving, setSaving] = useState(false)
 
   const cargar = () => {
-    recordatoriosApi.listar({ solo_pendientes: true }).then(setTodos).catch(() => {})
+    recordatoriosApi.listar({ solo_pendientes: true }).then(res => setTodos(res.data)).catch(() => {})
   }
 
   useEffect(() => { cargar() }, [])
