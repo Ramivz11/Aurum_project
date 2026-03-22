@@ -185,7 +185,7 @@ function ModalLote({ producto, onClose, onSaved }) {
 
 // ─── Panel de Filtros Avanzados ───────────────────────────────────────────────
 
-function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas }) {
+function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas, categorias }) {
   const ref = useRef(null)
 
   useEffect(() => {
@@ -227,12 +227,33 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas 
           Filtros avanzados
         </span>
         {hayFiltros && (
-          <button onClick={() => onChange({ marca: '', sucursalId: '' })}
+          <button onClick={() => onChange({ marca: '', sucursalId: '', categoria: '' })}
             style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}>
             Limpiar todo
           </button>
         )}
       </div>
+
+      {/* Categoría */}
+      {categorias.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Categoría</div>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={filtros.categoria}
+              onChange={e => onChange({ ...filtros, categoria: e.target.value })}
+              style={{ ...selectStyle, color: filtros.categoria ? '#f1f5f9' : 'rgba(255,255,255,0.35)' }}
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            </select>
+            <span style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              color: 'rgba(255,255,255,0.3)', fontSize: 10, pointerEvents: 'none',
+            }}>▼</span>
+          </div>
+        </div>
+      )}
 
       {/* Marca */}
       {marcas.length > 0 && (
@@ -536,11 +557,10 @@ export default function Stock() {
   const [loading, setLoading] = useState(true)
 
   const [busqueda, setBusqueda] = useState('')
-  const [categoria, setCategoria] = useState('')
-  const [marcas, setMarcas] = useState([])
-  const [filtros, setFiltros] = useState({
+  const [marcas, setMarcas] = useState([])\n  const [filtros, setFiltros] = useState({
     marca: '',
     sucursalId: '',
+    categoria: '',
   })
   const [showFiltros, setShowFiltros] = useState(false)
 
@@ -566,7 +586,7 @@ export default function Stock() {
     setLoading(true)
     const params = {}
     if (busqueda) params.busqueda = busqueda
-    if (categoria) params.categoria = categoria
+    if (filtros.categoria) params.categoria = filtros.categoria
     if (filtros.marca) params.marca = filtros.marca
     if (filtros.sucursalId) params.sucursal_id = filtros.sucursalId
 
@@ -574,7 +594,7 @@ export default function Stock() {
       .then(r => setProductos(r.data))
       .catch(() => toast.error('Error al cargar productos'))
       .finally(() => setLoading(false))
-  }, [busqueda, categoria, filtros.marca, filtros.sucursalId])
+  }, [busqueda, filtros.categoria, filtros.marca, filtros.sucursalId])
 
   useEffect(() => { cargar() }, [cargar])
 
@@ -666,16 +686,17 @@ export default function Stock() {
           onChange={setFiltros}
           sucursales={sucursales}
           marcas={marcas}
+          categorias={categorias}
         />
       </div>
 
       {/* ── Filtros por categoría ── */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
         {categoriasFiltro.map(cat => {
-          const isActive = cat === 'Todo' ? !categoria : categoria === cat
+          const isActive = cat === 'Todo' ? !filtros.categoria : filtros.categoria === cat
           return (
             <button key={cat}
-              onClick={() => setCategoria(cat === 'Todo' ? '' : cat)}
+              onClick={() => setFiltros(f => ({ ...f, categoria: cat === 'Todo' ? '' : cat }))}
               style={{
                 padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 500,
                 border: isActive ? '1px solid rgba(255,152,0,0.5)' : '1px solid rgba(255,255,255,0.08)',
