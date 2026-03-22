@@ -6,8 +6,8 @@ import {
   stockApi,
   sucursalesApi,
   finanzasApi,
-} from '../../api/services'
-import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
+} from '../api/services'
+import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../components/ui'
 
 // ─── Modal: Gestionar categorías ─────────────────────────────────────────────
 
@@ -88,10 +88,18 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
   })
   const [variantes, setVariantes] = useState(
     producto?.variantes?.length
-      ? producto.variantes
+      ? producto.variantes.filter(v => v.activa !== false).map(v => ({
+          id: v.id,
+          sabor: v.sabor || '',
+          tamanio: v.tamanio || '',
+          costo: v.costo ?? '',
+          precio_venta: v.precio_venta ?? '',
+          stock_minimo: v.stock_minimo ?? 0,
+        }))
       : [{ sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }]
   )
   const [loading, setLoading] = useState(false)
+  const [showVariantes, setShowVariantes] = useState(false)
 
   const addVar = () => setVariantes(v => [...v, { sabor: '', tamanio: '', costo: '', precio_venta: '', stock_minimo: 0 }])
   const rmVar = i => setVariantes(v => v.filter((_, idx) => idx !== i))
@@ -101,8 +109,39 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
     if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
     setLoading(true)
     try {
-      if (isEdit) { await productosApi.actualizar(producto.id, form); toast.success('Actualizado') }
-      else { await productosApi.crear({ ...form, variantes }); toast.success('Creado') }
+      if (isEdit) {
+        await productosApi.actualizar(producto.id, form)
+        if (showVariantes) {
+          // Procesar variantes: eliminar, actualizar, crear
+          const ops = []
+          for (const v of variantes) {
+            if (v._eliminada && v.id) {
+              ops.push(productosApi.eliminarVariante(v.id))
+            } else if (v.id) {
+              ops.push(productosApi.actualizarVariante(v.id, {
+                sabor: v.sabor || null,
+                tamanio: v.tamanio || null,
+                costo: parseFloat(v.costo) || 0,
+                precio_venta: parseFloat(v.precio_venta) || 0,
+                stock_minimo: parseInt(v.stock_minimo) || 0,
+              }))
+            } else {
+              ops.push(productosApi.crearVariante(producto.id, {
+                sabor: v.sabor || null,
+                tamanio: v.tamanio || null,
+                costo: parseFloat(v.costo) || 0,
+                precio_venta: parseFloat(v.precio_venta) || 0,
+                stock_minimo: parseInt(v.stock_minimo) || 0,
+              }))
+            }
+          }
+          await Promise.all(ops)
+        }
+        toast.success('Actualizado')
+      } else {
+        await productosApi.crear({ ...form, variantes })
+        toast.success('Creado')
+      }
       onSaved(); onClose()
     } catch (e) { toast.error(e.message || 'Error') } finally { setLoading(false) }
   }
@@ -125,27 +164,52 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
         </div>
         <div className="form-group"><label className="input-label">URL imagen</label><input className="input" value={form.imagen_url} onChange={e => setForm(f => ({ ...f, imagen_url: e.target.value }))} /></div>
       </div>
-      {!isEdit && (<>
+      <>
         <hr className="divider" />
-        <div className="flex items-center justify-between mb-12">
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Variantes</div>
-          <button className="btn btn-ghost btn-sm" onClick={addVar}>+ Agregar</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showVariantes ? 12 : 0 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowVariantes(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700,
+              letterSpacing: '0.06em', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+          >
+            <span style={{ display: 'inline-block', transition: 'transform 0.2s',
+              transform: showVariantes ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+            Variantes ({variantes.length})
+          </button>
+          {showVariantes && <button className="btn btn-ghost btn-sm" onClick={addVar}>+ Agregar</button>}
         </div>
-        {variantes.map((v, i) => (
-          <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
-            <div className="grid-2" style={{ marginBottom: 8 }}>
-              <div><label className="input-label">Sabor</label><input className="input" value={v.sabor} onChange={e => upVar(i, 'sabor', e.target.value)} /></div>
-              <div><label className="input-label">Tamaño</label><input className="input" value={v.tamanio} onChange={e => upVar(i, 'tamanio', e.target.value)} /></div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-              <div><label className="input-label">Costo $</label><input className="input" type="number" value={v.costo} onChange={e => upVar(i, 'costo', e.target.value)} /></div>
-              <div><label className="input-label">Precio $</label><input className="input" type="number" value={v.precio_venta} onChange={e => upVar(i, 'precio_venta', e.target.value)} /></div>
-              <div><label className="input-label">Stock mín.</label><input className="input" type="number" value={v.stock_minimo} onChange={e => upVar(i, 'stock_minimo', e.target.value)} /></div>
-              {variantes.length > 1 && <button className="btn btn-danger btn-sm" onClick={() => rmVar(i)}>✕</button>}
-            </div>
+        {showVariantes && variantes.map((v, i) => (
+          <div key={v.id || i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 10,
+            border: v._eliminada ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent',
+            opacity: v._eliminada ? 0.5 : 1 }}>
+            {v._eliminada ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  {[v.sabor, v.tamanio].filter(Boolean).join(' · ') || `Variante ${i + 1}`} — <em>se eliminará al guardar</em>
+                </span>
+                <button className="btn btn-ghost btn-sm" onClick={() => upVar(i, '_eliminada', false)}>Deshacer</button>
+              </div>
+            ) : (
+              <>
+                <div className="grid-2" style={{ marginBottom: 8 }}>
+                  <div><label className="input-label">Sabor</label><input className="input" value={v.sabor || ''} onChange={e => upVar(i, 'sabor', e.target.value)} /></div>
+                  <div><label className="input-label">Tamaño</label><input className="input" value={v.tamanio || ''} onChange={e => upVar(i, 'tamanio', e.target.value)} /></div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+                  <div><label className="input-label">Costo $</label><input className="input" type="number" value={v.costo || ''} onChange={e => upVar(i, 'costo', e.target.value)} /></div>
+                  <div><label className="input-label">Precio $</label><input className="input" type="number" value={v.precio_venta || ''} onChange={e => upVar(i, 'precio_venta', e.target.value)} /></div>
+                  <div><label className="input-label">Stock mín.</label><input className="input" type="number" value={v.stock_minimo || 0} onChange={e => upVar(i, 'stock_minimo', e.target.value)} /></div>
+                  <button className="btn btn-danger btn-sm" onClick={() => {
+                    if (v.id) upVar(i, '_eliminada', true)
+                    else rmVar(i)
+                  }}>✕</button>
+                </div>
+              </>
+            )}
           </div>
         ))}
-      </>)}
+      </>
     </Modal>
   )
 }
@@ -208,7 +272,6 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas,
     width: '100%', padding: '8px 12px',
     background: 'rgba(255,255,255,0.04)',
     border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
-    color: filtros.marca ? '#f1f5f9' : 'rgba(255,255,255,0.35)',
     fontSize: 12, outline: 'none', cursor: 'pointer',
     appearance: 'none', WebkitAppearance: 'none',
   }
@@ -227,7 +290,7 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas,
           Filtros avanzados
         </span>
         {hayFiltros && (
-          <button onClick={() => onChange({ marca: '', sucursalId: '', categoria: '' })}
+          <button onClick={() => onChange({ sucursalId: '', marca: '', categoria: '' })}
             style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}>
             Limpiar todo
           </button>
@@ -247,10 +310,7 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas,
               <option value="">Todas las categorías</option>
               {categorias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
             </select>
-            <span style={{
-              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-              color: 'rgba(255,255,255,0.3)', fontSize: 10, pointerEvents: 'none',
-            }}>▼</span>
+            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', fontSize: 10, pointerEvents: 'none' }}>▼</span>
           </div>
         </div>
       )}
@@ -263,22 +323,19 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas,
             <select
               value={filtros.marca}
               onChange={e => onChange({ ...filtros, marca: e.target.value })}
-              style={selectStyle}
+              style={{ ...selectStyle, color: filtros.marca ? '#f1f5f9' : 'rgba(255,255,255,0.35)' }}
             >
               <option value="">Todas las marcas</option>
               {marcas.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
-            <span style={{
-              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-              color: 'rgba(255,255,255,0.3)', fontSize: 10, pointerEvents: 'none',
-            }}>▼</span>
+            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', fontSize: 10, pointerEvents: 'none' }}>▼</span>
           </div>
         </div>
       )}
 
       {/* Sucursal — solo si hay más de una */}
       {sucursales.length > 1 && (
-        <div style={{ marginBottom: 4 }}>
+        <div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Sucursal</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[{ id: '', nombre: 'Todas' }, ...sucursales].map(s =>
@@ -291,9 +348,10 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas,
   )
 }
 
+
 // ─── Tarjeta de producto ──────────────────────────────────────────────────────
 
-function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
+function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
   const [hovered, setHovered] = useState(false)
   const variantes = p.variantes?.filter(v => v.activa !== false) || []
 
@@ -309,22 +367,59 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
   const varLabel = primerVar ? [primerVar.sabor, primerVar.tamanio].filter(Boolean).join(' · ') : null
   const statusColor = stockTotal === 0 ? '#ef4444' : hayBajo ? '#fbbf24' : '#22c55e'
 
-  // Desglose de stock por sucursal dinámico
-  // stocks_sucursal: [{sucursal_id, sucursal_nombre, cantidad}] — viene de /stock
-  const stockSucursalDisplay = (() => {
-    if (!primerVar) return []
-    if (sucursales.length === 0) {
-      // Sin sucursales configuradas: mostrar solo central
-      const c = primerVar.stock_central ?? primerVar.stock_actual ?? 0
-      return [{ label: 'CTR', cantidad: c, bajo: c <= primerVar.stock_minimo }]
+  // Inline stock editing state
+  const [editingKey, setEditingKey] = useState(null) // "varId_sucId" | "varId_central"
+  const [editingVal, setEditingVal] = useState('')
+  const [savingKey, setSavingKey] = useState(null)
+
+  const startEdit = (key, cantidad) => {
+    setEditingKey(key)
+    setEditingVal(String(cantidad))
+  }
+
+  const commitEdit = async (key, varianteId, sucursalId) => {
+    const n = parseInt(editingVal, 10)
+    if (isNaN(n) || n < 0) { setEditingKey(null); return }
+    setSavingKey(key)
+    setEditingKey(null)
+    try {
+      await stockApi.ajustarManual(varianteId, { cantidad: n, sucursal_id: sucursalId ?? null })
+      onStockSaved()
+    } catch (e) {
+      toast.error(e.message || 'Error al guardar stock')
+    } finally {
+      setSavingKey(null)
     }
-    // Hay sucursales: mostrar las primeras 3
-    return sucursales.slice(0, 3).map(suc => {
-      const ss = primerVar.stocks_sucursal?.find(s => s.sucursal_id === suc.id)
-      const cantidad = ss?.cantidad ?? 0
-      const label = suc.nombre.slice(0, 3).toUpperCase()
-      return { label, cantidad, bajo: cantidad === 0 }
+  }
+
+  // Desglose de stock: todas las variantes × todas las sucursales
+  // Items: { key, varianteId, sucursalId, label, cantidad, bajo, isCentral }
+  const stockItems = (() => {
+    if (variantes.length === 0) return []
+    const items = []
+    variantes.forEach((v, vi) => {
+      const varPrefix = variantes.length > 1
+        ? ([v.sabor, v.tamanio].filter(Boolean).join('/') || `V${vi + 1}`) + ' '
+        : ''
+      // Central
+      const cQty = v.stock_central ?? v.stock_actual ?? 0
+      items.push({
+        key: `${v.id}_central`, varianteId: v.id, sucursalId: null,
+        label: varPrefix + 'CTR', cantidad: cQty,
+        bajo: cQty <= v.stock_minimo, isCentral: true,
+      })
+      // Sucursales de venta
+      sucursales.filter(s => !s.es_central).forEach(s => {
+        const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+        const qty = ss?.cantidad ?? 0
+        items.push({
+          key: `${v.id}_${s.id}`, varianteId: v.id, sucursalId: s.id,
+          label: varPrefix + s.nombre.slice(0, 3).toUpperCase(), cantidad: qty,
+          bajo: qty === 0, isCentral: false,
+        })
+      })
     })
+    return items
   })()
 
   return (
@@ -408,16 +503,55 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete }) {
         )}
       </div>
 
-      {/* Stock por sucursal — dinámico */}
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        {stockSucursalDisplay.map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, marginRight: 14 }}>
-            <span style={{ fontSize: 9, color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.28)',
-              fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+      {/* Stock por sucursal — inline editable */}
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 0' }}>
+        {stockItems.map(item => (
+          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+              color: item.bajo ? '#ef4444' : item.isCentral ? 'rgba(255,152,0,0.6)' : 'rgba(255,255,255,0.28)',
+            }}>
               {item.bajo ? '●' : '○'} {item.label}
             </span>
-            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
-              color: item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)' }}>{item.cantidad}</span>
+            {editingKey === item.key ? (
+              <input
+                autoFocus
+                type="number" min="0"
+                value={editingVal}
+                onChange={e => setEditingVal(e.target.value)}
+                onBlur={() => commitEdit(item.key, item.varianteId, item.sucursalId)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitEdit(item.key, item.varianteId, item.sucursalId)
+                  if (e.key === 'Escape') setEditingKey(null)
+                }}
+                style={{
+                  width: 44, padding: '1px 4px', textAlign: 'center',
+                  background: 'rgba(255,152,0,0.12)', border: '1px solid rgba(255,152,0,0.5)',
+                  borderRadius: 6, color: '#ff9800', fontFamily: 'Syne, sans-serif',
+                  fontSize: 13, fontWeight: 700, outline: 'none',
+                }}
+              />
+            ) : (
+              <span
+                title="Click para editar"
+                onClick={() => startEdit(item.key, item.cantidad)}
+                style={{
+                  fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
+                  color: savingKey === item.key ? 'rgba(255,152,0,0.5)'
+                       : item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)',
+                  cursor: 'text',
+                  borderBottom: '1px dashed rgba(255,255,255,0.15)',
+                  transition: 'color 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#ff9800'; e.currentTarget.style.borderBottomColor = 'rgba(255,152,0,0.5)' }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = savingKey === item.key ? 'rgba(255,152,0,0.5)' : item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)'
+                  e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,0.15)'
+                }}
+              >
+                {savingKey === item.key ? '…' : item.cantidad}
+              </span>
+            )}
           </div>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
@@ -559,8 +693,8 @@ export default function Stock() {
   const [busqueda, setBusqueda] = useState('')
   const [marcas, setMarcas] = useState([])
   const [filtros, setFiltros] = useState({
-    marca: '',
     sucursalId: '',
+    marca: '',
     categoria: '',
   })
   const [showFiltros, setShowFiltros] = useState(false)
@@ -582,7 +716,6 @@ export default function Stock() {
   }, [])
 
   // Carga de productos via /stock — incluye desglose por sucursal
-  // Parámetros al backend: busqueda, categoria, marca, sucursal_id
   const cargar = useCallback(() => {
     setLoading(true)
     const params = {}
@@ -599,7 +732,6 @@ export default function Stock() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  // Sin filtros frontend adicionales: marca y sucursal se resuelven en el backend
   const productosFiltrados = productos
 
   const eliminar = async id => {
@@ -723,6 +855,7 @@ export default function Stock() {
                     key={p.id} p={p} sucursales={sucursales}
                     onEdit={() => setModalProd(p)}
                     onLote={() => setModalLote(p)}
+                    onStockSaved={cargar}
                     onDelete={() => setConfirm({ msg: `¿Eliminar "${p.nombre}"?`, fn: () => eliminar(p.id) })}
                   />
                 ))}
