@@ -62,7 +62,7 @@ export function Clientes() {
 
   const cargar = () => {
     setLoading(true)
-    Promise.all([clientesApi.listar({ busqueda }), clientesApi.topMes()])
+    Promise.all([clientesApi.listar({ busqueda }), clientesApi.topHistorico()])
       .then(([c, t]) => { setClientes(c.data); setTop(t.data) })
       .finally(() => setLoading(false))
   }
@@ -89,8 +89,8 @@ export function Clientes() {
       <div className="content page-enter">
         <div className="grid-2">
           <div className="card">
-            <div className="card-header"><span className="card-title">Top clientes del mes</span></div>
-            {top.length === 0 ? <div className="empty">Sin ventas este mes</div> : top.slice(0, 5).map(c => (
+            <div className="card-header"><span className="card-title">Clientes con más compras</span></div>
+            {top.length === 0 ? <div className="empty">Sin ventas registradas</div> : top.slice(0, 5).map(c => (
               <div className="cliente-row" key={c.id}>
                 <div className="cliente-avatar">{initials(c.nombre)}</div>
                 <div className="cliente-info">
@@ -99,7 +99,7 @@ export function Clientes() {
                 </div>
                 <div className="cliente-meta">
                   <div className="cliente-meta-val">{fmt(c.total_gastado)}</div>
-                  <div className="cliente-meta-label">este mes</div>
+                  <div className="cliente-meta-label">histórico</div>
                 </div>
               </div>
             ))}
