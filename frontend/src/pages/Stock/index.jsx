@@ -353,9 +353,12 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas,
 
 function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
   const [hovered, setHovered] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const variantes = p.variantes?.filter(v => v.activa !== false) || []
 
-  // stock_total viene del backend /stock (central + sucursales)
+  // Solo sucursales de venta (sin central)
+  const sucVenta = sucursales.filter(s => !s.es_central)
+
   const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
   const hayBajo = variantes.some(v => (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
 
@@ -367,60 +370,37 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
   const varLabel = primerVar ? [primerVar.sabor, primerVar.tamanio].filter(Boolean).join(' · ') : null
   const statusColor = stockTotal === 0 ? '#ef4444' : hayBajo ? '#fbbf24' : '#22c55e'
 
-  // Inline stock editing state
-  const [editingKey, setEditingKey] = useState(null) // "varId_sucId" | "varId_central"
+  // Inline stock editing
+  const [editingKey, setEditingKey] = useState(null)
   const [editingVal, setEditingVal] = useState('')
   const [savingKey, setSavingKey] = useState(null)
 
-  const startEdit = (key, cantidad) => {
-    setEditingKey(key)
-    setEditingVal(String(cantidad))
-  }
+  const startEdit = (key, cantidad) => { setEditingKey(key); setEditingVal(String(cantidad)) }
 
   const commitEdit = async (key, varianteId, sucursalId) => {
     const n = parseInt(editingVal, 10)
     if (isNaN(n) || n < 0) { setEditingKey(null); return }
-    setSavingKey(key)
-    setEditingKey(null)
+    setSavingKey(key); setEditingKey(null)
     try {
       await stockApi.ajustarManual(varianteId, { cantidad: n, sucursal_id: sucursalId ?? null })
       onStockSaved()
     } catch (e) {
       toast.error(e.message || 'Error al guardar stock')
-    } finally {
-      setSavingKey(null)
-    }
+    } finally { setSavingKey(null) }
   }
 
-  // Desglose de stock: todas las variantes × todas las sucursales
-  // Items: { key, varianteId, sucursalId, label, cantidad, bajo, isCentral }
-  const stockItems = (() => {
-    if (variantes.length === 0) return []
-    const items = []
-    variantes.forEach((v, vi) => {
-      const varPrefix = variantes.length > 1
-        ? ([v.sabor, v.tamanio].filter(Boolean).join('/') || `V${vi + 1}`) + ' '
-        : ''
-      // Central
-      const cQty = v.stock_central ?? v.stock_actual ?? 0
-      items.push({
-        key: `${v.id}_central`, varianteId: v.id, sucursalId: null,
-        label: varPrefix + 'CTR', cantidad: cQty,
-        bajo: cQty <= v.stock_minimo, isCentral: true,
-      })
-      // Sucursales de venta
-      sucursales.filter(s => !s.es_central).forEach(s => {
-        const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
-        const qty = ss?.cantidad ?? 0
-        items.push({
-          key: `${v.id}_${s.id}`, varianteId: v.id, sucursalId: s.id,
-          label: varPrefix + s.nombre.slice(0, 3).toUpperCase(), cantidad: qty,
-          bajo: qty === 0, isCentral: false,
-        })
-      })
+  // Stock por sucursal agregado (suma de todas las variantes)
+  const stockPorSucursal = sucVenta.map(s => {
+    const total = variantes.reduce((sum, v) => {
+      const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+      return sum + (ss?.cantidad ?? 0)
+    }, 0)
+    const bajo = variantes.some(v => {
+      const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+      return (ss?.cantidad ?? 0) <= v.stock_minimo
     })
-    return items
-  })()
+    return { id: s.id, nombre: s.nombre, total, bajo }
+  })
 
   return (
     <div
@@ -503,68 +483,118 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
         )}
       </div>
 
-      {/* Stock por sucursal */}
+      {/* ── Stock: vista colapsada ── */}
       <div style={{ marginTop: 2 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-          color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Stock sucursales</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.3)' }}>Stock sucursales</span>
+          {variantes.length > 1 && (
+            <button onClick={() => setExpanded(e => !e)} style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+              color: expanded ? '#ff9800' : 'rgba(255,255,255,0.3)',
+              transition: 'color 0.15s',
+            }}>
+              {expanded ? '▲ colapsar' : '▼ variantes'}
+            </button>
+          )}
+        </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginBottom: 10 }}>
-          {stockItems.map(item => {
-            const badgeColor = savingKey === item.key
-              ? '#ff9800'
-              : item.cantidad === 0 ? '#ef4444'
-              : item.bajo ? '#fbbf24'
-              : '#22c55e'
-            const badgeBg = savingKey === item.key
-              ? 'rgba(255,152,0,0.15)'
-              : item.cantidad === 0 ? 'rgba(239,68,68,0.15)'
-              : item.bajo ? 'rgba(251,191,36,0.15)'
-              : 'rgba(34,197,94,0.15)'
-
+        {/* Badges por sucursal (totales) */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginBottom: 10 }}>
+          {stockPorSucursal.map(s => {
+            const color = s.total === 0 ? '#ef4444' : s.bajo ? '#fbbf24' : '#22c55e'
+            const bg = s.total === 0 ? 'rgba(239,68,68,0.12)' : s.bajo ? 'rgba(251,191,36,0.12)' : 'rgba(34,197,94,0.12)'
             return (
-              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
-                  textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
-                  {item.label}
+                  textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
+                  {s.nombre.slice(0, 6)}
                 </span>
-                {editingKey === item.key ? (
-                  <input
-                    autoFocus type="number" min="0"
-                    value={editingVal}
-                    onChange={e => setEditingVal(e.target.value)}
-                    onBlur={() => commitEdit(item.key, item.varianteId, item.sucursalId)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') commitEdit(item.key, item.varianteId, item.sucursalId)
-                      if (e.key === 'Escape') setEditingKey(null)
-                    }}
-                    style={{
-                      width: 44, padding: '2px 4px', textAlign: 'center',
-                      background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)',
-                      borderRadius: 20, color: '#ff9800', fontSize: 12, fontWeight: 700, outline: 'none',
-                    }}
-                  />
-                ) : (
-                  <span
-                    title="Click para editar"
-                    onClick={() => startEdit(item.key, item.cantidad)}
-                    style={{
-                      minWidth: 26, height: 26, borderRadius: '50%', display: 'flex',
-                      alignItems: 'center', justifyContent: 'center',
-                      background: badgeBg, color: badgeColor,
-                      fontSize: 12, fontWeight: 700, cursor: 'text',
-                      border: `1px solid ${badgeColor}44`,
-                      transition: 'all 0.15s', padding: '0 6px',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,152,0,0.2)'; e.currentTarget.style.color = '#ff9800'; e.currentTarget.style.borderColor = 'rgba(255,152,0,0.5)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = badgeBg; e.currentTarget.style.color = badgeColor; e.currentTarget.style.borderColor = badgeColor + '44' }}
-                  >
-                    {savingKey === item.key ? '…' : item.cantidad}
-                  </span>
-                )}
+                <span style={{
+                  minWidth: 26, height: 26, borderRadius: '50%', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', padding: '0 6px',
+                  background: bg, color, fontSize: 12, fontWeight: 700,
+                  border: `1px solid ${color}44`,
+                }}>
+                  {s.total}
+                </span>
               </div>
             )
           })}
         </div>
+
+        {/* Tabla de variantes expandida */}
+        {expanded && variantes.length > 1 && (
+          <div style={{
+            marginBottom: 10, borderRadius: 10, overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.07)',
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                  <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600,
+                    color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: '0.06em',
+                    textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    Variante
+                  </th>
+                  {sucVenta.map(s => (
+                    <th key={s.id} style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 600,
+                      color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: '0.06em',
+                      textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                      {s.nombre.slice(0, 4)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {variantes.map((v, vi) => {
+                  const varName = [v.sabor, v.tamanio].filter(Boolean).join(' / ') || `V${vi + 1}`
+                  return (
+                    <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ padding: '6px 10px', color: 'rgba(255,255,255,0.6)', fontSize: 10, maxWidth: 90,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {varName}
+                      </td>
+                      {sucVenta.map(s => {
+                        const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+                        const qty = ss?.cantidad ?? 0
+                        const key = `${v.id}_${s.id}`
+                        const bajo = qty <= v.stock_minimo
+                        const color = savingKey === key ? '#ff9800' : qty === 0 ? '#ef4444' : bajo ? '#fbbf24' : 'rgba(255,255,255,0.75)'
+                        return (
+                          <td key={s.id} style={{ padding: '5px 8px', textAlign: 'center' }}>
+                            {editingKey === key ? (
+                              <input autoFocus type="number" min="0" value={editingVal}
+                                onChange={e => setEditingVal(e.target.value)}
+                                onBlur={() => commitEdit(key, v.id, s.id)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') commitEdit(key, v.id, s.id)
+                                  if (e.key === 'Escape') setEditingKey(null)
+                                }}
+                                style={{ width: 40, padding: '1px 4px', textAlign: 'center',
+                                  background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)',
+                                  borderRadius: 6, color: '#ff9800', fontSize: 11, fontWeight: 700, outline: 'none' }}
+                              />
+                            ) : (
+                              <span title="Click para editar" onClick={() => startEdit(key, qty)}
+                                style={{ fontWeight: 700, color, cursor: 'text',
+                                  borderBottom: '1px dashed rgba(255,255,255,0.1)', transition: 'color 0.15s' }}
+                                onMouseEnter={e => e.currentTarget.style.color = '#ff9800'}
+                                onMouseLeave={e => e.currentTarget.style.color = color}>
+                                {savingKey === key ? '…' : qty}
+                              </span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 8,
           borderTop: '1px solid rgba(255,255,255,0.05)' }}>
