@@ -1,157 +1,157 @@
-import { api } from './client'
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import func, extract
+from typing import Optional, List
+from decimal import Decimal
+from datetime import datetime
 
-// ── PRODUCTOS ──
-export const productosApi = {
-  listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/productos${q ? '?' + q : ''}`)
-  },
-  obtener: (id) => api.get(`/productos/${id}`),
-  crear: (data) => api.post('/productos', data),
-  actualizar: (id, data) => api.put(`/productos/${id}`, data),
-  eliminar: (id) => api.delete(`/productos/${id}`),
-  ajustarPrecioLote: (data) => api.post('/productos/lote/precio', data),
-  crearVariante: (productoId, data) => api.post(`/productos/${productoId}/variantes`, data),
-  actualizarVariante: (varianteId, data) => api.put(`/productos/variantes/${varianteId}`, data),
-  eliminarVariante: (varianteId) => api.delete(`/productos/variantes/${varianteId}`),
-  ajustarStock: (varianteId, stockActual) => api.put(`/productos/variantes/${varianteId}/stock`, { stock_actual: stockActual }),
-}
+from app.database import get_db
+from app.models import Cliente, Venta, VentaItem
+from app.schemas import (
+    ClienteCreate, ClienteUpdate, ClienteResponse, ClienteConResumen
+)
 
-// ── VENTAS ──
-export const ventasApi = {
-  listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/ventas${q ? '?' + q : ''}`)
-  },
-  pedidosAbiertos: () => api.get('/ventas/pedidos-abiertos'),
-  obtener: (id) => api.get(`/ventas/${id}`),
-  crear: (data) => api.post('/ventas', data),
-  actualizar: (id, data) => api.put(`/ventas/${id}`, data),
-  confirmar: (id) => api.post(`/ventas/${id}/confirmar`, {}),
-  eliminar: (id) => api.delete(`/ventas/${id}`),
-}
+router = APIRouter(prefix="/clientes", tags=["Clientes"])
 
-// ── COMPRAS ──
-export const comprasApi = {
-  listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/compras${q ? '?' + q : ''}`)
-  },
-  crear: (data) => api.post('/compras', data),
-  actualizar: (id, data) => api.put(`/compras/${id}`, data),
-  eliminar: (id) => api.delete(`/compras/${id}`),
-  analizarFactura: (formData) => api.postForm('/compras/factura/ia', formData),
-}
 
-// ── CLIENTES ──
-export const clientesApi = {
-  listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/clientes${q ? '?' + q : ''}`)
-  },
-  topMes: () => api.get('/clientes/top-mes'),
-  topHistorico: () => api.get('/clientes/top-historico'),
-  obtener: (id) => api.get(`/clientes/${id}`),
-  crear: (data) => api.post('/clientes', data),
-  actualizar: (id, data) => api.put(`/clientes/${id}`, data),
-  eliminar: (id) => api.delete(`/clientes/${id}`),
-}
+@router.get("", response_model=List[ClienteConResumen])
+def listar_clientes(
+    busqueda: Optional[str] = Query(None),
+    ubicacion: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Cliente).filter(Cliente.activo == True)
 
-// ── FINANZAS ──
-export const finanzasApi = {
-  liquidez: () => api.get('/finanzas/liquidez'),
-  ajustarSaldo: (data) => api.post('/finanzas/ajuste-saldo', data),
-  analisisMes: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/finanzas/analisis-mes${q ? '?' + q : ''}`)
-  },
-  productosTop: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/finanzas/productos-top${q ? '?' + q : ''}`)
-  },
-  listarGastos: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/finanzas/gastos${q ? '?' + q : ''}`)
-  },
-  crearGasto: (data) => api.post('/finanzas/gastos', data),
-  categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
-  crearCategoria: (nombre) => api.post(`/finanzas/categorias-gasto?nombre=${encodeURIComponent(nombre)}`),
-  resumenDia: () => api.get('/finanzas/resumen-dia'),
-}
+    if busqueda:
+        query = query.filter(Cliente.nombre.ilike(f"%{busqueda}%"))
+    if ubicacion:
+        query = query.filter(Cliente.ubicacion.ilike(f"%{ubicacion}%"))
 
-// ── MOVIMIENTOS ──
-export const movimientosApi = {
-  resumen: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/movimientos/resumen${q ? '?' + q : ''}`)
-  },
-  ventas: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/movimientos/ventas${q ? '?' + q : ''}`)
-  },
-  compras: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/movimientos/compras${q ? '?' + q : ''}`)
-  },
-}
+    clientes = query.order_by(Cliente.nombre).all()
 
-// ── STOCK (con desglose por sucursal) ──
-export const stockApi = {
-  listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/stock${q ? '?' + q : ''}`)
-  },
-  ajustarManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
-  transferir: (data) => api.post('/stock/transferencia', data),
-  listarTransferencias: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/stock/transferencias${q ? '?' + q : ''}`)
-  },
-}
-export const sucursalesApi = {
-  listar: () => api.get('/sucursales'),
-  crear: (data) => api.post('/sucursales', data),
-  actualizar: (id, data) => api.put(`/sucursales/${id}`, data),
-  eliminar: (id) => api.delete(`/sucursales/${id}`),
-  comparacion: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/sucursales/comparacion${q ? '?' + q : ''}`)
-  },
-  dashboard: (id, params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/sucursales/${id}/dashboard${q ? '?' + q : ''}`)
-  },
-}
+    resultado = []
+    for cliente in clientes:
+        total = sum(v.total for v in cliente.ventas if v.estado == "confirmada") or Decimal("0")
+        resultado.append(ClienteConResumen(
+            **ClienteResponse.model_validate(cliente).model_dump(),
+            total_gastado=total,
+            cantidad_compras=len([v for v in cliente.ventas if v.estado == "confirmada"])
+        ))
 
-// ── DEUDAS ──
-export const deudasApi = {
-  listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/deudas${q ? '?' + q : ''}`)
-  },
-  resumen: () => api.get('/deudas/resumen'),
-  crear: (data) => api.post('/deudas', data),
-  actualizar: (id, data) => api.put(`/deudas/${id}`, data),
-  saldar: (id) => api.post(`/deudas/${id}/saldar`, {}),
-  eliminar: (id) => api.delete(`/deudas/${id}`),
-}
+    return resultado
 
-// ── RECORDATORIOS ──
-export const recordatoriosApi = {
-  listar: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return api.get(`/recordatorios${q ? '?' + q : ''}`)
-  },
-  crear: (data) => api.post('/recordatorios', data),
-  actualizar: (id, data) => api.put(`/recordatorios/${id}`, data),
-  completar: (id) => api.post(`/recordatorios/${id}/completar`, {}),
-  eliminar: (id) => api.delete(`/recordatorios/${id}`),
-}
 
-// ── CATEGORÍAS PRODUCTO ──
-export const categoriasProductoApi = {
-  listar: () => api.get('/categorias-producto'),
-  crear: (data) => api.post('/categorias-producto', data),
-  actualizar: (id, data) => api.put(`/categorias-producto/${id}`, data),
-  eliminar: (id) => api.delete(`/categorias-producto/${id}`),
-}
+@router.get("/top-mes", response_model=List[ClienteConResumen])
+def top_clientes_del_mes(
+    mes: Optional[int] = Query(None),
+    anio: Optional[int] = Query(None),
+    limite: int = Query(10, le=50),
+    db: Session = Depends(get_db)
+):
+    now = datetime.now()
+    mes = mes or now.month
+    anio = anio or now.year
+
+    resultados = (
+        db.query(
+            Cliente,
+            func.sum(Venta.total).label("total_gastado"),
+            func.count(Venta.id).label("cantidad_compras")
+        )
+        .join(Venta, Venta.cliente_id == Cliente.id)
+        .filter(
+            Venta.estado == "confirmada",
+            extract("month", Venta.fecha) == mes,
+            extract("year", Venta.fecha) == anio,
+        )
+        .group_by(Cliente.id)
+        .order_by(func.sum(Venta.total).desc())
+        .limit(limite)
+        .all()
+    )
+
+    return [
+        ClienteConResumen(
+            **ClienteResponse.model_validate(cliente).model_dump(),
+            total_gastado=total or Decimal("0"),
+            cantidad_compras=cantidad
+        )
+        for cliente, total, cantidad in resultados
+    ]
+
+
+
+
+@router.get("/top-historico", response_model=List[ClienteConResumen])
+def top_clientes_historico(
+    limite: int = Query(10, le=50),
+    db: Session = Depends(get_db)
+):
+    """Top clientes por total gastado histórico (sin filtro de fechas)."""
+    resultados = (
+        db.query(
+            Cliente,
+            func.sum(Venta.total).label("total_gastado"),
+            func.count(Venta.id).label("cantidad_compras")
+        )
+        .join(Venta, Venta.cliente_id == Cliente.id)
+        .filter(Venta.estado == "confirmada", Cliente.activo == True)
+        .group_by(Cliente.id)
+        .order_by(func.sum(Venta.total).desc())
+        .limit(limite)
+        .all()
+    )
+
+    return [
+        ClienteConResumen(
+            **{c.key: getattr(r.Cliente, c.key) for c in Cliente.__table__.columns},
+            total_gastado=r.total_gastado or 0,
+            cantidad_compras=r.cantidad_compras or 0,
+        )
+        for r in resultados
+    ]
+
+@router.get("/{cliente_id}", response_model=ClienteConResumen)
+def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    total = sum(v.total for v in cliente.ventas if v.estado == "confirmada") or Decimal("0")
+    return ClienteConResumen(
+        **ClienteResponse.model_validate(cliente).model_dump(),
+        total_gastado=total,
+        cantidad_compras=len([v for v in cliente.ventas if v.estado == "confirmada"])
+    )
+
+
+@router.post("", response_model=ClienteResponse, status_code=201)
+def crear_cliente(data: ClienteCreate, db: Session = Depends(get_db)):
+    cliente = Cliente(**data.model_dump())
+    db.add(cliente)
+    db.commit()
+    db.refresh(cliente)
+    return cliente
+
+
+@router.put("/{cliente_id}", response_model=ClienteResponse)
+def actualizar_cliente(cliente_id: int, data: ClienteUpdate, db: Session = Depends(get_db)):
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    for campo, valor in data.model_dump(exclude_unset=True).items():
+        setattr(cliente, campo, valor)
+
+    db.commit()
+    db.refresh(cliente)
+    return cliente
+
+
+@router.delete("/{cliente_id}", status_code=204)
+def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    cliente.activo = False
+    db.commit()
