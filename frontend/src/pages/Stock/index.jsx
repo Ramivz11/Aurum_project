@@ -600,7 +600,6 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
               )
             })}
           </div>
-          </div>
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 8,
