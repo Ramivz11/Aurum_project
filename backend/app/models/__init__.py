@@ -192,6 +192,10 @@ class Venta(Base):
     sucursal = relationship("Sucursal", back_populates="ventas")
     items = relationship("VentaItem", back_populates="venta", cascade="all, delete-orphan")
 
+    @property
+    def cliente_nombre(self):
+        return self.cliente.nombre if self.cliente else None
+
 
 class VentaItem(Base):
     __tablename__ = "venta_items"
