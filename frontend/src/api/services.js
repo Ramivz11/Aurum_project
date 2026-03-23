@@ -53,6 +53,7 @@ export const clientesApi = {
     return api.get(`/clientes${buildQuery(params)}`)
   },
   topMes: () => api.get('/clientes/top-mes'),
+  topHistorico: () => api.get('/clientes/top-historico'),
   obtener: (id) => api.get(`/clientes/${id}`),
   crear: (data) => api.post('/clientes', data),
   actualizar: (id, data) => api.put(`/clientes/${id}`, data),
