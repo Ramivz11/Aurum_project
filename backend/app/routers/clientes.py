@@ -80,6 +80,37 @@ def top_clientes_del_mes(
     ]
 
 
+
+
+@router.get("/top-historico", response_model=List[ClienteConResumen])
+def top_clientes_historico(
+    limite: int = Query(10, le=50),
+    db: Session = Depends(get_db)
+):
+    """Top clientes por total gastado histórico (sin filtro de fechas)."""
+    resultados = (
+        db.query(
+            Cliente,
+            func.sum(Venta.total).label("total_gastado"),
+            func.count(Venta.id).label("cantidad_compras")
+        )
+        .join(Venta, Venta.cliente_id == Cliente.id)
+        .filter(Venta.estado == "confirmada", Cliente.activo == True)
+        .group_by(Cliente.id)
+        .order_by(func.sum(Venta.total).desc())
+        .limit(limite)
+        .all()
+    )
+
+    return [
+        ClienteConResumen(
+            **{c.key: getattr(r.Cliente, c.key) for c in Cliente.__table__.columns},
+            total_gastado=r.total_gastado or 0,
+            cantidad_compras=r.cantidad_compras or 0,
+        )
+        for r in resultados
+    ]
+
 @router.get("/{cliente_id}", response_model=ClienteConResumen)
 def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
@@ -124,33 +155,3 @@ def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     cliente.activo = False
     db.commit()
-
-
-@router.get("/top-historico", response_model=List[ClienteConResumen])
-def top_clientes_historico(
-    limite: int = Query(10, le=50),
-    db: Session = Depends(get_db)
-):
-    """Top clientes por total gastado histórico (sin filtro de fechas)."""
-    resultados = (
-        db.query(
-            Cliente,
-            func.sum(Venta.total).label("total_gastado"),
-            func.count(Venta.id).label("cantidad_compras")
-        )
-        .join(Venta, Venta.cliente_id == Cliente.id)
-        .filter(Venta.estado == "confirmada", Cliente.activo == True)
-        .group_by(Cliente.id)
-        .order_by(func.sum(Venta.total).desc())
-        .limit(limite)
-        .all()
-    )
-
-    return [
-        ClienteConResumen(
-            **{c.key: getattr(r.Cliente, c.key) for c in Cliente.__table__.columns},
-            total_gastado=r.total_gastado or 0,
-            cantidad_compras=r.cantidad_compras or 0,
-        )
-        for r in resultados
-    ]
