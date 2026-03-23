@@ -356,9 +356,6 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
   const [expanded, setExpanded] = useState(false)
   const variantes = p.variantes?.filter(v => v.activa !== false) || []
 
-  // Solo sucursales de venta (sin central)
-  const sucVenta = sucursales.filter(s => !s.es_central)
-
   const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
   const hayBajo = variantes.some(v => (v.stock_total ?? v.stock_actual ?? 0) <= v.stock_minimo)
 
@@ -389,14 +386,32 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
     } finally { setSavingKey(null) }
   }
 
+  // Columnas de sucursales: se derivan de los datos reales (excluyendo central)
+  // Esto evita depender del prop sucursales y del campo es_central
+  const sucVenta = (() => {
+    const map = new Map()
+    variantes.forEach(v => {
+      (v.stocks_sucursal || []).forEach(ss => {
+        if (!map.has(ss.sucursal_id)) {
+          map.set(ss.sucursal_id, { id: ss.sucursal_id, nombre: ss.sucursal_nombre })
+        }
+      })
+    })
+    // Fallback: si no hay datos en stocks_sucursal, usar el prop sucursales sin central
+    if (map.size === 0) {
+      sucursales.filter(s => !s.es_central).forEach(s => map.set(s.id, s))
+    }
+    return Array.from(map.values())
+  })()
+
   // Stock por sucursal agregado (suma de todas las variantes)
   const stockPorSucursal = sucVenta.map(s => {
     const total = variantes.reduce((sum, v) => {
-      const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+      const ss = (v.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
       return sum + (ss?.cantidad ?? 0)
     }, 0)
     const bajo = variantes.some(v => {
-      const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+      const ss = (v.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
       return (ss?.cantidad ?? 0) <= v.stock_minimo
     })
     return { id: s.id, nombre: s.nombre, total, bajo }
@@ -557,7 +572,7 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
                         {varName}
                       </td>
                       {sucVenta.map(s => {
-                        const ss = v.stocks_sucursal?.find(x => x.sucursal_id === s.id)
+                        const ss = (v.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
                         const qty = ss?.cantidad ?? 0
                         const key = `${v.id}_${s.id}`
                         const bajo = qty <= v.stock_minimo
