@@ -503,61 +503,75 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
         )}
       </div>
 
-      {/* Stock por sucursal — inline editable */}
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 0' }}>
-        {stockItems.map(item => (
-          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
-            <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-              color: item.bajo ? '#ef4444' : item.isCentral ? 'rgba(255,152,0,0.6)' : 'rgba(255,255,255,0.28)',
-            }}>
-              {item.bajo ? '●' : '○'} {item.label}
-            </span>
-            {editingKey === item.key ? (
-              <input
-                autoFocus
-                type="number" min="0"
-                value={editingVal}
-                onChange={e => setEditingVal(e.target.value)}
-                onBlur={() => commitEdit(item.key, item.varianteId, item.sucursalId)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') commitEdit(item.key, item.varianteId, item.sucursalId)
-                  if (e.key === 'Escape') setEditingKey(null)
-                }}
-                style={{
-                  width: 44, padding: '1px 4px', textAlign: 'center',
-                  background: 'rgba(255,152,0,0.12)', border: '1px solid rgba(255,152,0,0.5)',
-                  borderRadius: 6, color: '#ff9800', fontFamily: 'Syne, sans-serif',
-                  fontSize: 13, fontWeight: 700, outline: 'none',
-                }}
-              />
-            ) : (
-              <span
-                title="Click para editar"
-                onClick={() => startEdit(item.key, item.cantidad)}
-                style={{
-                  fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif',
-                  color: savingKey === item.key ? 'rgba(255,152,0,0.5)'
-                       : item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)',
-                  cursor: 'text',
-                  borderBottom: '1px dashed rgba(255,255,255,0.15)',
-                  transition: 'color 0.15s, border-color 0.15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#ff9800'; e.currentTarget.style.borderBottomColor = 'rgba(255,152,0,0.5)' }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.color = savingKey === item.key ? 'rgba(255,152,0,0.5)' : item.bajo ? '#ef4444' : 'rgba(255,255,255,0.82)'
-                  e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,0.15)'
-                }}
-              >
-                {savingKey === item.key ? '…' : item.cantidad}
-              </span>
-            )}
-          </div>
-        ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 5 }}>
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>total</span>
-          <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'Syne, sans-serif',
-            color: stockTotal === 0 ? '#ef4444' : '#f1f5f9' }}>{stockTotal}</span>
+      {/* Stock por sucursal */}
+      <div style={{ marginTop: 2 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Stock sucursales</div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginBottom: 10 }}>
+          {stockItems.map(item => {
+            const badgeColor = savingKey === item.key
+              ? '#ff9800'
+              : item.cantidad === 0 ? '#ef4444'
+              : item.bajo ? '#fbbf24'
+              : '#22c55e'
+            const badgeBg = savingKey === item.key
+              ? 'rgba(255,152,0,0.15)'
+              : item.cantidad === 0 ? 'rgba(239,68,68,0.15)'
+              : item.bajo ? 'rgba(251,191,36,0.15)'
+              : 'rgba(34,197,94,0.15)'
+
+            return (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
+                  textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
+                  {item.label}
+                </span>
+                {editingKey === item.key ? (
+                  <input
+                    autoFocus type="number" min="0"
+                    value={editingVal}
+                    onChange={e => setEditingVal(e.target.value)}
+                    onBlur={() => commitEdit(item.key, item.varianteId, item.sucursalId)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') commitEdit(item.key, item.varianteId, item.sucursalId)
+                      if (e.key === 'Escape') setEditingKey(null)
+                    }}
+                    style={{
+                      width: 44, padding: '2px 4px', textAlign: 'center',
+                      background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)',
+                      borderRadius: 20, color: '#ff9800', fontSize: 12, fontWeight: 700, outline: 'none',
+                    }}
+                  />
+                ) : (
+                  <span
+                    title="Click para editar"
+                    onClick={() => startEdit(item.key, item.cantidad)}
+                    style={{
+                      minWidth: 26, height: 26, borderRadius: '50%', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      background: badgeBg, color: badgeColor,
+                      fontSize: 12, fontWeight: 700, cursor: 'text',
+                      border: `1px solid ${badgeColor}44`,
+                      transition: 'all 0.15s', padding: '0 6px',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,152,0,0.2)'; e.currentTarget.style.color = '#ff9800'; e.currentTarget.style.borderColor = 'rgba(255,152,0,0.5)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = badgeBg; e.currentTarget.style.color = badgeColor; e.currentTarget.style.borderColor = badgeColor + '44' }}
+                  >
+                    {savingKey === item.key ? '…' : item.cantidad}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 8,
+          borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.25)' }}>Total global</span>
+          <span style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Syne, sans-serif',
+            color: stockTotal === 0 ? '#ef4444' : '#f1f5f9', lineHeight: 1 }}>{stockTotal}</span>
         </div>
       </div>
     </div>
