@@ -539,75 +539,67 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
           })}
         </div>
 
-        {/* Tabla de variantes expandida */}
+        {/* Variantes expandidas — una fila por variante con badges por sucursal */}
         {expanded && variantes.length > 1 && (
-          <div style={{
-            marginBottom: 10, borderRadius: 10, overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                  <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600,
-                    color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: '0.06em',
-                    textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                    Variante
-                  </th>
-                  {sucVenta.map(s => (
-                    <th key={s.id} style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 600,
-                      color: 'rgba(255,255,255,0.4)', fontSize: 9, letterSpacing: '0.06em',
-                      textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                      {s.nombre.slice(0, 4)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {variantes.map((v, vi) => {
-                  const varName = [v.sabor, v.tamanio].filter(Boolean).join(' / ') || `V${vi + 1}`
-                  return (
-                    <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <td style={{ padding: '6px 10px', color: 'rgba(255,255,255,0.6)', fontSize: 10, maxWidth: 90,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {varName}
-                      </td>
-                      {sucVenta.map(s => {
-                        const ss = (v.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
-                        const qty = ss?.cantidad ?? 0
-                        const key = `${v.id}_${s.id}`
-                        const bajo = qty <= v.stock_minimo
-                        const color = savingKey === key ? '#ff9800' : qty === 0 ? '#ef4444' : bajo ? '#fbbf24' : 'rgba(255,255,255,0.75)'
-                        return (
-                          <td key={s.id} style={{ padding: '5px 8px', textAlign: 'center' }}>
-                            {editingKey === key ? (
-                              <input autoFocus type="number" min="0" value={editingVal}
-                                onChange={e => setEditingVal(e.target.value)}
-                                onBlur={() => commitEdit(key, v.id, s.id)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') commitEdit(key, v.id, s.id)
-                                  if (e.key === 'Escape') setEditingKey(null)
-                                }}
-                                style={{ width: 40, padding: '1px 4px', textAlign: 'center',
-                                  background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)',
-                                  borderRadius: 6, color: '#ff9800', fontSize: 11, fontWeight: 700, outline: 'none' }}
-                              />
-                            ) : (
-                              <span title="Click para editar" onClick={() => startEdit(key, qty)}
-                                style={{ fontWeight: 700, color, cursor: 'text',
-                                  borderBottom: '1px dashed rgba(255,255,255,0.1)', transition: 'color 0.15s' }}
-                                onMouseEnter={e => e.currentTarget.style.color = '#ff9800'}
-                                onMouseLeave={e => e.currentTarget.style.color = color}>
-                                {savingKey === key ? '…' : qty}
-                              </span>
-                            )}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {variantes.map((v, vi) => {
+              const varName = [v.sabor, v.tamanio].filter(Boolean).join(' / ') || `V${vi + 1}`
+              return (
+                <div key={v.id} style={{
+                  background: 'rgba(255,255,255,0.03)', borderRadius: 8,
+                  border: '1px solid rgba(255,255,255,0.06)', padding: '7px 10px',
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.55)',
+                    marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {varName}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+                    {sucVenta.map(s => {
+                      const ss = (v.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
+                      const qty = ss?.cantidad ?? 0
+                      const key = `${v.id}_${s.id}`
+                      const bajo = qty <= v.stock_minimo
+                      const color = savingKey === key ? '#ff9800' : qty === 0 ? '#ef4444' : bajo ? '#fbbf24' : '#22c55e'
+                      const bg = savingKey === key ? 'rgba(255,152,0,0.12)' : qty === 0 ? 'rgba(239,68,68,0.12)' : bajo ? 'rgba(251,191,36,0.12)' : 'rgba(34,197,94,0.12)'
+                      return (
+                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase',
+                            letterSpacing: '0.05em', color: 'rgba(255,255,255,0.35)' }}>
+                            {s.nombre.slice(0, 5)}
+                          </span>
+                          {editingKey === key ? (
+                            <input autoFocus type="number" min="0" value={editingVal}
+                              onChange={e => setEditingVal(e.target.value)}
+                              onBlur={() => commitEdit(key, v.id, s.id)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') commitEdit(key, v.id, s.id)
+                                if (e.key === 'Escape') setEditingKey(null)
+                              }}
+                              style={{ width: 38, padding: '1px 4px', textAlign: 'center',
+                                background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)',
+                                borderRadius: 20, color: '#ff9800', fontSize: 11, fontWeight: 700, outline: 'none' }}
+                            />
+                          ) : (
+                            <span title="Click para editar" onClick={() => startEdit(key, qty)}
+                              style={{
+                                minWidth: 24, height: 24, borderRadius: '50%', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center', padding: '0 5px',
+                                background: bg, color, fontSize: 11, fontWeight: 700,
+                                border: `1px solid ${color}44`, cursor: 'text', transition: 'all 0.15s',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,152,0,0.2)'; e.currentTarget.style.color = '#ff9800' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = bg; e.currentTarget.style.color = color }}>
+                              {savingKey === key ? '…' : qty}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
           </div>
         )}
 
