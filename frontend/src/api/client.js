@@ -7,7 +7,14 @@ async function request(path, options = {}) {
   })
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: 'Error de red' }))
-    throw new Error(error.detail || 'Error desconocido')
+    // FastAPI devuelve detail como array en errores de validación (422)
+    let mensaje = 'Error desconocido'
+    if (typeof error.detail === 'string') {
+      mensaje = error.detail
+    } else if (Array.isArray(error.detail)) {
+      mensaje = error.detail.map(e => e.msg || JSON.stringify(e)).join(', ')
+    }
+    throw new Error(mensaje)
   }
   if (res.status === 204) return null
   const data = await res.json()
