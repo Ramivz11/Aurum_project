@@ -108,6 +108,16 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
   const submit = async () => {
     if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
     setLoading(true)
+
+    // Normalizar variantes: convertir strings vacíos a valores numéricos válidos
+    const normalizarVariante = (v) => ({
+      sabor: v.sabor || null,
+      tamanio: v.tamanio || null,
+      costo: parseFloat(v.costo) || 0,
+      precio_venta: parseFloat(v.precio_venta) || 0,
+      stock_minimo: parseInt(v.stock_minimo) || 0,
+    })
+
     try {
       if (isEdit) {
         await productosApi.actualizar(producto.id, form)
@@ -118,28 +128,17 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
             if (v._eliminada && v.id) {
               ops.push(productosApi.eliminarVariante(v.id))
             } else if (v.id) {
-              ops.push(productosApi.actualizarVariante(v.id, {
-                sabor: v.sabor || null,
-                tamanio: v.tamanio || null,
-                costo: parseFloat(v.costo) || 0,
-                precio_venta: parseFloat(v.precio_venta) || 0,
-                stock_minimo: parseInt(v.stock_minimo) || 0,
-              }))
+              ops.push(productosApi.actualizarVariante(v.id, normalizarVariante(v)))
             } else {
-              ops.push(productosApi.crearVariante(producto.id, {
-                sabor: v.sabor || null,
-                tamanio: v.tamanio || null,
-                costo: parseFloat(v.costo) || 0,
-                precio_venta: parseFloat(v.precio_venta) || 0,
-                stock_minimo: parseInt(v.stock_minimo) || 0,
-              }))
+              ops.push(productosApi.crearVariante(producto.id, normalizarVariante(v)))
             }
           }
           await Promise.all(ops)
         }
         toast.success('Actualizado')
       } else {
-        await productosApi.crear({ ...form, variantes })
+        const variantesPayload = variantes.map(normalizarVariante)
+        await productosApi.crear({ ...form, variantes: variantesPayload })
         toast.success('Creado')
       }
       onSaved(); onClose()
