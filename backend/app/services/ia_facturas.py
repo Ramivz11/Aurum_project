@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import re
 from decimal import Decimal
 
 import anthropic
@@ -35,6 +36,7 @@ Reglas:
 - precio_unitario siempre en ARS (pesos argentinos), sin símbolo $, puede ser 0 si no se ve
 - confianza entre 0 y 1 según qué tan legible está la factura
 - Si no podés leer un dato, usá 0 para el precio o 1 para la cantidad
+- Los números decimales deben usar punto como separador decimal (formato JSON estándar: 15349.49, NO 15.349,49)
 - NO incluyas texto antes ni después del JSON
 """
 
@@ -63,6 +65,30 @@ def _limpiar_json(texto: str) -> str:
     fin = texto.rfind("}")
     if inicio != -1 and fin != -1 and fin > inicio:
         return texto[inicio:fin + 1]
+
+    return texto
+
+
+def _normalizar_numeros_arg(texto: str) -> str:
+    """
+    Convierte números en formato argentino a formato JSON válido.
+    Ejemplos: 108.964,01 → 108964.01 | 15.349,49 → 15349.49 | 110.079,12 → 110079.12
+    """
+    # Patrón: números con punto como miles Y coma como decimal
+    # Ej: 108.964,01 o 1.234.567,89
+    patron_con_decimal = re.compile(r'\b(\d{1,3}(?:\.\d{3})+),(\d+)\b')
+    texto = patron_con_decimal.sub(
+        lambda m: m.group(0).replace('.', '').replace(',', '.'),
+        texto
+    )
+
+    # Patrón: números con punto como miles SIN decimal
+    # Ej: 108.964 (solo si siguen el patrón de miles: grupos de exactamente 3 dígitos)
+    patron_solo_miles = re.compile(r'\b(\d{1,3})(\.\d{3})+\b')
+    texto = patron_solo_miles.sub(
+        lambda m: m.group(0).replace('.', ''),
+        texto
+    )
 
     return texto
 
@@ -140,6 +166,7 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
 
     texto = message.content[0].text.strip()
     texto_limpio = _limpiar_json(texto)
+    texto_limpio = _normalizar_numeros_arg(texto_limpio)
 
     try:
         datos = json.loads(texto_limpio)
