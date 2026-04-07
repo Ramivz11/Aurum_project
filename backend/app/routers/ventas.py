@@ -33,15 +33,12 @@ def _get_stock_disponible(db: Session, variante_id: int, sucursal_id: int) -> in
 
 
 def _descontar_stock(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
-    """Descuenta stock de la sucursal indicada. Lanza 400 si no alcanza."""
+    """Descuenta stock de la sucursal indicada. Permite stock negativo (ventas sin stock)."""
     ss = _get_stock_sucursal(db, variante_id, sucursal_id)
-    disponible = ss.cantidad if ss else 0
-    if disponible < cantidad:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Stock insuficiente en la sucursal. Disponible: {disponible}, solicitado: {cantidad}"
-        )
-    ss.cantidad -= cantidad
+    if ss:
+        ss.cantidad -= cantidad
+    else:
+        db.add(StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=-cantidad))
 
 
 def _restaurar_stock(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
@@ -59,15 +56,6 @@ def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):
         variante = db.query(Variante).filter(Variante.id == item_data.variante_id).first()
         if not variante:
             raise HTTPException(status_code=404, detail=f"Variante {item_data.variante_id} no encontrada")
-
-        if venta.estado == EstadoVentaEnum.confirmada:
-            disponible = _get_stock_disponible(db, item_data.variante_id, venta.sucursal_id)
-            if disponible < item_data.cantidad:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Stock insuficiente para variante {item_data.variante_id}. "
-                           f"Disponible en sucursal: {disponible}, solicitado: {item_data.cantidad}"
-                )
 
         subtotal = item_data.precio_unitario * item_data.cantidad
         total += subtotal
