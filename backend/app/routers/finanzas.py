@@ -20,10 +20,6 @@ router = APIRouter(prefix="/finanzas", tags=["Finanzas"])
 
 @router.get("/liquidez", response_model=LiquidezResponse)
 def obtener_liquidez(db: Session = Depends(get_db)):
-    """
-    Calcula el saldo disponible por método de pago.
-    Ingresos (ventas) - Egresos (compras + gastos) + Ajustes manuales.
-    """
     def saldo_metodo(metodo: str) -> Decimal:
         ingresos = db.query(func.sum(Venta.total)).filter(
             Venta.metodo_pago == metodo,
@@ -38,13 +34,11 @@ def obtener_liquidez(db: Session = Depends(get_db)):
             Gasto.metodo_pago == metodo
         ).scalar() or Decimal("0")
 
-        # Último ajuste manual (si existe, sobreescribe el calculado)
         ultimo_ajuste = db.query(AjusteSaldo).filter(
             AjusteSaldo.tipo == metodo
         ).order_by(AjusteSaldo.fecha.desc()).first()
 
         if ultimo_ajuste:
-            # Desde el ajuste hasta ahora
             ingresos_post = db.query(func.sum(Venta.total)).filter(
                 Venta.metodo_pago == metodo,
                 Venta.estado == "confirmada",
@@ -81,7 +75,6 @@ def obtener_liquidez(db: Session = Depends(get_db)):
 
 @router.post("/ajuste-saldo", response_model=AjusteSaldoResponse, status_code=201)
 def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
-    """Permite corregir manualmente el saldo de un método de pago (ej: contar caja)."""
     liquidez = obtener_liquidez(db)
     saldo_actual = getattr(liquidez, data.tipo.value)
 
@@ -128,12 +121,34 @@ def analisis_del_mes(
         Gasto
     ).scalar() or Decimal("0")
 
+    # ── Ganancia bruta = (precio_venta - costo) × cantidad por item ──────────
+    items_mes = (
+        db.query(VentaItem, Variante)
+        .join(Venta, Venta.id == VentaItem.venta_id)
+        .join(Variante, Variante.id == VentaItem.variante_id)
+        .filter(
+            Venta.estado == "confirmada",
+            extract("month", Venta.fecha) == mes,
+            extract("year", Venta.fecha) == anio,
+        )
+        .all()
+    )
+
+    ganancia = sum(
+        (item.precio_unitario - variante.costo) * item.cantidad
+        for item, variante in items_mes
+    ) if items_mes else Decimal("0")
+
+    margen_promedio = float(ganancia / ingresos * 100) if ingresos > 0 else 0.0
+
     return AnalisisMesResponse(
         periodo=f"{mes:02d}/{anio}",
         ingresos=ingresos,
         compras=compras,
         gastos=gastos,
-        neto=ingresos - compras - gastos
+        neto=ingresos - compras - gastos,
+        ganancia=ganancia,
+        margen_promedio=round(margen_promedio, 1),
     )
 
 
@@ -238,14 +253,10 @@ def crear_categoria(nombre: str, db: Session = Depends(get_db)):
     return cat
 
 
-# ─── RESUMEN DEL DÍA (para footer de Stock) ──────────────────────────────────
+# ─── RESUMEN DEL DÍA ─────────────────────────────────────────────────────────
 
 @router.get("/resumen-dia")
 def resumen_del_dia(db: Session = Depends(get_db)):
-    """
-    Devuelve ingresos de hoy, variación vs ayer, tendencia mensual diaria,
-    y margen promedio global del mes.
-    """
     from datetime import date, timedelta
     from app.models import Variante as VarianteModel
 
@@ -264,13 +275,11 @@ def resumen_del_dia(db: Session = Depends(get_db)):
     ingresos_hoy = ingresos_dia(hoy)
     ingresos_ayer = ingresos_dia(ayer)
 
-    # Delta porcentual vs ayer
     if ingresos_ayer > 0:
         delta = round(float((ingresos_hoy - ingresos_ayer) / ingresos_ayer * 100), 1)
     else:
         delta = None
 
-    # Tendencia mensual: ingresos por día del mes actual
     primer_dia = datetime.combine(hoy.replace(day=1), datetime.min.time())
     ventas_mes = db.query(
         func.date(Venta.fecha).label("dia"),
@@ -282,7 +291,6 @@ def resumen_del_dia(db: Session = Depends(get_db)):
 
     tendencia = [float(row.total) for row in ventas_mes]
 
-    # Margen promedio global (todas las variantes activas con precio > 0)
     variantes = db.query(VarianteModel).filter(
         VarianteModel.activa == True,
         VarianteModel.precio_venta > 0,

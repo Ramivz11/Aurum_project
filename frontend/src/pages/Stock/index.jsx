@@ -9,6 +9,161 @@ import {
 } from '../../api/services'
 import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
 
+// ─── Modal: Transferir stock entre sucursales ─────────────────────────────────
+
+function ModalTransferencia({ variante, productoNombre, sucursales, onClose, onSaved }) {
+  const [origenId, setOrigenId] = useState('')
+  const [destinoId, setDestinoId] = useState('')
+  const [cantidad, setCantidad] = useState(1)
+  const [notas, setNotas] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const stockOrigen = (() => {
+    if (!origenId) return 0
+    const ss = (variante.stocks_sucursal || []).find(s => String(s.sucursal_id) === String(origenId))
+    return ss?.cantidad ?? 0
+  })()
+
+  const sucursalesConStock = sucursales.filter(s => {
+    const ss = (variante.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
+    return (ss?.cantidad ?? 0) > 0
+  })
+
+  const sucursalesDestino = sucursales.filter(s => String(s.id) !== String(origenId))
+
+  const nombreSuc = id => sucursales.find(s => String(s.id) === String(id))?.nombre ?? id
+
+  const confirmar = async () => {
+    if (!origenId || !destinoId || cantidad < 1 || cantidad > stockOrigen) return
+    setLoading(true)
+    try {
+      await stockApi.transferir({
+        variante_id: variante.id,
+        sucursal_origen_id: Number(origenId),
+        sucursal_destino_id: Number(destinoId),
+        cantidad: Number(cantidad),
+        notas: notas || null,
+      })
+      toast.success(`${cantidad} ud${cantidad > 1 ? 's' : ''} transferidas`)
+      onSaved()
+      onClose()
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e.message || 'Error al transferir')
+    } finally { setLoading(false) }
+  }
+
+  const varLabel = [variante.sabor, variante.tamanio].filter(Boolean).join(' · ') || 'Variante única'
+
+  const inputSt = {
+    width: '100%', padding: '9px 12px',
+    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 10, color: '#f1f5f9', fontSize: 13, outline: 'none', appearance: 'none',
+  }
+
+  return (
+    <Modal
+      title="Transferir stock"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button
+            className="btn btn-primary"
+            onClick={confirmar}
+            disabled={!origenId || !destinoId || cantidad < 1 || cantidad > stockOrigen || loading}
+          >
+            {loading ? 'Transfiriendo...' : 'Confirmar'}
+          </button>
+        </>
+      }
+    >
+      {/* Info producto */}
+      <div style={{ marginBottom: 18, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9', marginBottom: 2 }}>{productoNombre}</div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{varLabel}</div>
+        {/* Chips de stock actual */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+          {(variante.stocks_sucursal || []).filter(ss => ss.cantidad !== 0).map(ss => (
+            <span key={ss.sucursal_id} style={{
+              fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999,
+              background: ss.cantidad > 0 ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+              border: `1px solid ${ss.cantidad > 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+              color: ss.cantidad > 0 ? '#22c55e' : '#ef4444',
+            }}>
+              {ss.sucursal_nombre}: {ss.cantidad}
+            </span>
+          ))}
+          {!(variante.stocks_sucursal || []).some(ss => ss.cantidad !== 0) && (
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>Sin stock registrado</span>
+          )}
+        </div>
+      </div>
+
+      {/* Origen */}
+      <div className="form-group">
+        <label className="input-label">Desde</label>
+        <select style={inputSt} value={origenId} onChange={e => { setOrigenId(e.target.value); setDestinoId(''); setCantidad(1) }}>
+          <option value="">Seleccioná origen...</option>
+          {sucursalesConStock.map(s => {
+            const ss = (variante.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
+            return <option key={s.id} value={s.id}>{s.nombre}{s.es_central ? ' (Central)' : ''} — {ss?.cantidad ?? 0} uds</option>
+          })}
+        </select>
+      </div>
+
+      {/* Destino */}
+      <div className="form-group">
+        <label className="input-label">Hacia</label>
+        <select style={inputSt} value={destinoId} onChange={e => setDestinoId(e.target.value)} disabled={!origenId}>
+          <option value="">Seleccioná destino...</option>
+          {sucursalesDestino.map(s => (
+            <option key={s.id} value={s.id}>{s.nombre}{s.es_central ? ' (Central)' : ''}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Cantidad */}
+      <div className="form-group">
+        <label className="input-label">Cantidad</label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={() => setCantidad(c => Math.max(1, c - 1))}
+            style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#f1f5f9', cursor: 'pointer', fontSize: 16 }}>−</button>
+          <input type="number" min={1} max={stockOrigen} value={cantidad}
+            onChange={e => setCantidad(Math.max(1, Number(e.target.value)))}
+            style={{ ...inputSt, textAlign: 'center', width: 80 }} />
+          <button onClick={() => setCantidad(c => Math.min(stockOrigen, c + 1))}
+            style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#f1f5f9', cursor: 'pointer', fontSize: 16 }}>+</button>
+          {origenId && (
+            <button onClick={() => setCantidad(stockOrigen)}
+              style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              Todo ({stockOrigen})
+            </button>
+          )}
+        </div>
+        {cantidad > stockOrigen && origenId && (
+          <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>⚠ Supera el stock disponible ({stockOrigen} uds)</div>
+        )}
+      </div>
+
+      {/* Notas */}
+      <div className="form-group">
+        <label className="input-label">Notas (opcional)</label>
+        <input style={inputSt} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej: reposición semanal" />
+      </div>
+
+      {/* Preview */}
+      {origenId && destinoId && cantidad > 0 && cantidad <= stockOrigen && (
+        <div style={{ textAlign: 'center', padding: '10px 14px', background: 'rgba(255,152,0,0.08)', border: '1px solid rgba(255,152,0,0.2)', borderRadius: 10, fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+          <strong style={{ color: '#f1f5f9' }}>{nombreSuc(origenId)}</strong>
+          {' → '}
+          <strong style={{ color: '#f1f5f9' }}>{nombreSuc(destinoId)}</strong>
+          <span style={{ color: '#ff9800', fontWeight: 700, marginLeft: 8 }}>×{cantidad}</span>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 // ─── Modal: Gestionar categorías ─────────────────────────────────────────────
 
 function ModalCategorias({ onClose }) {
@@ -353,6 +508,7 @@ function FiltrosPanel({ visible, onClose, filtros, onChange, sucursales, marcas,
 function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [transferVariante, setTransferVariante] = useState(null) // variante seleccionada para transferir
   const variantes = p.variantes?.filter(v => v.activa !== false) || []
 
   const stockTotal = variantes.reduce((a, v) => a + (v.stock_total ?? v.stock_actual ?? 0), 0)
@@ -595,6 +751,22 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
                       )
                     })}
                   </div>
+                  {/* Botón transferir por variante */}
+                  <button
+                    onClick={() => setTransferVariante(v)}
+                    title="Transferir stock de esta variante"
+                    style={{
+                      marginTop: 6, width: '100%', padding: '4px 0',
+                      background: 'rgba(255,152,0,0.06)', border: '1px solid rgba(255,152,0,0.18)',
+                      borderRadius: 7, color: 'rgba(255,152,0,0.7)', fontSize: 10, fontWeight: 700,
+                      letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,152,0,0.15)'; e.currentTarget.style.color = '#ff9800' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,152,0,0.06)'; e.currentTarget.style.color = 'rgba(255,152,0,0.7)' }}
+                  >
+                    ⇄ Transferir
+                  </button>
                 </div>
               )
             })}
@@ -607,8 +779,34 @@ function ProductCard({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) 
             color: 'rgba(255,255,255,0.25)' }}>Total global</span>
           <span style={{ fontSize: 18, fontWeight: 800, fontFamily: 'Syne, sans-serif',
             color: stockTotal === 0 ? '#ef4444' : '#f1f5f9', lineHeight: 1 }}>{stockTotal}</span>
+          {/* Botón transferir para variante única */}
+          {variantes.length === 1 && (
+            <button
+              onClick={() => setTransferVariante(variantes[0])}
+              title="Transferir stock"
+              style={{
+                marginLeft: 'auto', padding: '3px 12px',
+                background: 'rgba(255,152,0,0.08)', border: '1px solid rgba(255,152,0,0.2)',
+                borderRadius: 7, color: 'rgba(255,152,0,0.7)', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,152,0,0.18)'; e.currentTarget.style.color = '#ff9800' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,152,0,0.08)'; e.currentTarget.style.color = 'rgba(255,152,0,0.7)' }}
+            >⇄ Transferir</button>
+          )}
         </div>
       </div>
+
+      {/* Modal de transferencia */}
+      {transferVariante && (
+        <ModalTransferencia
+          variante={transferVariante}
+          productoNombre={p.nombre}
+          sucursales={sucursales}
+          onClose={() => setTransferVariante(null)}
+          onSaved={onStockSaved}
+        />
+      )}
     </div>
   )
 }

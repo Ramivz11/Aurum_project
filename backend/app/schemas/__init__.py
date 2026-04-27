@@ -295,6 +295,8 @@ class AnalisisMesResponse(BaseModel):
     compras: Decimal
     gastos: Decimal
     neto: Decimal
+    ganancia: Decimal = Decimal("0")       # (precio_venta - costo) × cantidad vendida
+    margen_promedio: float = 0.0           # ganancia / ingresos × 100
 
 class ProductoTopResponse(BaseModel):
     variante_id: int
