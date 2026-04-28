@@ -111,17 +111,108 @@ export function Finanzas() {
         {/* Liquidez */}
         {liquidez && (
           <div className="card">
-            <div className="card-header"><span className="card-title">Liquidez actual</span></div>
+            <div className="card-header">
+              <span className="card-title">Liquidez actual</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>saldos calculados desde el inicio</span>
+            </div>
             <div className="card-body">
+
+              {/* Cuentas principales */}
               <div className="liquidez-grid">
-                <div className="liq-item"><div className="liq-label">💵 Efectivo</div><div className="liq-val">{fmt(liquidez.efectivo)}</div></div>
-                <div className="liq-item"><div className="liq-label">🏦 Transferencia</div><div className="liq-val">{fmt(liquidez.transferencia)}</div></div>
-                <div className="liq-item"><div className="liq-label">💳 Tarjeta</div><div className="liq-val">{fmt(liquidez.tarjeta)}</div></div>
+                <div className="liq-item">
+                  <div className="liq-label">💵 Efectivo</div>
+                  <div className="liq-val">{fmt(liquidez.efectivo)}</div>
+                </div>
+                <div className="liq-item">
+                  <div className="liq-label">🏦 Banco / Transferencia</div>
+                  <div className="liq-val">{fmt(liquidez.transferencia)}</div>
+                </div>
+                <div className="liq-item">
+                  <div className="liq-label">💳 Tarjeta</div>
+                  <div className="liq-val">{fmt(liquidez.tarjeta)}</div>
+                </div>
               </div>
-              <div style={{ textAlign: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total</div>
+
+              {/* Total general */}
+              <div style={{ textAlign: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total en cuentas</div>
                 <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 32, fontWeight: 800, color: 'var(--gold-light)', marginTop: 4 }}>{fmt(liquidez.total)}</div>
               </div>
+
+              {/* ── Cuenta Ganancia separada ── */}
+              <div style={{
+                padding: '18px 20px',
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.09) 0%, rgba(34,197,94,0.04) 100%)',
+                border: '1px solid rgba(34,197,94,0.22)',
+                borderRadius: 14,
+                position: 'relative',
+                overflow: 'hidden',
+              }}>
+                {/* Glow decorativo */}
+                <div style={{ position: 'absolute', top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,197,94,0.12), transparent 70%)', pointerEvents: 'none' }} />
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, position: 'relative' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontSize: 16 }}>📈</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(34,197,94,0.8)' }}>Cuenta Ganancia</span>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+                        background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e',
+                        textTransform: 'uppercase', letterSpacing: '0.07em',
+                      }}>Separada</span>
+                    </div>
+                    <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 30, fontWeight: 800, color: '#22c55e', lineHeight: 1, marginBottom: 6 }}>
+                      {fmt(liquidez.ganancia_acumulada)}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>
+                      Ganancia acumulada de todas las ventas confirmadas.<br />
+                      <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+                        = Ingreso total − costo de los productos vendidos.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Visual: desglose */}
+                  <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                    {liquidez.total > 0 && (
+                      <>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginBottom: 6, textAlign: 'right' }}>% del total en cuentas</div>
+                        {/* Barra circular visual */}
+                        <div style={{ position: 'relative', width: 64, height: 64, marginLeft: 'auto' }}>
+                          <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
+                            <circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+                            <circle cx="32" cy="32" r="27" fill="none" stroke="#22c55e" strokeWidth="6"
+                              strokeDasharray={`${Math.min(170, (Number(liquidez.ganancia_acumulada) / Math.max(Number(liquidez.total), 1)) * 170)} 170`}
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#22c55e' }}>
+                            {Math.round((Number(liquidez.ganancia_acumulada) / Math.max(Number(liquidez.total), 1)) * 100)}%
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ejemplo desglose última venta (info estática ilustrativa) */}
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(34,197,94,0.12)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 120, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.3)', fontWeight: 600, marginBottom: 4 }}>Costo vendido → Banco</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>
+                      {fmt(Math.max(0, Number(liquidez.total) - Number(liquidez.ganancia_acumulada)))}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>queda en tus cuentas</div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 120, padding: '8px 12px', background: 'rgba(34,197,94,0.06)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.12)' }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(34,197,94,0.6)', fontWeight: 600, marginBottom: 4 }}>Ganancia → Separar</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#22c55e' }}>{fmt(liquidez.ganancia_acumulada)}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>podés mover a otra cuenta</div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         )}

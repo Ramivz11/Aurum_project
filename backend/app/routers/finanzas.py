@@ -65,11 +65,28 @@ def obtener_liquidez(db: Session = Depends(get_db)):
     transferencia = saldo_metodo(MetodoPagoEnum.transferencia)
     tarjeta = saldo_metodo(MetodoPagoEnum.tarjeta)
 
+    # ── Ganancia acumulada: (precio_unitario - costo_variante) × cantidad ───
+    # Representa el margen real generado por todas las ventas confirmadas.
+    # Es el dinero que el negocio puede "separar" del total cobrado.
+    from app.models import VentaItem as VI, Variante as Var
+    items = (
+        db.query(VI, Var)
+        .join(Venta, Venta.id == VI.venta_id)
+        .join(Var, Var.id == VI.variante_id)
+        .filter(Venta.estado == "confirmada")
+        .all()
+    )
+    ganancia_acumulada = sum(
+        (item.precio_unitario - variante.costo) * item.cantidad
+        for item, variante in items
+    ) if items else Decimal("0")
+
     return LiquidezResponse(
         efectivo=efectivo,
         transferencia=transferencia,
         tarjeta=tarjeta,
-        total=efectivo + transferencia + tarjeta
+        total=efectivo + transferencia + tarjeta,
+        ganancia_acumulada=ganancia_acumulada,
     )
 
 

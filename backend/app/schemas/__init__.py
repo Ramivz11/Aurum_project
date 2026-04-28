@@ -272,6 +272,7 @@ class LiquidezResponse(BaseModel):
     transferencia: Decimal
     tarjeta: Decimal
     total: Decimal
+    ganancia_acumulada: Decimal = Decimal("0")   # (precio_venta - costo) × uds, todas las ventas confirmadas
 
 class AjusteSaldoCreate(BaseModel):
     tipo: MetodoPago
