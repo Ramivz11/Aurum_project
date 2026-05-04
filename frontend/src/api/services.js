@@ -1,0 +1,115 @@
+import { api } from './client'
+
+const buildQuery = (params = {}) => {
+  const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+  const q = new URLSearchParams(clean).toString()
+  return q ? '?' + q : ''
+}
+
+export const productosApi = {
+  listar: (params = {}) => api.get(`/productos${buildQuery(params)}`),
+  obtener: (id) => api.get(`/productos/${id}`),
+  crear: (data) => api.post('/productos', data),
+  actualizar: (id, data) => api.put(`/productos/${id}`, data),
+  eliminar: (id) => api.delete(`/productos/${id}`),
+  ajustarPrecioLote: (data) => api.post('/productos/lote/precio', data),
+  crearVariante: (productoId, data) => api.post(`/productos/${productoId}/variantes`, data),
+  actualizarVariante: (varianteId, data) => api.put(`/productos/variantes/${varianteId}`, data),
+  eliminarVariante: (varianteId) => api.delete(`/productos/variantes/${varianteId}`),
+  ajustarStock: (varianteId, stockActual) => api.put(`/productos/variantes/${varianteId}/stock`, { stock_actual: stockActual }),
+}
+
+export const ventasApi = {
+  listar: (params = {}) => api.get(`/ventas${buildQuery(params)}`),
+  pedidosAbiertos: () => api.get('/ventas/pedidos-abiertos'),
+  obtener: (id) => api.get(`/ventas/${id}`),
+  crear: (data) => api.post('/ventas', data),
+  actualizar: (id, data) => api.put(`/ventas/${id}`, data),
+  confirmar: (id) => api.post(`/ventas/${id}/confirmar`, {}),
+  eliminar: (id) => api.delete(`/ventas/${id}`),
+}
+
+export const comprasApi = {
+  listar: (params = {}) => api.get(`/compras${buildQuery(params)}`),
+  crear: (data) => api.post('/compras', data),
+  actualizar: (id, data) => api.put(`/compras/${id}`, data),
+  eliminar: (id) => api.delete(`/compras/${id}`),
+  analizarFactura: (formData) => api.postForm('/compras/factura/ia', formData),
+}
+
+export const clientesApi = {
+  listar: (params = {}) => api.get(`/clientes${buildQuery(params)}`),
+  topMes: () => api.get('/clientes/top-mes'),
+  topHistorico: () => api.get('/clientes/top-historico'),
+  sinComprasRecientes: (dias = 57) => api.get(`/clientes/sin-compras-recientes?dias=${dias}`),
+  obtener: (id) => api.get(`/clientes/${id}`),
+  crear: (data) => api.post('/clientes', data),
+  actualizar: (id, data) => api.put(`/clientes/${id}`, data),
+  eliminar: (id) => api.delete(`/clientes/${id}`),
+}
+
+export const finanzasApi = {
+  liquidez: () => api.get('/finanzas/liquidez'),
+  ajustarSaldo: (data) => api.post('/finanzas/ajuste-saldo', data),
+  limpiarGanancia: (nota) => api.post(`/finanzas/ganancia/limpiar${nota ? '?nota=' + encodeURIComponent(nota) : ''}`),
+  analisisMes: (params = {}) => api.get(`/finanzas/analisis-mes${buildQuery(params)}`),
+  productosTop: (params = {}) => api.get(`/finanzas/productos-top${buildQuery(params)}`),
+  listarGastos: (params = {}) => api.get(`/finanzas/gastos${buildQuery(params)}`),
+  crearGasto: (data) => api.post('/finanzas/gastos', data),
+  categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
+  crearCategoria: (nombre) => api.post(`/finanzas/categorias-gasto?nombre=${encodeURIComponent(nombre)}`),
+  resumenDia: () => api.get('/finanzas/resumen-dia'),
+}
+
+export const movimientosApi = {
+  resumen: (params = {}) => api.get(`/movimientos/resumen${buildQuery(params)}`),
+  ventas: (params = {}) => api.get(`/movimientos/ventas${buildQuery(params)}`),
+  compras: (params = {}) => api.get(`/movimientos/compras${buildQuery(params)}`),
+}
+
+export const stockApi = {
+  listar: (params = {}) => api.get(`/stock${buildQuery(params)}`),
+  marcas: () => api.get('/stock/marcas'),
+  ajustarManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
+  transferir: (data) => api.post('/stock/transferencia', data),
+  listarTransferencias: (params = {}) => api.get(`/stock/transferencias${buildQuery(params)}`),
+}
+
+export const sucursalesApi = {
+  listar: () => api.get('/sucursales'),
+  crear: (data) => api.post('/sucursales', data),
+  actualizar: (id, data) => api.put(`/sucursales/${id}`, data),
+  eliminar: (id) => api.delete(`/sucursales/${id}`),
+  comparacion: (params = {}) => api.get(`/sucursales/comparacion${buildQuery(params)}`),
+  dashboard: (id, params = {}) => api.get(`/sucursales/${id}/dashboard${buildQuery(params)}`),
+}
+
+export const deudasApi = {
+  listar: (params = {}) => api.get(`/deudas${buildQuery(params)}`),
+  resumen: () => api.get('/deudas/resumen'),
+  crear: (data) => api.post('/deudas', data),
+  actualizar: (id, data) => api.put(`/deudas/${id}`, data),
+  saldar: (id) => api.post(`/deudas/${id}/saldar`, {}),
+  eliminar: (id) => api.delete(`/deudas/${id}`),
+}
+
+export const recordatoriosApi = {
+  listar: (params = {}) => api.get(`/recordatorios${buildQuery(params)}`),
+  crear: (data) => api.post('/recordatorios', data),
+  actualizar: (id, data) => api.put(`/recordatorios/${id}`, data),
+  completar: (id) => api.post(`/recordatorios/${id}/completar`, {}),
+  eliminar: (id) => api.delete(`/recordatorios/${id}`),
+}
+
+export const categoriasProductoApi = {
+  listar: () => api.get('/categorias-producto'),
+  crear: (data) => api.post('/categorias-producto', data),
+  actualizar: (id, data) => api.put(`/categorias-producto/${id}`, data),
+  eliminar: (id) => api.delete(`/categorias-producto/${id}`),
+}
+
+export const marcasConfigApi = {
+  listar: () => api.get('/marcas-config'),
+  upsert: (nombre, color) => api.put(`/marcas-config/${encodeURIComponent(nombre)}`, { color }),
+  batch: (marcas) => api.post('/marcas-config/batch', marcas),
+}
