@@ -161,22 +161,29 @@ export default function Dashboard() {
   const [topProducts, setTopProducts] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
   const navigate = useNavigate()
 
   useEffect(() => {
+    setLoading(true)
+    const [year, month] = selectedMonth.split('-').map(Number)
     Promise.all([
-      finanzasApi.analisisMes(),
+      finanzasApi.analisisMes({ mes: month, anio: year }),
       finanzasApi.liquidez(),
-      finanzasApi.productosTop({ limite: 5 }),
+      finanzasApi.productosTop({ limite: 5, mes: month, anio: year }),
       ventasApi.pedidosAbiertos(),
     ]).then(([a, l, p, pd]) => {
       setAnalisis(a.data); setLiquidez(l.data); setTopProducts(p.data); setPedidos(pd.data)
     }).catch(console.error).finally(() => setLoading(false))
-  }, [])
+  }, [selectedMonth])
 
   const { getStyles } = useMarca()
 
-  const mes = new Date().toLocaleString('es-AR', { month: 'long', year: 'numeric' })
+  const [selYear, selMonth] = selectedMonth.split('-').map(Number)
+  const mes = new Date(selYear, selMonth - 1).toLocaleString('es-AR', { month: 'long', year: 'numeric' })
 
   if (loading) return <div className="topbar"><div className="page-title">Dashboard</div></div>
 
@@ -185,8 +192,11 @@ export default function Dashboard() {
       <div className="topbar">
         <div className="page-title">Dashboard</div>
         <div className="topbar-actions">
-          <button className="btn btn-ghost" style={{ textTransform: 'capitalize' }}>{mes}</button>
-          <button className="btn btn-primary" onClick={() => navigate('/ventas')}>+ Nueva venta</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button className="btn btn-ghost" style={{ textTransform: 'capitalize' }} onClick={() => document.getElementById('dash-month-input')?.showPicker?.() || document.getElementById('dash-month-input')?.click()}>{mes}</button>
+            <input id="dash-month-input" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ display: 'none' }} />
+            <button className="btn btn-primary" onClick={() => navigate('/ventas')}>+ Nueva venta</button>
+          </div>
         </div>
       </div>
 

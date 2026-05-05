@@ -65,6 +65,7 @@ export const movimientosApi = {
   resumen: (params = {}) => api.get(`/movimientos/resumen${buildQuery(params)}`),
   ventas: (params = {}) => api.get(`/movimientos/ventas${buildQuery(params)}`),
   compras: (params = {}) => api.get(`/movimientos/compras${buildQuery(params)}`),
+  otros: (params = {}) => api.get(`/movimientos/otros${buildQuery(params)}`),
 }
 
 export const stockApi = {

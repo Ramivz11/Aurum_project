@@ -114,6 +114,8 @@ export function Finanzas() {
 
   const guardarAjuste = async () => {
     try {
+      const valid = ['efectivo', 'transferencia', 'tarjeta']
+      if (!valid.includes(ajuste.tipo)) return toast('Tipo inválido. Seleccioná efectivo, transferencia o tarjeta', 'error')
       await finanzasApi.ajustarSaldo({ tipo: ajuste.tipo, monto_nuevo: parseFloat(ajuste.monto_nuevo), nota: ajuste.nota })
       toast('Saldo ajustado')
       setModalAjuste(false)
@@ -295,7 +297,6 @@ export function Finanzas() {
                   <option value="efectivo">Efectivo</option>
                   <option value="transferencia">Transferencia</option>
                   <option value="tarjeta">Tarjeta</option>
-                  <option value="ganancia">Ganancia</option>
                 </select>
               </div>
               <div className="form-group">

@@ -7,21 +7,23 @@ const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chi
 export function Movimientos() {
   const [ventas, setVentas] = useState([])
   const [compras, setCompras] = useState([])
+  const [otros, setOtros] = useState([])
   const [resumen, setResumen] = useState(null)
   const [tipo, setTipo] = useState('todos')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([movimientosApi.ventas(), movimientosApi.compras(), movimientosApi.resumen()])
-      .then(([v, c, r]) => { setVentas(v.data); setCompras(c.data); setResumen(r.data) })
+    Promise.all([movimientosApi.ventas(), movimientosApi.compras(), movimientosApi.otros(), movimientosApi.resumen()])
+      .then(([v, c, o, r]) => { setVentas(v.data); setCompras(c.data); setOtros(o.data); setResumen(r.data) })
       .catch(err => { console.error('Error cargando movimientos:', err) })
       .finally(() => setLoading(false))
   }, [])
 
   const lista = tipo === 'ventas' ? ventas.map(v => ({ ...v, _tipo: 'venta' }))
     : tipo === 'compras' ? compras.map(c => ({ ...c, _tipo: 'compra' }))
-    : [...ventas.map(v => ({ ...v, _tipo: 'venta' })), ...compras.map(c => ({ ...c, _tipo: 'compra' }))]
+    : tipo === 'otros' ? otros.map(x => ({ ...x, _tipo: x.tipo }))
+    : [...ventas.map(v => ({ ...v, _tipo: 'venta' })), ...compras.map(c => ({ ...c, _tipo: 'compra' })), ...otros.map(x => ({ ...x, _tipo: x.tipo }))]
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
 
   return (
@@ -32,6 +34,7 @@ export function Movimientos() {
           <button className={`btn ${tipo === 'todos' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTipo('todos')}>Todos</button>
           <button className={`btn ${tipo === 'ventas' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTipo('ventas')}>Ventas</button>
           <button className={`btn ${tipo === 'compras' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTipo('compras')}>Compras</button>
+          <button className={`btn ${tipo === 'otros' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTipo('otros')}>Otros</button>
         </div>
       </div>
       <div className="content page-enter">
@@ -64,9 +67,9 @@ export function Movimientos() {
                     <tr key={`${m._tipo}-${m.id}-${i}`}>
                       <td><span className={`chip ${m._tipo === 'venta' ? 'chip-green' : 'chip-red'}`}>{m._tipo === 'venta' ? '↑ Venta' : '↓ Compra'}</span></td>
                       <td style={{ color: 'var(--text-muted)' }}>{new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{m._tipo === 'venta' ? (m.cliente_nombre || (m.cliente_id ? `Cliente #${m.cliente_id}` : '—')) : (m.proveedor || '—')}</td>
-                      <td><span className={`chip ${CHIP[m.metodo_pago]}`}>{m.metodo_pago}</span></td>
-                      <td><strong>{fmt(m.total)}</strong></td>
+                      <td>{m._tipo === 'venta' ? (m.cliente_nombre || (m.cliente_id ? `Cliente #${m.cliente_id}` : '—')) : m._tipo === 'compra' ? (m.proveedor || '—') : (m.descripcion || m.nota || '—')}</td>
+                      <td>{m._tipo === 'gasto' || m._tipo === 'compra' || m._tipo === 'venta' ? <span className={`chip ${CHIP[m.metodo_pago]}`}>{m.metodo_pago}</span> : <span className="chip chip-gray">—</span>}</td>
+                      <td><strong>{fmt(m.total || m.monto)}</strong></td>
                     </tr>
                   ))}
                 </tbody>

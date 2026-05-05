@@ -6,7 +6,7 @@ from decimal import Decimal
 from datetime import datetime
 
 from app.database import get_db
-from app.models import Venta, Compra, VentaItem, Sucursal, StockSucursal, Variante  # Variante usado para producto_mas_vendido
+from app.models import Venta, Compra, VentaItem, Sucursal, StockSucursal, Variante, Gasto, GananciaAjuste  # Variante usado para producto_mas_vendido
 from pydantic import BaseModel
 from app.schemas import (
     VentaResponse, CompraResponse, ResumenPeriodo,
@@ -121,6 +121,57 @@ def movimientos_compras(
         query = query.filter(Compra.sucursal_id == sucursal_id)
 
     return query.order_by(Compra.fecha.desc()).all()
+
+
+@movimientos_router.get("/otros")
+def movimientos_otros(
+    fecha_desde: Optional[datetime] = Query(None),
+    fecha_hasta: Optional[datetime] = Query(None),
+    sucursal_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Devuelve gastos y retiros de ganancia (ganancia_ajuste) en formato combinado."""
+    gastos_q = db.query(Gasto)
+    if fecha_desde:
+        gastos_q = gastos_q.filter(Gasto.fecha >= fecha_desde)
+    if fecha_hasta:
+        gastos_q = gastos_q.filter(Gasto.fecha <= fecha_hasta)
+    if sucursal_id:
+        gastos_q = gastos_q.filter(Gasto.sucursal_id == sucursal_id)
+
+    gastos = [
+        {
+            "id": g.id,
+            "tipo": "gasto",
+            "fecha": g.fecha,
+            "descripcion": g.concepto,
+            "metodo_pago": g.metodo_pago.value if g.metodo_pago else None,
+            "monto": g.monto,
+            "sucursal_id": g.sucursal_id,
+        }
+        for g in gastos_q.all()
+    ]
+
+    ajustes_q = db.query(GananciaAjuste)
+    if fecha_desde:
+        ajustes_q = ajustes_q.filter(GananciaAjuste.fecha >= fecha_desde)
+    if fecha_hasta:
+        ajustes_q = ajustes_q.filter(GananciaAjuste.fecha <= fecha_hasta)
+
+    ajustes = [
+        {
+            "id": a.id,
+            "tipo": "ganancia",
+            "fecha": a.fecha,
+            "descripcion": a.nota,
+            "monto": a.monto_extraido,
+        }
+        for a in ajustes_q.all()
+    ]
+
+    combined = gastos + ajustes
+    combined.sort(key=lambda x: x["fecha"], reverse=True)
+    return combined
 
 
 # ─── SUCURSALES ──────────────────────────────────────────────────────────────
