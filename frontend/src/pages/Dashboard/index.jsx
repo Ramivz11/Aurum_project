@@ -192,9 +192,22 @@ export default function Dashboard() {
       <div className="topbar">
         <div className="page-title">Dashboard</div>
         <div className="topbar-actions">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button className="btn btn-ghost" style={{ textTransform: 'capitalize' }} onClick={() => document.getElementById('dash-month-input')?.showPicker?.() || document.getElementById('dash-month-input')?.click()}>{mes}</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button className="btn btn-ghost" style={{ padding: '6px 8px', fontSize: 16 }} onClick={() => {
+              const [y, m] = selectedMonth.split('-').map(Number)
+              const d = new Date(y, m - 2, 1)
+              setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+            }}>◀</button>
+            <button className="btn btn-ghost" style={{ textTransform: 'capitalize', minWidth: 140, justifyContent: 'center' }} onClick={() => document.getElementById('dash-month-input')?.showPicker?.() || document.getElementById('dash-month-input')?.click()}>{mes}</button>
             <input id="dash-month-input" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ display: 'none' }} />
+            <button className="btn btn-ghost" style={{ padding: '6px 8px', fontSize: 16 }} onClick={() => {
+              const [y, m] = selectedMonth.split('-').map(Number)
+              const d = new Date(y, m, 1)
+              const now = new Date()
+              if (d <= new Date(now.getFullYear(), now.getMonth() + 1, 0)) {
+                setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+              }
+            }}>▶</button>
             <button className="btn btn-primary" onClick={() => navigate('/ventas')}>+ Nueva venta</button>
           </div>
         </div>
