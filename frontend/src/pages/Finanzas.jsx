@@ -165,31 +165,16 @@ export function Finanzas() {
                 </div>
                 <div className="liq-item">
                   <div className="liq-label">💰 Ganancia neta</div>
-                  <div className="liq-val">{fmt(liquidez.ganancia_acumulada)}</div>
-                </div>
-              </div>
-
-              {/* Desglose de ganancia */}
-              <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(255,152,0,0.06)', borderRadius: 10, border: '1px solid rgba(255,152,0,0.15)' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Desglose de ganancia</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Ganancia bruta del mes</span>
-                    <span style={{ fontWeight: 600, color: '#ffb74d' }}>{fmt(liquidez.ganancia_bruta_mes)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Ganancia bruta total (histórica)</span>
-                    <span style={{ fontWeight: 600, color: '#ff9800' }}>{fmt(liquidez.ganancia_bruta_total)}</span>
-                  </div>
-                  {Number(liquidez.total_retirado) > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Total retirado</span>
-                      <span style={{ fontWeight: 600, color: '#a855f7' }}>-{fmt(liquidez.total_retirado)}</span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderTop: '1px solid rgba(255,152,0,0.15)', paddingTop: 6, marginTop: 2 }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text)' }}>= Ganancia acumulada neta</span>
-                    <span style={{ fontWeight: 700, color: '#4ade80' }}>{fmt(liquidez.ganancia_acumulada)}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="liq-val">{fmt(liquidez.ganancia_acumulada)}</div>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ fontSize: 11, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                      onClick={handleLimpiarGanancia}
+                      disabled={limpiandoGanancia || Number(liquidez.ganancia_acumulada) <= 0}
+                    >
+                      {limpiandoGanancia ? 'Separando...' : 'Separar'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -230,58 +215,7 @@ export function Finanzas() {
                   <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, color: analisis.neto >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmt(analisis.neto)}</div>
                 </div>
 
-                {/* ── Ganancias bruta ── */}
-                {analisis.ganancia !== undefined && (
-                  <div style={{
-                    marginTop: 16, padding: '14px 16px',
-                    background: 'linear-gradient(135deg, rgba(255,152,0,0.10), rgba(255,152,0,0.04))',
-                    border: '1px solid rgba(255,152,0,0.22)', borderRadius: 12,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
-                        Ganancia bruta
-                      </span>
-                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>precio – costo × unidades</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-                      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, color: '#ffb74d', lineHeight: 1 }}>
-                        {fmt(analisis.ganancia)}
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: '#ff9800', fontFamily: 'Syne, sans-serif', lineHeight: 1 }}>
-                          {Number(analisis.margen_promedio ?? 0).toFixed(1)}%
-                        </div>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>margen prom.</div>
-                      </div>
-                    </div>
-                    {/* Barra de margen */}
-                    <div style={{ marginTop: 10, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', borderRadius: 99, transition: 'width 0.5s ease',
-                        width: `${Math.min(Number(analisis.margen_promedio ?? 0), 100)}%`,
-                        background: Number(analisis.margen_promedio) >= 30
-                          ? 'linear-gradient(90deg, #22c55e, #4ade80)'
-                          : Number(analisis.margen_promedio) >= 15
-                          ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
-                          : 'linear-gradient(90deg, #ef4444, #f87171)',
-                      }} />
-                    </div>
-                    <div style={{ fontSize: 10, color: Number(analisis.margen_promedio) >= 30 ? '#22c55e' : Number(analisis.margen_promedio) >= 15 ? '#f59e0b' : '#ef4444', marginTop: 5, fontWeight: 600 }}>
-                      {Number(analisis.margen_promedio) >= 30 ? '✓ Buen margen' : Number(analisis.margen_promedio) >= 15 ? '⚠ Margen ajustado' : '↓ Margen bajo'}
-                    </div>
-                    <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
-                      <input
-                        placeholder="Nota (opcional)"
-                        value={gananciaNota}
-                        onChange={e => setGananciaNota(e.target.value)}
-                        style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text)' }}
-                      />
-                      <button className="btn btn-primary" onClick={handleLimpiarGanancia} disabled={limpiandoGanancia}>
-                        {limpiandoGanancia ? 'Separando...' : 'Separar ganancia'}
-                      </button>
-                    </div>
-                  </div>
-                )}
+
               </div>
             </div>
           )}
