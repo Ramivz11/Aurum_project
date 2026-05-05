@@ -125,6 +125,7 @@ def limpiar_ganancia(nota: Optional[str] = None, db: Session = Depends(get_db)):
 @router.post("/ajuste-saldo", response_model=AjusteSaldoResponse, status_code=201)
 def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
     from fastapi import HTTPException
+    from pydantic import BaseModel
     
     # Validar y convertir tipo
     tipos_validos = ['efectivo', 'transferencia', 'tarjeta', 'ganancia']
@@ -142,15 +143,15 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
         db.add(ajuste_ganancia)
         db.commit()
         db.refresh(ajuste_ganancia)
-        # Devolver respuesta ficticia con tipo como string
-        return {
-            'id': ajuste_ganancia.id,
-            'tipo': 'ganancia',
-            'monto_anterior': Decimal('0'),
-            'monto_nuevo': monto_nuevo,
-            'nota': ajuste_ganancia.nota,
-            'fecha': ajuste_ganancia.fecha,
-        }
+        # Retornar respuesta serializable correctamente usando Pydantic
+        return AjusteSaldoResponse(
+            id=ajuste_ganancia.id,
+            tipo='ganancia',
+            monto_anterior=Decimal('0'),
+            monto_nuevo=ajuste_ganancia.monto_extraido,
+            nota=ajuste_ganancia.nota,
+            fecha=ajuste_ganancia.fecha or datetime.now(),
+        )
     
     tipo_enum = MetodoPagoEnum(data.tipo)
     liquidez = obtener_liquidez(db)
