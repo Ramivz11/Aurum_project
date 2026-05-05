@@ -275,13 +275,13 @@ class LiquidezResponse(BaseModel):
     ganancia_acumulada: Decimal = Decimal("0")   # (precio_venta - costo) × uds, todas las ventas confirmadas
 
 class AjusteSaldoCreate(BaseModel):
-    tipo: MetodoPago
+    tipo: str  # efectivo | transferencia | tarjeta | ganancia
     monto_nuevo: Decimal = Field(..., ge=0)
     nota: Optional[str] = None
 
 class AjusteSaldoResponse(BaseModel):
     id: int
-    tipo: MetodoPago
+    tipo: str  # efectivo | transferencia | tarjeta | ganancia
     monto_anterior: Decimal
     monto_nuevo: Decimal
     nota: Optional[str]

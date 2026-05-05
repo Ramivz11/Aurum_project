@@ -136,19 +136,24 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
     
     # Si es ganancia, registrar en GananciaAjuste
     if data.tipo == 'ganancia':
+        ganancia_actual = _calcular_ganancia_neta(db)
+        # monto_nuevo es el saldo deseado; la diferencia es lo que se "extrae"
+        diferencia = ganancia_actual - monto_nuevo
+        if diferencia == 0:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="El saldo ya es el indicado")
         ajuste_ganancia = GananciaAjuste(
-            monto_extraido=monto_nuevo,
-            nota=data.nota or f"Ajuste manual de ganancia",
+            monto_extraido=diferencia,
+            nota=data.nota or "Ajuste manual de ganancia",
         )
         db.add(ajuste_ganancia)
         db.commit()
         db.refresh(ajuste_ganancia)
-        # Retornar respuesta serializable correctamente usando Pydantic
         return AjusteSaldoResponse(
             id=ajuste_ganancia.id,
             tipo='ganancia',
-            monto_anterior=Decimal('0'),
-            monto_nuevo=ajuste_ganancia.monto_extraido,
+            monto_anterior=ganancia_actual,
+            monto_nuevo=monto_nuevo,
             nota=ajuste_ganancia.nota,
             fecha=ajuste_ganancia.fecha or datetime.now(),
         )
