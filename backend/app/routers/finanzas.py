@@ -131,10 +131,12 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
     if data.tipo not in tipos_validos:
         raise HTTPException(status_code=400, detail=f"Tipo inválido. Debe ser uno de: {', '.join(tipos_validos)}")
     
+    monto_nuevo = Decimal(str(data.monto_nuevo))
+    
     # Si es ganancia, registrar en GananciaAjuste
     if data.tipo == 'ganancia':
         ajuste_ganancia = GananciaAjuste(
-            monto_extraido=data.monto_nuevo,
+            monto_extraido=monto_nuevo,
             nota=data.nota or f"Ajuste manual de ganancia",
         )
         db.add(ajuste_ganancia)
@@ -145,7 +147,7 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
             'id': ajuste_ganancia.id,
             'tipo': 'ganancia',
             'monto_anterior': Decimal('0'),
-            'monto_nuevo': data.monto_nuevo,
+            'monto_nuevo': monto_nuevo,
             'nota': ajuste_ganancia.nota,
             'fecha': ajuste_ganancia.fecha,
         }
@@ -157,7 +159,7 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
     ajuste = AjusteSaldo(
         tipo=tipo_enum,
         monto_anterior=saldo_actual,
-        monto_nuevo=data.monto_nuevo,
+        monto_nuevo=monto_nuevo,
         nota=data.nota,
     )
     db.add(ajuste)

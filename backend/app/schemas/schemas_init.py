@@ -237,7 +237,7 @@ class LiquidezResponse(BaseModel):
 
 class AjusteSaldoCreate(BaseModel):
     tipo: str
-    monto_nuevo: Decimal = Field(..., ge=0)
+    monto_nuevo: float = Field(..., ge=0)
     nota: Optional[str] = None
 
 class AjusteSaldoResponse(BaseModel):
