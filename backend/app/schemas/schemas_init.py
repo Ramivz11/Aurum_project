@@ -242,8 +242,8 @@ class AjusteSaldoCreate(BaseModel):
 
 class AjusteSaldoResponse(BaseModel):
     id: int
-    tipo: MetodoPago
-    monto_anterior: Decimal
+    tipo: str
+    monto_anterior: Decimal = Decimal("0")
     monto_nuevo: Decimal
     nota: Optional[str]
     fecha: datetime

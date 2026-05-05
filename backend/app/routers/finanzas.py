@@ -139,16 +139,16 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
         )
         db.add(ajuste_ganancia)
         db.commit()
-        # Devolver una respuesta en formato AjusteSaldoResponse para consistencia
-        # Crear un AjusteSaldo ficticio con tipo ganancia para la respuesta
-        fake_ajuste = AjusteSaldo(
-            tipo=MetodoPagoEnum.efectivo,  # dummy
-            monto_anterior=Decimal("0"),
-            monto_nuevo=data.monto_nuevo,
-            nota=data.nota,
-        )
-        fake_ajuste.id = ajuste_ganancia.id
-        return fake_ajuste
+        db.refresh(ajuste_ganancia)
+        # Devolver respuesta ficticia con tipo como string
+        return {
+            'id': ajuste_ganancia.id,
+            'tipo': 'ganancia',
+            'monto_anterior': Decimal('0'),
+            'monto_nuevo': data.monto_nuevo,
+            'nota': ajuste_ganancia.nota,
+            'fecha': ajuste_ganancia.fecha,
+        }
     
     tipo_enum = MetodoPagoEnum(data.tipo)
     liquidez = obtener_liquidez(db)
