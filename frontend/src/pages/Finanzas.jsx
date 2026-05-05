@@ -244,6 +244,17 @@ export function Finanzas() {
                     <div style={{ fontSize: 10, color: Number(analisis.margen_promedio) >= 30 ? '#22c55e' : Number(analisis.margen_promedio) >= 15 ? '#f59e0b' : '#ef4444', marginTop: 5, fontWeight: 600 }}>
                       {Number(analisis.margen_promedio) >= 30 ? '✓ Buen margen' : Number(analisis.margen_promedio) >= 15 ? '⚠ Margen ajustado' : '↓ Margen bajo'}
                     </div>
+                    <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+                      <input
+                        placeholder="Nota (opcional)"
+                        value={gananciaNota}
+                        onChange={e => setGananciaNota(e.target.value)}
+                        style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text)' }}
+                      />
+                      <button className="btn btn-primary" onClick={handleLimpiarGanancia} disabled={limpiandoGanancia}>
+                        {limpiandoGanancia ? 'Separando...' : 'Separar ganancia'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
