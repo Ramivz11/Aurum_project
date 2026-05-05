@@ -114,8 +114,8 @@ export function Finanzas() {
 
   const guardarAjuste = async () => {
     try {
-      const valid = ['efectivo', 'transferencia', 'tarjeta']
-      if (!valid.includes(ajuste.tipo)) return toast('Tipo inválido. Seleccioná efectivo, transferencia o tarjeta', 'error')
+      const valid = ['efectivo', 'transferencia', 'tarjeta', 'ganancia']
+      if (!valid.includes(ajuste.tipo)) return toast('Tipo inválido. Seleccioná efectivo, transferencia, tarjeta o ganancia', 'error')
       const monto = parseFloat(ajuste.monto_nuevo)
       if (isNaN(monto)) return toast('Ingresá un monto numérico válido', 'error')
       await finanzasApi.ajustarSaldo({ tipo: ajuste.tipo, monto_nuevo: monto, nota: ajuste.nota })
@@ -313,6 +313,7 @@ export function Finanzas() {
                   <option value="efectivo">Efectivo</option>
                   <option value="transferencia">Transferencia</option>
                   <option value="tarjeta">Tarjeta</option>
+                  <option value="ganancia">Ganancia acumulada</option>
                 </select>
               </div>
               <div className="form-group">
