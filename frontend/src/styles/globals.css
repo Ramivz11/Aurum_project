@@ -654,6 +654,8 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 .chip-gold { background: var(--gold-dim); color: var(--gold-light); }
 .chip-blue { background: rgba(91,143,232,0.12); color: var(--blue); }
 .chip-gray { background: var(--surface3); color: var(--text-muted); }
+.chip-yellow { background: rgba(245,158,11,0.12); color: #f59e0b; }
+.chip-purple { background: rgba(168,85,247,0.12); color: #a855f7; }
 
 /* ─── SEARCH ──────────────────────────────────────── */
 .search-wrap { position: relative; }

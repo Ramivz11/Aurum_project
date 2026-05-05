@@ -94,6 +94,10 @@ export const movimientosApi = {
     const q = new URLSearchParams(params).toString()
     return api.get(`/movimientos/compras${q ? '?' + q : ''}`)
   },
+  otros: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return api.get(`/movimientos/otros${q ? '?' + q : ''}`)
+  },
 }
 
 // ── STOCK (con desglose por sucursal) ──
