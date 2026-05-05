@@ -164,8 +164,33 @@ export function Finanzas() {
                   <div className="liq-val">{fmt(liquidez.tarjeta)}</div>
                 </div>
                 <div className="liq-item">
-                  <div className="liq-label">💰 Ganancia</div>
+                  <div className="liq-label">💰 Ganancia neta</div>
                   <div className="liq-val">{fmt(liquidez.ganancia_acumulada)}</div>
+                </div>
+              </div>
+
+              {/* Desglose de ganancia */}
+              <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(255,152,0,0.06)', borderRadius: 10, border: '1px solid rgba(255,152,0,0.15)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Desglose de ganancia</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Ganancia bruta del mes</span>
+                    <span style={{ fontWeight: 600, color: '#ffb74d' }}>{fmt(liquidez.ganancia_bruta_mes)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Ganancia bruta total (histórica)</span>
+                    <span style={{ fontWeight: 600, color: '#ff9800' }}>{fmt(liquidez.ganancia_bruta_total)}</span>
+                  </div>
+                  {Number(liquidez.total_retirado) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Total retirado</span>
+                      <span style={{ fontWeight: 600, color: '#a855f7' }}>-{fmt(liquidez.total_retirado)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderTop: '1px solid rgba(255,152,0,0.15)', paddingTop: 6, marginTop: 2 }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text)' }}>= Ganancia acumulada neta</span>
+                    <span style={{ fontWeight: 700, color: '#4ade80' }}>{fmt(liquidez.ganancia_acumulada)}</span>
+                  </div>
                 </div>
               </div>
 

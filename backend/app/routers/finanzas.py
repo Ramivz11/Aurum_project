@@ -18,22 +18,32 @@ from app.schemas import (
 router = APIRouter(prefix="/finanzas", tags=["Finanzas"])
 
 
-# ─── HELPER: ganancia acumulada neta (descuenta lo ya extraído) ───────────────
+# ─── HELPERS: ganancia ─────────────────────────────────────────────────────────
 
-def _calcular_ganancia_neta(db: Session) -> Decimal:
+def _calcular_ganancia_bruta(db: Session, mes: int = None, anio: int = None) -> Decimal:
+    """Ganancia bruta (precio_venta - costo) × unidades, opcionalmente filtrada por mes."""
     from app.models import VentaItem as VI, Variante as Var
-    items = (
+    query = (
         db.query(VI, Var)
         .join(Venta, Venta.id == VI.venta_id)
         .join(Var, Var.id == VI.variante_id)
         .filter(Venta.estado == "confirmada")
-        .all()
     )
-    ganancia_total = sum(
+    if mes and anio:
+        query = query.filter(
+            extract("month", Venta.fecha) == mes,
+            extract("year", Venta.fecha) == anio,
+        )
+    items = query.all()
+    return sum(
         (item.precio_unitario - variante.costo) * item.cantidad
         for item, variante in items
     ) if items else Decimal("0")
 
+
+def _calcular_ganancia_neta(db: Session) -> Decimal:
+    """Ganancia bruta total MENOS lo ya extraído/retirado."""
+    ganancia_total = _calcular_ganancia_bruta(db)
     total_extraido = db.query(func.sum(GananciaAjuste.monto_extraido)).scalar() or Decimal("0")
     return max(Decimal("0"), ganancia_total - total_extraido)
 
@@ -87,7 +97,11 @@ def obtener_liquidez(db: Session = Depends(get_db)):
     transferencia = saldo_metodo(MetodoPagoEnum.transferencia)
     tarjeta = saldo_metodo(MetodoPagoEnum.tarjeta)
 
-    ganancia_acumulada = _calcular_ganancia_neta(db)
+    now = datetime.now()
+    ganancia_bruta_total = _calcular_ganancia_bruta(db)
+    ganancia_bruta_mes = _calcular_ganancia_bruta(db, mes=now.month, anio=now.year)
+    total_retirado = db.query(func.sum(GananciaAjuste.monto_extraido)).scalar() or Decimal("0")
+    ganancia_acumulada = max(Decimal("0"), ganancia_bruta_total - total_retirado)
 
     return LiquidezResponse(
         efectivo=efectivo,
@@ -95,6 +109,9 @@ def obtener_liquidez(db: Session = Depends(get_db)):
         tarjeta=tarjeta,
         total=efectivo + transferencia + tarjeta,
         ganancia_acumulada=ganancia_acumulada,
+        ganancia_bruta_total=ganancia_bruta_total,
+        ganancia_bruta_mes=ganancia_bruta_mes,
+        total_retirado=total_retirado,
     )
 
 
@@ -207,22 +224,7 @@ def analisis_del_mes(
         Gasto
     ).scalar() or Decimal("0")
 
-    items_mes = (
-        db.query(VentaItem, Variante)
-        .join(Venta, Venta.id == VentaItem.venta_id)
-        .join(Variante, Variante.id == VentaItem.variante_id)
-        .filter(
-            Venta.estado == "confirmada",
-            extract("month", Venta.fecha) == mes,
-            extract("year", Venta.fecha) == anio,
-        )
-        .all()
-    )
-
-    ganancia = sum(
-        (item.precio_unitario - variante.costo) * item.cantidad
-        for item, variante in items_mes
-    ) if items_mes else Decimal("0")
+    ganancia = _calcular_ganancia_bruta(db, mes=mes, anio=anio)
 
     margen_promedio = float(ganancia / ingresos * 100) if ingresos > 0 else 0.0
 

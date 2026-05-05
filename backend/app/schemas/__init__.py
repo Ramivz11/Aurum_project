@@ -272,7 +272,10 @@ class LiquidezResponse(BaseModel):
     transferencia: Decimal
     tarjeta: Decimal
     total: Decimal
-    ganancia_acumulada: Decimal = Decimal("0")   # (precio_venta - costo) × uds, todas las ventas confirmadas
+    ganancia_acumulada: Decimal = Decimal("0")       # bruta total - retirado
+    ganancia_bruta_total: Decimal = Decimal("0")     # ganancia histórica sin descontar retiros
+    ganancia_bruta_mes: Decimal = Decimal("0")       # ganancia solo del mes actual
+    total_retirado: Decimal = Decimal("0")           # suma de retiros de ganancia
 
 class AjusteSaldoCreate(BaseModel):
     tipo: str  # efectivo | transferencia | tarjeta | ganancia
