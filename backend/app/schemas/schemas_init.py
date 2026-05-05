@@ -236,7 +236,7 @@ class LiquidezResponse(BaseModel):
     ganancia_acumulada: Decimal = Decimal("0")
 
 class AjusteSaldoCreate(BaseModel):
-    tipo: MetodoPago
+    tipo: str
     monto_nuevo: Decimal = Field(..., ge=0)
     nota: Optional[str] = None
 

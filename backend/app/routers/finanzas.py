@@ -124,11 +124,18 @@ def limpiar_ganancia(nota: Optional[str] = None, db: Session = Depends(get_db)):
 
 @router.post("/ajuste-saldo", response_model=AjusteSaldoResponse, status_code=201)
 def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
+    # Validar y convertir tipo
+    tipos_validos = ['efectivo', 'transferencia', 'tarjeta']
+    if data.tipo not in tipos_validos:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Tipo inválido. Debe ser uno de: {', '.join(tipos_validos)}")
+    
+    tipo_enum = MetodoPagoEnum(data.tipo)
     liquidez = obtener_liquidez(db)
-    saldo_actual = getattr(liquidez, data.tipo.value)
+    saldo_actual = getattr(liquidez, tipo_enum.value)
 
     ajuste = AjusteSaldo(
-        tipo=data.tipo,
+        tipo=tipo_enum,
         monto_anterior=saldo_actual,
         monto_nuevo=data.monto_nuevo,
         nota=data.nota,
