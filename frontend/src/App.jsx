@@ -5,6 +5,8 @@ import Dashboard from './pages/Dashboard'
 import Stock from './pages/Stock'
 import Ventas from './pages/Ventas'
 import Compras from './pages/Compras'
+import SugeridorCompras from './pages/Compras/SugeridorCompras'
+import ConfiguracionSistema from './pages/ConfiguracionSistema'
 import { Clientes } from './pages/Clientes'
 import { Movimientos } from './pages/Movimientos'
 import { Finanzas } from './pages/Finanzas'
@@ -33,6 +35,8 @@ export default function App() {
             <Route path="sucursales" element={<Sucursales />} />
             <Route path="categorias" element={<Categorias />} />
             <Route path="config/marcas" element={<MarcasConfig />} />
+            <Route path="config/sistema" element={<ConfiguracionSistema />} />
+            <Route path="sugeridor-compras" element={<SugeridorCompras />} />
           </Route>
         </Routes>
       </SucursalProvider>

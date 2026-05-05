@@ -9,6 +9,7 @@ from app.routers import productos, ventas, compras, clientes, finanzas, deudas, 
 from app.routers.movimientos_sucursales import movimientos_router, sucursales_router
 from app.routers import categorias_productos
 from app.routers import marcas_config as marcas_config_router
+from app.routers.configuracion_erp import config_router, sugerencias_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -35,6 +36,22 @@ def _run_migrations():
                 color VARCHAR(20) NOT NULL DEFAULT '#ff9800',
                 creado_en TIMESTAMPTZ DEFAULT NOW()
             )
+        """))
+        # Tabla de configuración ERP (parámetros logísticos)
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS configuraciones_erp (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                dias_demora_proveedor INTEGER NOT NULL DEFAULT 3,
+                dias_stock_seguridad INTEGER NOT NULL DEFAULT 5,
+                ventana_dias_analisis_ventas INTEGER NOT NULL DEFAULT 30,
+                umbral_ventas_producto_estrella INTEGER NOT NULL DEFAULT 15,
+                actualizado_en TIMESTAMPTZ
+            )
+        """))
+        # Insertar fila singleton si no existe
+        conn.execute(text("""
+            INSERT INTO configuraciones_erp (id) VALUES (1)
+            ON CONFLICT (id) DO NOTHING
         """))
         conn.commit()
 
@@ -134,6 +151,8 @@ app.include_router(recordatorios.router)
 app.include_router(movimientos_router)
 app.include_router(sucursales_router)
 app.include_router(marcas_config_router.router)
+app.include_router(config_router)
+app.include_router(sugerencias_router)
 
 
 @app.get("/", tags=["Health"])

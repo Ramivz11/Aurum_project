@@ -15,6 +15,7 @@ export const productosApi = {
   actualizarVariante: (varianteId, data) => api.put(`/productos/variantes/${varianteId}`, data),
   eliminarVariante: (varianteId) => api.delete(`/productos/variantes/${varianteId}`),
   ajustarStock: (varianteId, stockActual) => api.put(`/productos/variantes/${varianteId}/stock`, { stock_actual: stockActual }),
+  historialPrecios: (varianteId) => api.get(`/productos/variantes/${varianteId}/historial-precios`),
 }
 
 // ── VENTAS ──
@@ -55,6 +56,7 @@ export const clientesApi = {
   crear: (data) => api.post('/clientes', data),
   actualizar: (id, data) => api.put(`/clientes/${id}`, data),
   eliminar: (id) => api.delete(`/clientes/${id}`),
+  perfil: (id) => api.get(`/clientes/${id}/perfil`),
 }
 
 // ── FINANZAS ──
@@ -78,6 +80,10 @@ export const finanzasApi = {
   categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
   crearCategoria: (nombre) => api.post(`/finanzas/categorias-gasto?nombre=${encodeURIComponent(nombre)}`),
   resumenDia: () => api.get('/finanzas/resumen-dia'),
+  exportarCsv: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return `${api.defaults.baseURL}/finanzas/exportar-csv${q ? '?' + q : ''}`
+  },
 }
 
 // ── MOVIMIENTOS ──
@@ -153,10 +159,21 @@ export const recordatoriosApi = {
   eliminar: (id) => api.delete(`/recordatorios/${id}`),
 }
 
-// ── CATEGORÍAS PRODUCTO ──
 export const categoriasProductoApi = {
   listar: () => api.get('/categorias-producto'),
   crear: (data) => api.post('/categorias-producto', data),
   actualizar: (id, data) => api.put(`/categorias-producto/${id}`, data),
   eliminar: (id) => api.delete(`/categorias-producto/${id}`),
 }
+
+// ── CONFIGURACIÓN ERP ──
+export const configuracionErpApi = {
+  obtener: () => api.get('/api/configuracion'),
+  actualizar: (data) => api.put('/api/configuracion', data),
+}
+
+// ── SUGERENCIAS DE COMPRA IA ──
+export const sugerenciasCompraApi = {
+  generar: (presupuesto) => api.post('/api/compras/sugerencias', { presupuesto_disponible: presupuesto }),
+}
+

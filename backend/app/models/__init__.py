@@ -118,6 +118,7 @@ class Variante(Base):
     producto = relationship("Producto", back_populates="variantes")
     items_venta = relationship("VentaItem", back_populates="variante")
     items_compra = relationship("CompraItem", back_populates="variante")
+    historial_precios = relationship("PrecioHistorial", back_populates="variante", cascade="all, delete-orphan")
     stocks_sucursal = relationship("StockSucursal", back_populates="variante", cascade="all, delete-orphan")
     transferencias_origen = relationship("Transferencia", foreign_keys="Transferencia.variante_id", back_populates="variante")
 
@@ -205,10 +206,27 @@ class VentaItem(Base):
     variante_id = Column(Integer, ForeignKey("variantes.id"), nullable=False)
     cantidad = Column(Integer, nullable=False)
     precio_unitario = Column(Numeric(12, 2), nullable=False)
+    costo_unitario = Column(Numeric(12, 2), nullable=True)  # costo al momento de la venta
     subtotal = Column(Numeric(12, 2), nullable=False)
 
     venta = relationship("Venta", back_populates="items")
     variante = relationship("Variante", back_populates="items_venta")
+
+
+# ─── HISTORIAL DE PRECIOS ─────────────────────────────────────────────────────
+
+class PrecioHistorial(Base):
+    """Registra cambios de costo o precio_venta en una variante."""
+    __tablename__ = "precio_historial"
+
+    id = Column(Integer, primary_key=True, index=True)
+    variante_id = Column(Integer, ForeignKey("variantes.id"), nullable=False)
+    campo = Column(String(20), nullable=False)  # 'costo' o 'precio_venta'
+    valor_anterior = Column(Numeric(12, 2), nullable=False)
+    valor_nuevo = Column(Numeric(12, 2), nullable=False)
+    fecha = Column(DateTime(timezone=True), server_default=func.now())
+
+    variante = relationship("Variante", back_populates="historial_precios")
 
 
 # ─── COMPRAS ──────────────────────────────────────────────────────────────────
@@ -325,3 +343,17 @@ class Recordatorio(Base):
     prioridad = Column(Enum(PrioridadEnum), nullable=False, default=PrioridadEnum.media)
     completado = Column(Boolean, default=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ─── CONFIGURACIÓN ERP ───────────────────────────────────────────────────────
+
+class ConfiguracionERP(Base):
+    """Fila singleton (id=1) con los parámetros logísticos del negocio."""
+    __tablename__ = "configuraciones_erp"
+
+    id = Column(Integer, primary_key=True, default=1)
+    dias_demora_proveedor = Column(Integer, nullable=False, default=3)
+    dias_stock_seguridad = Column(Integer, nullable=False, default=5)
+    ventana_dias_analisis_ventas = Column(Integer, nullable=False, default=30)
+    umbral_ventas_producto_estrella = Column(Integer, nullable=False, default=15)
+    actualizado_en = Column(DateTime(timezone=True), onupdate=func.now())

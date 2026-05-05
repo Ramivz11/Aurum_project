@@ -464,3 +464,52 @@ class TransferenciaResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ─── CONFIGURACIÓN ERP ──────────────────────────────────────────────────────
+
+class ConfiguracionERPResponse(BaseModel):
+    dias_demora_proveedor: int
+    dias_stock_seguridad: int
+    ventana_dias_analisis_ventas: int
+    umbral_ventas_producto_estrella: int
+
+    class Config:
+        from_attributes = True
+
+
+class ConfiguracionERPUpdate(BaseModel):
+    dias_demora_proveedor: Optional[int] = Field(None, ge=0)
+    dias_stock_seguridad: Optional[int] = Field(None, ge=0)
+    ventana_dias_analisis_ventas: Optional[int] = Field(None, ge=1)
+    umbral_ventas_producto_estrella: Optional[int] = Field(None, ge=1)
+
+
+# ─── SUGERENCIA DE COMPRA IA ────────────────────────────────────────────────
+
+class SugerenciaCompraRequest(BaseModel):
+    presupuesto_disponible: Decimal = Field(..., gt=0, description="Presupuesto en ARS")
+
+
+class ProductoSugerido(BaseModel):
+    variante_id: int
+    producto: str
+    sabor: Optional[str] = None
+    tamanio: Optional[str] = None
+    stock_actual: int
+    velocidad_diaria: float
+    dias_cobertura: float
+    cantidad_sugerida: int
+    costo_unitario: Decimal
+    subtotal: Decimal
+    prioridad: str  # "critico" | "alto" | "medio" | "bajo"
+    justificacion: str
+
+
+class SugerenciaCompraResponse(BaseModel):
+    productos: List[ProductoSugerido]
+    total_estimado: Decimal
+    presupuesto_disponible: Decimal
+    presupuesto_restante: Decimal
+    alerta_presupuesto: Optional[str] = None
+    resumen_ia: str

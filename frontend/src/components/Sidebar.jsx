@@ -12,6 +12,7 @@ const NAV = [
   { label: 'Operaciones', items: [
     { to: '/ventas', icon: '↑', label: 'Ventas', badge: 'pedidos' },
     { to: '/compras', icon: '↓', label: 'Compras' },
+    { to: '/sugeridor-compras', icon: '🧠', label: 'Sugeridor IA' },
     { to: '/movimientos', icon: '⇄', label: 'Movimientos' },
   ]},
   { label: 'Gestión', items: [
@@ -21,6 +22,7 @@ const NAV = [
   ]},
   { label: 'Configuración', items: [
     { to: '/config/marcas', icon: '⚙', label: 'Marcas' },
+    { to: '/config/sistema', icon: '📐', label: 'Sistema' },
   ]},
 ]
 

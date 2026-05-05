@@ -114,3 +114,15 @@ export const marcasConfigApi = {
   upsert: (nombre, color) => api.put(`/marcas-config/${encodeURIComponent(nombre)}`, { color }),
   batch: (marcas) => api.post('/marcas-config/batch', marcas),
 }
+
+// ── CONFIGURACIÓN ERP ──
+export const configuracionErpApi = {
+  obtener: () => api.get('/api/configuracion'),
+  actualizar: (data) => api.put('/api/configuracion', data),
+}
+
+// ── SUGERENCIAS DE COMPRA IA ──
+export const sugerenciasCompraApi = {
+  generar: (presupuesto) => api.post('/api/compras/sugerencias', { presupuesto_disponible: presupuesto }),
+}
+
