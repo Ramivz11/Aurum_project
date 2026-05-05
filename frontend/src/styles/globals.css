@@ -240,6 +240,44 @@ body::before {
   flex-shrink: 0;
 }
 
+/* Responsive adjustments for mobile / small screens */
+@media (max-width: 900px) {
+  :root {
+    --sidebar-w: 0px;
+    --topbar-h: 56px; /* mobile header height */
+    --mobile-nav-h: 64px;
+  }
+
+  /* Hide desktop sidebar, show mobile header and bottom nav */
+  .sidebar { display: none; }
+  .mobile-header { display: flex; }
+  .bottom-nav { display: flex; }
+
+  /* Mobile drawer should be slightly narrower than full width */
+  .mobile-drawer { width: 86%; }
+
+  /* Hide desktop topbar (we use mobile header) */
+  .topbar { display: none; }
+
+  /* Content spacing so nothing quede debajo del header/footer */
+  .content, .page-content {
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: calc(var(--topbar-h) + 12px);
+    padding-bottom: calc(var(--mobile-nav-h) + 20px);
+  }
+
+  /* Slightly smaller titles on mobile */
+  .page-title { font-size: 16px; }
+
+  /* Make cards and lists more compact */
+  .card, .modal, .product-rank, .pedido-card { padding: 10px; }
+
+  /* Buttons and chips size adjustments */
+  .btn { padding: 6px 10px; }
+  .brand-badge { padding: 2px 6px; font-size: 10px; border-radius: 6px; }
+}
+
 .main-area {
   flex: 1;
   display: flex;
