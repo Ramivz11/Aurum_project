@@ -373,11 +373,12 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
 
   return (
     <>
-      <div style={{ background: 'rgba(15,22,41,0.75)', border: `1px solid ${borderColor}`, borderRadius: 14, marginBottom: 6, overflow: 'hidden', transition: 'border-color 0.2s' }}>
+      <div className="product-card" style={{ background: 'rgba(15,22,41,0.75)', border: `1px solid ${borderColor}`, borderRadius: 14, marginBottom: 6, overflow: 'hidden', transition: 'border-color 0.2s' }}>
 
         {/* ── Fila principal ── */}
         <div
-          style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto auto', alignItems: 'center', minHeight: 66, cursor: !esSingle ? 'pointer' : 'default', padding: '0 10px 0 0' }}
+          className="product-row-main"
+          style={{ alignItems: 'center', minHeight: 66, cursor: !esSingle ? 'pointer' : 'default', padding: '0 10px 0 0' }}
           onClick={() => !esSingle && setExpanded(e => !e)}
         >
           {/* Toggle / dot */}
@@ -391,7 +392,7 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
           {/* Info producto */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', minWidth: 0 }} onClick={e => e.stopPropagation()}>
             {/* Thumbnail */}
-            <div style={{ width: 100, height: 100, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="product-thumb" style={{ borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {p.imagen_url
                 ? <img src={p.imagen_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
                 : <span style={{ fontSize: 18, opacity: 0.2 }}>◉</span>
