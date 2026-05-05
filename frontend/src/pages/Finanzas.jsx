@@ -116,11 +116,16 @@ export function Finanzas() {
     try {
       const valid = ['efectivo', 'transferencia', 'tarjeta']
       if (!valid.includes(ajuste.tipo)) return toast('Tipo inválido. Seleccioná efectivo, transferencia o tarjeta', 'error')
-      await finanzasApi.ajustarSaldo({ tipo: ajuste.tipo, monto_nuevo: parseFloat(ajuste.monto_nuevo), nota: ajuste.nota })
+      const monto = parseFloat(ajuste.monto_nuevo)
+      if (isNaN(monto)) return toast('Ingresá un monto numérico válido', 'error')
+      await finanzasApi.ajustarSaldo({ tipo: ajuste.tipo, monto_nuevo: monto, nota: ajuste.nota })
       toast('Saldo ajustado')
       setModalAjuste(false)
       cargar()
-    } catch (e) { toast(e.message, 'error') }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.response?.data || e?.message || 'Error al ajustar saldo'
+      toast(msg, 'error')
+    }
   }
 
   const maxIngreso = Math.max(Number(analisis?.ingresos || 0), 1)
