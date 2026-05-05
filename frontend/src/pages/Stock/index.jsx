@@ -382,7 +382,7 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
           onClick={() => !esSingle && setExpanded(e => !e)}
         >
           {/* Toggle / dot */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="product-dot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {!esSingle
               ? <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', transition: 'transform 0.2s', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', userSelect: 'none' }}>▶</span>
               : <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusDot, display: 'block', boxShadow: `0 0 7px ${statusDot}88` }} />
@@ -390,7 +390,7 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
           </div>
 
           {/* Info producto */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', minWidth: 0 }} onClick={e => e.stopPropagation()}>
+          <div className="product-info-wrapper" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', minWidth: 0 }} onClick={e => e.stopPropagation()}>
             {/* Thumbnail */}
             <div className="product-thumb" style={{ borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {p.imagen_url
@@ -399,7 +399,7 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
               }
             </div>
 
-            <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="product-info" style={{ minWidth: 0, flex: 1 }}>
               {/* Nombre + badges */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 7 }}>
                 <span style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>{p.nombre}</span>
@@ -450,8 +450,11 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
             </div>
           </div>
 
-          {/* Precio + margen */}
-          <div style={{ textAlign: 'right', paddingRight: 14, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+          {/* Precio + costo + margen */}
+          <div className="product-price" style={{ textAlign: 'right', paddingRight: 14, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.36)' }}>Costo</div>
+            <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 15, fontWeight: 800, color: '#f1f5f9', lineHeight: 1 }}>{formatARS(costoMin)}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.24)', marginTop: 6 }}>Venta</div>
             <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 15, fontWeight: 800, color: '#f1f5f9', lineHeight: 1 }}>{formatARS(precioMin)}</div>
             {margen !== null && (
               <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3, color: margen >= 25 ? '#22c55e' : margen >= 15 ? '#fbbf24' : '#ef4444' }}>{margen}% mrg</div>
@@ -459,7 +462,7 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
           </div>
 
           {/* Acciones */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }} onClick={e => e.stopPropagation()}>
+          <div className="product-actions" style={{ display: 'flex', alignItems: 'center', gap: 3 }} onClick={e => e.stopPropagation()}>
             {esSingle && (
               <button title="Transferir stock" onClick={() => setTransferVar(v0)}
                 style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,152,0,0.2)', background: 'rgba(255,152,0,0.08)', color: 'rgba(255,152,0,0.8)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
