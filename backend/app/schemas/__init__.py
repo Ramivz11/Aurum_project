@@ -314,6 +314,12 @@ class ProductoTopResponse(BaseModel):
     ganancia: Decimal
     margen_porcentaje: float
 
+class ValorStockResponse(BaseModel):
+    total_valor_costo: Decimal
+    total_valor_venta: Decimal
+    cantidad_total_unidades: int
+    diferencia_ganancia_potencial: Decimal
+
 
 # ─── SUCURSALES ──────────────────────────────────────────────────────────────
 
