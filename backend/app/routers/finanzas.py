@@ -416,37 +416,42 @@ def obtener_valor_total_stock(db: Session = Depends(get_db)):
     - cantidad_total_unidades: cantidad total de unidades en stock
     - diferencia_ganancia_potencial: diferencia entre valor venta y valor costo
     """
-    from app.models import StockSucursal, Variante as VarianteModel
+    from app.models import StockSucursal
     
-    # Obtener todos los stocks con sus variantes
-    stocks = db.query(StockSucursal).join(
-        VarianteModel,
-        StockSucursal.variante_id == VarianteModel.id
-    ).all()
-    
-    total_valor_costo = Decimal("0")
-    total_valor_venta = Decimal("0")
-    cantidad_total = 0
-    
-    for stock in stocks:
-        variante = stock.variante
-        cantidad = stock.cantidad
+    try:
+        # Obtener todos los stocks
+        stocks = db.query(StockSucursal).all()
         
-        valor_costo = Decimal(str(cantidad)) * (variante.costo or Decimal("0"))
-        valor_venta = Decimal(str(cantidad)) * (variante.precio_venta or Decimal("0"))
+        total_valor_costo = Decimal("0")
+        total_valor_venta = Decimal("0")
+        cantidad_total = 0
         
-        total_valor_costo += valor_costo
-        total_valor_venta += valor_venta
-        cantidad_total += cantidad
-    
-    ganancia_potencial = total_valor_venta - total_valor_costo
-    
-    return ValorStockResponse(
-        total_valor_costo=total_valor_costo,
-        total_valor_venta=total_valor_venta,
-        cantidad_total_unidades=cantidad_total,
-        diferencia_ganancia_potencial=ganancia_potencial
-    )
+        for stock in stocks:
+            variante = stock.variante
+            if not variante:
+                continue
+            cantidad = stock.cantidad
+            
+            valor_costo = Decimal(str(cantidad)) * (variante.costo or Decimal("0"))
+            valor_venta = Decimal(str(cantidad)) * (variante.precio_venta or Decimal("0"))
+            
+            total_valor_costo += valor_costo
+            total_valor_venta += valor_venta
+            cantidad_total += cantidad
+        
+        ganancia_potencial = total_valor_venta - total_valor_costo
+        
+        return ValorStockResponse(
+            total_valor_costo=total_valor_costo,
+            total_valor_venta=total_valor_venta,
+            cantidad_total_unidades=cantidad_total,
+            diferencia_ganancia_potencial=ganancia_potencial
+        )
+    except Exception as e:
+        from fastapi import HTTPException
+        print(f"Error en valor-stock: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al calcular valor de stock: {str(e)}")
+
 
 
 # ─── EXPORTAR CSV ────────────────────────────────────────────────────────────

@@ -107,8 +107,23 @@ export function Finanzas() {
 
   const cargar = () => {
     setLoading(true)
-    Promise.all([finanzasApi.liquidez(), finanzasApi.analisisMes(), finanzasApi.productosTop(), finanzasApi.listarGastos(), finanzasApi.categoriasGasto(), finanzasApi.valorStock()])
-      .then(([l, a, t, g, c, vs]) => { setLiquidez(l.data); setAnalisis(a.data); setTop(t.data); setGastos(g.data); setCategorias(c.data); setValorStock(vs.data) })
+    Promise.allSettled([
+      finanzasApi.liquidez(),
+      finanzasApi.analisisMes(),
+      finanzasApi.productosTop(),
+      finanzasApi.listarGastos(),
+      finanzasApi.categoriasGasto(),
+      finanzasApi.valorStock()
+    ])
+      .then(([l, a, t, g, c, vs]) => {
+        if (l.status === 'fulfilled') setLiquidez(l.value.data)
+        if (a.status === 'fulfilled') setAnalisis(a.value.data)
+        if (t.status === 'fulfilled') setTop(t.value.data)
+        if (g.status === 'fulfilled') setGastos(g.value.data)
+        if (c.status === 'fulfilled') setCategorias(c.value.data)
+        if (vs.status === 'fulfilled') setValorStock(vs.value.data)
+        if (vs.status === 'rejected') console.error('Error cargando valor stock:', vs.reason)
+      })
       .finally(() => setLoading(false))
   }
   useEffect(() => { cargar() }, [])
