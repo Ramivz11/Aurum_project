@@ -19,6 +19,8 @@ def _run_migrations():
         conn.execute(
             text("ALTER TABLE sucursales ADD COLUMN IF NOT EXISTS es_central BOOLEAN DEFAULT FALSE NOT NULL")
         )
+        conn.execute(
+            text("ALTER TABLE venta_items ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(12,2)"))
         # Tabla de ajustes de ganancia
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ganancia_ajuste (
