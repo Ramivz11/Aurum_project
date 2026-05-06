@@ -186,3 +186,68 @@ def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     cliente.activo = False
     db.commit()
+
+
+# ─── PERFIL DE CLIENTE ───────────────────────────────────────────────────────
+
+@router.get("/{cliente_id}/perfil")
+def perfil_cliente(cliente_id: int, db: Session = Depends(get_db)):
+    """Dashboard individual del cliente: historial, favoritos, gasto por mes."""
+    from app.models import Variante, Producto
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    ventas_conf = [v for v in cliente.ventas if v.estado == "confirmada"]
+    total_gastado = sum(v.total for v in ventas_conf) or Decimal("0")
+
+    # Historial de compras (últimas 20)
+    historial = sorted(ventas_conf, key=lambda v: v.fecha, reverse=True)[:20]
+    historial_data = [{
+        "id": v.id, "fecha": v.fecha.isoformat(), "total": float(v.total),
+        "metodo_pago": v.metodo_pago.value if hasattr(v.metodo_pago, 'value') else v.metodo_pago,
+        "items": len(v.items),
+    } for v in historial]
+
+    # Productos favoritos (más comprados)
+    from collections import Counter
+    product_counts = Counter()
+    product_info = {}
+    for v in ventas_conf:
+        for item in v.items:
+            variante = item.variante
+            if variante and variante.producto:
+                key = variante.producto.nombre
+                product_counts[key] += item.cantidad
+                if key not in product_info:
+                    product_info[key] = {
+                        "nombre": key, "marca": variante.producto.marca,
+                        "sabor": variante.sabor, "tamanio": variante.tamanio,
+                    }
+    favoritos = [
+        {**product_info[nombre], "cantidad_total": cant}
+        for nombre, cant in product_counts.most_common(5)
+    ]
+
+    # Gasto por mes (últimos 6 meses)
+    from collections import defaultdict
+    gasto_mes = defaultdict(float)
+    for v in ventas_conf:
+        key = f"{v.fecha.year}-{v.fecha.month:02d}"
+        gasto_mes[key] += float(v.total)
+    meses_ordenados = sorted(gasto_mes.items())[-6:]
+
+    return {
+        "cliente": {
+            "id": cliente.id, "nombre": cliente.nombre,
+            "ubicacion": cliente.ubicacion, "telefono": cliente.telefono,
+        },
+        "total_gastado": float(total_gastado),
+        "cantidad_compras": len(ventas_conf),
+        "ticket_promedio": float(total_gastado / len(ventas_conf)) if ventas_conf else 0,
+        "historial": historial_data,
+        "favoritos": favoritos,
+        "gasto_por_mes": [{"mes": m, "total": t} for m, t in meses_ordenados],
+    }
+

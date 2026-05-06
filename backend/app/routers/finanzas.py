@@ -36,7 +36,7 @@ def _calcular_ganancia_bruta(db: Session, mes: int = None, anio: int = None) -> 
         )
     items = query.all()
     return sum(
-        (item.precio_unitario - variante.costo) * item.cantidad
+        (item.precio_unitario - (item.costo_unitario if item.costo_unitario is not None else variante.costo)) * item.cantidad
         for item, variante in items
     ) if items else Decimal("0")
 
@@ -401,3 +401,68 @@ def resumen_del_dia(db: Session = Depends(get_db)):
         "tendencia_mensual": tendencia,
         "margen_promedio": margen_promedio,
     }
+
+
+# ─── EXPORTAR CSV ────────────────────────────────────────────────────────────
+
+@router.get("/exportar-csv")
+def exportar_csv(
+    mes: Optional[int] = Query(None),
+    anio: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Genera un CSV con el resumen financiero del mes y los movimientos."""
+    from fastapi.responses import StreamingResponse
+    import io, csv
+
+    now = datetime.now()
+    mes = mes or now.month
+    anio = anio or now.year
+
+    # Obtener análisis
+    analisis = analisis_del_mes(mes=mes, anio=anio, db=db)
+    top = productos_mas_vendidos(mes=mes, anio=anio, limite=20, db=db)
+    gastos_list = listar_gastos(mes=mes, anio=anio, db=db)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Resumen
+    writer.writerow(["RESUMEN FINANCIERO", f"{mes:02d}/{anio}"])
+    writer.writerow([])
+    writer.writerow(["Concepto", "Monto"])
+    writer.writerow(["Ingresos (ventas)", float(analisis.ingresos)])
+    writer.writerow(["Compras", float(analisis.compras)])
+    writer.writerow(["Gastos operativos", float(analisis.gastos)])
+    writer.writerow(["Neto", float(analisis.neto)])
+    writer.writerow(["Ganancia bruta", float(analisis.ganancia)])
+    writer.writerow(["Margen promedio %", analisis.margen_promedio])
+    writer.writerow([])
+
+    # Productos top
+    writer.writerow(["PRODUCTOS MÁS VENDIDOS"])
+    writer.writerow(["Producto", "Marca", "Sabor", "Tamaño", "Unidades", "Ingreso", "Costo", "Ganancia", "Margen %"])
+    for p in top:
+        writer.writerow([p.nombre_producto, p.marca or "", p.sabor or "", p.tamanio or "",
+                         p.cantidad_vendida, float(p.ingreso_total), float(p.costo_total),
+                         float(p.ganancia), p.margen_porcentaje])
+    writer.writerow([])
+
+    # Gastos
+    writer.writerow(["GASTOS DEL MES"])
+    writer.writerow(["Fecha", "Concepto", "Monto", "Método de pago"])
+    for g in gastos_list:
+        writer.writerow([
+            g.fecha.strftime("%d/%m/%Y") if g.fecha else "",
+            g.concepto, float(g.monto),
+            g.metodo_pago.value if hasattr(g.metodo_pago, 'value') else g.metodo_pago
+        ])
+
+    output.seek(0)
+    filename = f"finanzas_{mes:02d}_{anio}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+

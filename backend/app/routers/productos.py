@@ -6,7 +6,7 @@ from decimal import Decimal
 from pydantic import BaseModel as PydanticBase
 
 from app.database import get_db
-from app.models import Producto, Variante
+from app.models import Producto, Variante, PrecioHistorial
 from app.schemas import (
     ProductoCreate, ProductoUpdate, ProductoResponse,
     VarianteCreate, VarianteUpdate, VarianteResponse,
@@ -14,6 +14,18 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/productos", tags=["Productos"])
+
+
+def _registrar_cambio_precio(db: Session, variante: Variante, campo: str, valor_nuevo):
+    """Registra un cambio de precio/costo en el historial si el valor cambió."""
+    valor_anterior = getattr(variante, campo)
+    if valor_anterior is not None and valor_nuevo is not None and valor_anterior != valor_nuevo:
+        db.add(PrecioHistorial(
+            variante_id=variante.id,
+            campo=campo,
+            valor_anterior=valor_anterior,
+            valor_nuevo=valor_nuevo,
+        ))
 
 
 # ─── AJUSTE DE PRECIOS POR LOTE (debe ir ANTES de /{producto_id}) ─────────────
@@ -42,17 +54,22 @@ def ajustar_precio_lote(data: AjustePrecioLote, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No se encontraron variantes para ajustar")
 
     for variante in variantes:
+        nuevo_precio = None
         if data.modo == ModoAjustePrecio.porcentaje:
             factor = 1 + (data.valor / 100)
-            variante.precio_venta = round(variante.precio_venta * factor, 2)
+            nuevo_precio = round(variante.precio_venta * factor, 2)
 
         elif data.modo == ModoAjustePrecio.margen_deseado:
             if data.valor >= 100:
                 raise HTTPException(status_code=400, detail="El margen no puede ser 100% o más")
-            variante.precio_venta = round(variante.costo / (1 - data.valor / 100), 2)
+            nuevo_precio = round(variante.costo / (1 - data.valor / 100), 2)
 
         elif data.modo == ModoAjustePrecio.precio_fijo:
-            variante.precio_venta = data.valor
+            nuevo_precio = data.valor
+
+        if nuevo_precio is not None:
+            _registrar_cambio_precio(db, variante, 'precio_venta', nuevo_precio)
+            variante.precio_venta = nuevo_precio
 
     db.commit()
     for v in variantes:
@@ -218,6 +235,8 @@ def actualizar_variante(
         raise HTTPException(status_code=404, detail="Variante no encontrada")
 
     for campo, valor in data.model_dump(exclude_unset=True).items():
+        if campo in ('costo', 'precio_venta'):
+            _registrar_cambio_precio(db, variante, campo, valor)
         setattr(variante, campo, valor)
 
     db.commit()
@@ -233,3 +252,23 @@ def eliminar_variante(variante_id: int, db: Session = Depends(get_db)):
 
     variante.activa = False
     db.commit()
+
+
+# ─── HISTORIAL DE PRECIOS ────────────────────────────────────────────────────
+
+@router.get("/variantes/{variante_id}/historial-precios")
+def historial_precios(variante_id: int, db: Session = Depends(get_db)):
+    variante = db.query(Variante).filter(Variante.id == variante_id).first()
+    if not variante:
+        raise HTTPException(status_code=404, detail="Variante no encontrada")
+    registros = db.query(PrecioHistorial).filter(
+        PrecioHistorial.variante_id == variante_id
+    ).order_by(PrecioHistorial.fecha.desc()).all()
+    return [
+        {
+            "id": r.id, "campo": r.campo,
+            "valor_anterior": float(r.valor_anterior),
+            "valor_nuevo": float(r.valor_nuevo),
+            "fecha": r.fecha.isoformat() if r.fecha else None,
+        } for r in registros
+    ]

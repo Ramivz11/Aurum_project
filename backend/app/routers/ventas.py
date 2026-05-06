@@ -65,6 +65,7 @@ def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):
             variante_id=item_data.variante_id,
             cantidad=item_data.cantidad,
             precio_unitario=item_data.precio_unitario,
+            costo_unitario=variante.costo,
             subtotal=subtotal,
         )
         db.add(item)
