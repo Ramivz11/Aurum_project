@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { finanzasApi } from '../api'
+import { finanzasApi } from '../api/services'
 import { useToast } from '../components/Toast'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
@@ -107,23 +107,8 @@ export function Finanzas() {
 
   const cargar = () => {
     setLoading(true)
-    Promise.allSettled([
-      finanzasApi.liquidez(),
-      finanzasApi.analisisMes(),
-      finanzasApi.productosTop(),
-      finanzasApi.listarGastos(),
-      finanzasApi.categoriasGasto(),
-      finanzasApi.valorStock()
-    ])
-      .then(([l, a, t, g, c, vs]) => {
-        if (l.status === 'fulfilled') setLiquidez(l.value.data)
-        if (a.status === 'fulfilled') setAnalisis(a.value.data)
-        if (t.status === 'fulfilled') setTop(t.value.data)
-        if (g.status === 'fulfilled') setGastos(g.value.data)
-        if (c.status === 'fulfilled') setCategorias(c.value.data)
-        if (vs.status === 'fulfilled') setValorStock(vs.value.data)
-        if (vs.status === 'rejected') console.error('Error cargando valor stock:', vs.reason)
-      })
+    Promise.all([finanzasApi.liquidez(), finanzasApi.analisisMes(), finanzasApi.productosTop(), finanzasApi.listarGastos(), finanzasApi.categoriasGasto(), finanzasApi.valorStock()])
+      .then(([l, a, t, g, c, vs]) => { setLiquidez(l.data); setAnalisis(a.data); setTop(t.data); setGastos(g.data); setCategorias(c.data); setValorStock(vs.data) })
       .finally(() => setLoading(false))
   }
   useEffect(() => { cargar() }, [])
