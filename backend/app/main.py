@@ -48,9 +48,12 @@ def _run_migrations():
                 actualizado_en TIMESTAMPTZ
             )
         """))
-        # Insertar fila singleton si no existe
+        # Insertar fila singleton si no existe (valores explícitos para NOT NULL)
         conn.execute(text("""
-            INSERT INTO configuraciones_erp (id) VALUES (1)
+            INSERT INTO configuraciones_erp (
+                id, dias_demora_proveedor, dias_stock_seguridad,
+                ventana_dias_analisis_ventas, umbral_ventas_producto_estrella
+            ) VALUES (1, 3, 5, 30, 15)
             ON CONFLICT (id) DO NOTHING
         """))
         conn.commit()
