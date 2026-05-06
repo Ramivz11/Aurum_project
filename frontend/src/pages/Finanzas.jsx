@@ -74,6 +74,7 @@ export function Finanzas() {
   const [top, setTop] = useState([])
   const [gastos, setGastos] = useState([])
   const [categorias, setCategorias] = useState([])
+  const [valorStock, setValorStock] = useState(null)
   const [loading, setLoading] = useState(true)
   const [modalGasto, setModalGasto] = useState(false)
   const [modalAjuste, setModalAjuste] = useState(false)
@@ -106,8 +107,8 @@ export function Finanzas() {
 
   const cargar = () => {
     setLoading(true)
-    Promise.all([finanzasApi.liquidez(), finanzasApi.analisisMes(), finanzasApi.productosTop(), finanzasApi.listarGastos(), finanzasApi.categoriasGasto()])
-      .then(([l, a, t, g, c]) => { setLiquidez(l.data); setAnalisis(a.data); setTop(t.data); setGastos(g.data); setCategorias(c.data) })
+    Promise.all([finanzasApi.liquidez(), finanzasApi.analisisMes(), finanzasApi.productosTop(), finanzasApi.listarGastos(), finanzasApi.categoriasGasto(), finanzasApi.valorStock()])
+      .then(([l, a, t, g, c, vs]) => { setLiquidez(l.data); setAnalisis(a.data); setTop(t.data); setGastos(g.data); setCategorias(c.data); setValorStock(vs.data) })
       .finally(() => setLoading(false))
   }
   useEffect(() => { cargar() }, [])
@@ -213,6 +214,36 @@ export function Finanzas() {
                 <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontWeight: 600 }}>Neto</div>
                   <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, color: analisis.neto >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmt(analisis.neto)}</div>
+                </div>
+
+
+              </div>
+            </div>
+          )}
+
+          {/* Valor del Stock */}
+          {valorStock && (
+            <div className="card">
+              <div className="card-header"><span className="card-title">Valor del Stock</span></div>
+              <div className="card-body">
+                <div className="fin-row">
+                  <div className="fin-label">Valor a costo</div>
+                  <div className="fin-bar-wrap"><div className="fin-bar" style={{ width: '100%', background: 'rgba(139, 92, 246, 0.3)' }} /></div>
+                  <div className="fin-amount" style={{ color: 'rgb(139, 92, 246)' }}>{fmt(valorStock.total_valor_costo)}</div>
+                </div>
+                <div className="fin-row">
+                  <div className="fin-label">Valor a venta</div>
+                  <div className="fin-bar-wrap"><div className="fin-bar" style={{ width: '100%', background: 'rgba(34, 197, 94, 0.3)' }} /></div>
+                  <div className="fin-amount" style={{ color: 'rgb(34, 197, 94)' }}>{fmt(valorStock.total_valor_venta)}</div>
+                </div>
+                <div className="fin-row">
+                  <div className="fin-label">Cantidad unidades</div>
+                  <div style={{ flex: 1 }}></div>
+                  <div className="fin-amount" style={{ color: 'var(--text-muted)' }}>{Number(valorStock.cantidad_total_unidades).toLocaleString('es-AR')} ud</div>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 600 }}>Ganancia potencial</div>
+                  <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, color: valorStock.diferencia_ganancia_potencial >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmt(valorStock.diferencia_ganancia_potencial)}</div>
                 </div>
 
 

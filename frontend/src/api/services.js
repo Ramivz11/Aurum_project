@@ -59,6 +59,7 @@ export const finanzasApi = {
   categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
   crearCategoria: (nombre) => api.post(`/finanzas/categorias-gasto?nombre=${encodeURIComponent(nombre)}`),
   resumenDia: () => api.get('/finanzas/resumen-dia'),
+  valorStock: () => api.get('/finanzas/valor-stock'),
 }
 
 export const movimientosApi = {

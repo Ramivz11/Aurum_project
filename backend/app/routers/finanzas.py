@@ -12,7 +12,8 @@ from app.models import (
 )
 from app.schemas import (
     LiquidezResponse, AjusteSaldoCreate, AjusteSaldoResponse,
-    AnalisisMesResponse, ProductoTopResponse, GastoCreate, GastoResponse
+    AnalisisMesResponse, ProductoTopResponse, GastoCreate, GastoResponse,
+    ValorStockResponse
 )
 
 router = APIRouter(prefix="/finanzas", tags=["Finanzas"])
@@ -401,6 +402,51 @@ def resumen_del_dia(db: Session = Depends(get_db)):
         "tendencia_mensual": tendencia,
         "margen_promedio": margen_promedio,
     }
+
+
+# ─── VALOR TOTAL STOCK ───────────────────────────────────────────────────────
+
+@router.get("/valor-stock", response_model=ValorStockResponse)
+def obtener_valor_total_stock(db: Session = Depends(get_db)):
+    """
+    Calcula el valor total del stock en pesos.
+    Retorna:
+    - total_valor_costo: suma de (cantidad * costo) para todas las variantes
+    - total_valor_venta: suma de (cantidad * precio_venta) para todas las variantes
+    - cantidad_total_unidades: cantidad total de unidades en stock
+    - diferencia_ganancia_potencial: diferencia entre valor venta y valor costo
+    """
+    from app.models import StockSucursal, Variante as VarianteModel
+    
+    # Obtener todos los stocks con sus variantes
+    stocks = db.query(StockSucursal).join(
+        VarianteModel,
+        StockSucursal.variante_id == VarianteModel.id
+    ).all()
+    
+    total_valor_costo = Decimal("0")
+    total_valor_venta = Decimal("0")
+    cantidad_total = 0
+    
+    for stock in stocks:
+        variante = stock.variante
+        cantidad = stock.cantidad
+        
+        valor_costo = Decimal(str(cantidad)) * (variante.costo or Decimal("0"))
+        valor_venta = Decimal(str(cantidad)) * (variante.precio_venta or Decimal("0"))
+        
+        total_valor_costo += valor_costo
+        total_valor_venta += valor_venta
+        cantidad_total += cantidad
+    
+    ganancia_potencial = total_valor_venta - total_valor_costo
+    
+    return ValorStockResponse(
+        total_valor_costo=total_valor_costo,
+        total_valor_venta=total_valor_venta,
+        cantidad_total_unidades=cantidad_total,
+        diferencia_ganancia_potencial=ganancia_potencial
+    )
 
 
 # ─── EXPORTAR CSV ────────────────────────────────────────────────────────────
