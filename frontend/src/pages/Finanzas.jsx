@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { finanzasApi } from '../api/services'
 import { useToast } from '../components/Toast'
+import { exportElementToPDF } from '../api/pdfExport'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
@@ -81,6 +82,7 @@ export function Finanzas() {
   const [ajuste, setAjuste] = useState({ tipo: 'efectivo', monto_nuevo: '', nota: '' })
   const [gananciaNota, setGananciaNota] = useState('')
   const [limpiandoGanancia, setLimpiandoGanancia] = useState(false)
+  const [exportandoPDF, setExportandoPDF] = useState(false)
 
   const handleLimpiarGanancia = async () => {
     if (limpiandoGanancia) return
@@ -129,6 +131,18 @@ export function Finanzas() {
     }
   }
 
+  const exportarPDF = async () => {
+    try {
+      setExportandoPDF(true)
+      await exportElementToPDF('finanzas-content', 'Reporte-Finanzas', 'Reporte de Finanzas')
+      toast('PDF exportado exitosamente')
+    } catch (error) {
+      toast(error.message, 'error')
+    } finally {
+      setExportandoPDF(false)
+    }
+  }
+
   const maxIngreso = Math.max(Number(analisis?.ingresos || 0), 1)
 
   return (
@@ -136,11 +150,12 @@ export function Finanzas() {
       <div className="topbar">
         <div className="page-title">Finanzas</div>
         <div className="topbar-actions">
+          <button className="btn btn-ghost" onClick={exportarPDF} disabled={exportandoPDF}>📄 {exportandoPDF ? 'Exportando...' : 'Exportar PDF'}</button>
           <button className="btn btn-ghost" onClick={() => setModalAjuste(true)}>Ajustar saldo</button>
           <button className="btn btn-primary" onClick={() => setModalGasto(true)}>+ Registrar gasto</button>
         </div>
       </div>
-      <div className="content page-enter">
+      <div className="content page-enter" id="finanzas-content">
         {/* Liquidez */}
         {liquidez && (
           <div className="card">
