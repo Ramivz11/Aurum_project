@@ -48,7 +48,7 @@ function ModalGasto({ categorias, onClose, onSaved }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Método de pago</label>
+            <label className="form-label">Metodo de pago</label>
             <select className="form-select" value={form.metodo_pago} onChange={e => setF('metodo_pago', e.target.value)}>
               <option value="efectivo">Efectivo</option>
               <option value="transferencia">Transferencia</option>
@@ -136,16 +136,16 @@ export function Finanzas() {
 
     const doc = new jsPDF()
     const periodo = analisis.periodo || 'Mes actual'
-    
+
     // Título Principal
     doc.setFontSize(22)
     doc.setFont("helvetica", "bold")
     doc.text(`Reporte Financiero Aurum`, 14, 20)
-    
+
     doc.setFontSize(12)
     doc.setFont("helvetica", "normal")
     doc.text(`Período: ${periodo} | Generado el: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
-    
+
     let yPos = 40
 
     // Sección 1: Análisis del mes (Resumen)
@@ -153,7 +153,7 @@ export function Finanzas() {
     doc.setFont("helvetica", "bold")
     doc.text("Resumen del Mes", 14, yPos)
     yPos += 6
-    
+
     autoTable(doc, {
       startY: yPos,
       head: [['Concepto', 'Monto ($)']],
@@ -169,7 +169,7 @@ export function Finanzas() {
       headStyles: { fillColor: [41, 41, 41] },
       margin: { left: 14 }
     })
-    
+
     yPos = doc.lastAutoTable.finalY + 15
 
     // Sección 2: Liquidez Actual
@@ -178,7 +178,7 @@ export function Finanzas() {
       doc.setFont("helvetica", "bold")
       doc.text("Estado de Cuentas (Liquidez)", 14, yPos)
       yPos += 6
-      
+
       autoTable(doc, {
         startY: yPos,
         head: [['Cuenta', 'Saldo ($)']],
@@ -208,7 +208,7 @@ export function Finanzas() {
       doc.setFont("helvetica", "bold")
       doc.text("Productos Más Rentables del Mes", 14, yPos)
       yPos += 6
-      
+
       const topBody = top.map(p => [
         p.nombre_producto,
         [p.sabor, p.tamanio].filter(Boolean).join(' · '),
@@ -241,7 +241,7 @@ export function Finanzas() {
       doc.setFont("helvetica", "bold")
       doc.text("Listado de Gastos", 14, yPos)
       yPos += 6
-      
+
       const gastosBody = gastos.map(g => [
         new Date(g.fecha).toLocaleDateString('es-AR'),
         g.concepto,
