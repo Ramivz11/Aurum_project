@@ -684,18 +684,10 @@ export default function Compras() {
         styles: { fontSize: 9 }
       }
 
-      let autoTableFn = null
-      try { autoTableFn = require('jspdf-autotable') } catch(e){}
-      if (typeof window !== 'undefined' && window.jspdfAutoTable) autoTableFn = window.jspdfAutoTable
-      
-      if (typeof doc.autoTable === 'function') {
-        doc.autoTable(config)
-      } else if (typeof autoTableFn === 'function') {
-        autoTableFn(doc, config)
-      } else if (autoTableFn && typeof autoTableFn.default === 'function') {
-        autoTableFn.default(doc, config)
+      if (typeof autoTable === 'function') {
+        autoTable(doc, config)
       } else {
-        throw new Error('La función autoTable no está disponible.')
+        doc.autoTable(config)
       }
 
       doc.save(`Compras_${Date.now()}.pdf`)
