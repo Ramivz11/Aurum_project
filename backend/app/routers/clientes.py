@@ -141,6 +141,57 @@ def top_clientes_historico(
         for cliente, total, cantidad, ultima in resultados
     ]
 
+@router.get("/alertas-recompra")
+def alertas_recompra(db: Session = Depends(get_db)):
+    from app.models import Variante, VentaItem
+    # Buscar última fecha de compra por cliente y variante
+    resultados = (
+        db.query(
+            Cliente,
+            Variante,
+            func.max(Venta.fecha).label("ultima_fecha")
+        )
+        .join(Venta, Venta.cliente_id == Cliente.id)
+        .join(VentaItem, VentaItem.venta_id == Venta.id)
+        .join(Variante, Variante.id == VentaItem.variante_id)
+        .filter(Venta.estado == "confirmada")
+        .filter(Variante.dias_duracion.isnot(None))
+        .filter(Variante.dias_duracion > 0)
+        .filter(Cliente.activo == True)
+        .group_by(Cliente.id, Variante.id)
+        .all()
+    )
+
+    now = datetime.now()
+    alertas = []
+    for cliente, variante, ultima_fecha in resultados:
+        # Asegurarse de calcular los días bien, independientemente del timezone
+        fin_estimado = ultima_fecha + timedelta(days=variante.dias_duracion)
+        
+        # Trabajamos con fechas crudas para evitar problemas de offset de SQLAlchemy
+        hoy_date = now.date()
+        fin_date = fin_estimado.date() if hasattr(fin_estimado, 'date') else fin_estimado
+        
+        dias_restantes = (fin_date - hoy_date).days
+        
+        # Si faltan 3 días o menos, y no ha pasado más de 1 mes (evitar spam viejo)
+        if -30 <= dias_restantes <= 3:
+            alertas.append({
+                "cliente_id": cliente.id,
+                "cliente_nombre": cliente.nombre,
+                "cliente_telefono": cliente.telefono,
+                "variante_id": variante.id,
+                "producto_nombre": variante.producto.nombre if variante.producto else "Producto",
+                "sabor": variante.sabor,
+                "tamanio": variante.tamanio,
+                "ultima_compra": ultima_fecha,
+                "dias_restantes": dias_restantes
+            })
+            
+    alertas.sort(key=lambda x: x["dias_restantes"])
+    return alertas
+
+
 
 @router.get("/{cliente_id}", response_model=ClienteConResumen)
 def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):

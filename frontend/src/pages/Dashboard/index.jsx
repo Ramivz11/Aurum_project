@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { finanzasApi, ventasApi, recordatoriosApi, deudasApi } from '../../api'
+import { finanzasApi, ventasApi, recordatoriosApi, deudasApi, clientesApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { useToast } from '../../components/Toast'
 
@@ -150,6 +150,41 @@ function Recordatorios() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   ALERTAS DE RECOMPRA
+   ═══════════════════════════════════════════════════════════════════════════ */
+function AlertasRecompraWidget({ alertas = [] }) {
+  const navigate = useNavigate()
+  if (alertas.length === 0) return null
+
+  return (
+    <div className="card" style={{ marginBottom: 0 }}>
+      <div className="card-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="card-title">Alertas de Recompra</span>
+          <span style={{ background: 'var(--gold)', color: '#111', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20 }}>{alertas.length}</span>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/clientes')}>Ir a Clientes</button>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        {alertas.slice(0, 5).map((a, i) => (
+          <div key={`${a.cliente_id}-${a.variante_id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#f1f5f9' }}>{a.cliente_nombre}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.producto_nombre} {[a.sabor, a.tamanio].filter(Boolean).join(' · ')}</div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: a.dias_restantes <= 0 ? 'var(--red)' : 'var(--gold)' }}>
+                {a.dias_restantes < 0 ? `Hace ${Math.abs(a.dias_restantes)} días` : a.dias_restantes === 0 ? '¡Hoy!' : `En ${a.dias_restantes} d.`}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    DASHBOARD PRINCIPAL
    ═══════════════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
@@ -160,6 +195,7 @@ export default function Dashboard() {
   const [resumenDia, setResumenDia] = useState(null)
   const [gastos, setGastos] = useState([])
   const [deudas, setDeudas] = useState(null)
+  const [alertasRecompra, setAlertasRecompra] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date()
@@ -179,10 +215,11 @@ export default function Dashboard() {
       finanzasApi.resumenDia(),
       finanzasApi.listarGastos({ mes: month, anio: year }),
       deudasApi.resumen().catch(() => ({ data: null })),
-    ]).then(([a, l, p, pd, rd, g, de]) => {
+      clientesApi.alertasRecompra().catch(() => ({ data: [] }))
+    ]).then(([a, l, p, pd, rd, g, de, alrt]) => {
       setAnalisis(a.data); setLiquidez(l.data); setTopProducts(p.data)
       setPedidos(pd.data); setResumenDia(rd.data); setGastos(g.data)
-      setDeudas(de.data)
+      setDeudas(de.data); setAlertasRecompra(alrt.data || [])
     }).catch(console.error).finally(() => setLoading(false))
   }, [selectedMonth])
 
@@ -390,30 +427,33 @@ export default function Dashboard() {
           <Recordatorios />
         </div>
 
-        {/* ─── FILA 5: DEUDAS RESUMEN (si existe) ────────────────────── */}
-        {deudas && (Number(deudas.total_por_cobrar || 0) > 0 || Number(deudas.total_por_pagar || 0) > 0) && (
-          <div className="card" onClick={() => navigate('/finanzas')} style={{ cursor: 'pointer' }}>
-            <div className="card-header"><span className="card-title">Deudas pendientes</span></div>
-            <div className="card-body">
-              <div style={{ display: 'flex', gap: 32, justifyContent: 'center' }}>
-                {Number(deudas.total_por_cobrar || 0) > 0 && (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Por cobrar</div>
-                    <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--green)' }}>{fmt(deudas.total_por_cobrar)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{deudas.cantidad_por_cobrar || 0} pendientes</div>
-                  </div>
-                )}
-                {Number(deudas.total_por_pagar || 0) > 0 && (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Por pagar</div>
-                    <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--red)' }}>{fmt(deudas.total_por_pagar)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{deudas.cantidad_por_pagar || 0} pendientes</div>
-                  </div>
-                )}
+        {/* ─── FILA 5: ALERTAS + DEUDAS ────────────────────────────── */}
+        <div className="grid-2" style={{ marginBottom: 18 }}>
+          {alertasRecompra.length > 0 && <AlertasRecompraWidget alertas={alertasRecompra} />}
+          {deudas && (Number(deudas.total_por_cobrar || 0) > 0 || Number(deudas.total_por_pagar || 0) > 0) && (
+            <div className="card" onClick={() => navigate('/finanzas')} style={{ cursor: 'pointer', marginBottom: 0 }}>
+              <div className="card-header"><span className="card-title">Deudas pendientes</span></div>
+              <div className="card-body">
+                <div style={{ display: 'flex', gap: 32, justifyContent: 'center' }}>
+                  {Number(deudas.total_por_cobrar || 0) > 0 && (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Por cobrar</div>
+                      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--green)' }}>{fmt(deudas.total_por_cobrar)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{deudas.cantidad_por_cobrar || 0} pendientes</div>
+                    </div>
+                  )}
+                  {Number(deudas.total_por_pagar || 0) > 0 && (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Por pagar</div>
+                      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--red)' }}>{fmt(deudas.total_por_pagar)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{deudas.cantidad_por_pagar || 0} pendientes</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
   )

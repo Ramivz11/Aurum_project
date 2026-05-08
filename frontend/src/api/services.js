@@ -42,6 +42,7 @@ export const clientesApi = {
   topMes: () => api.get('/clientes/top-mes'),
   topHistorico: () => api.get('/clientes/top-historico'),
   sinComprasRecientes: (dias = 57) => api.get(`/clientes/sin-compras-recientes?dias=${dias}`),
+  alertasRecompra: () => api.get('/clientes/alertas-recompra'),
   obtener: (id) => api.get(`/clientes/${id}`),
   crear: (data) => api.post('/clientes', data),
   actualizar: (id, data) => api.put(`/clientes/${id}`, data),

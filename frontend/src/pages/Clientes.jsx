@@ -60,10 +60,16 @@ export function Clientes() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
 
+  const [alertas, setAlertas] = useState([])
+
   const cargar = () => {
     setLoading(true)
-    Promise.all([clientesApi.listar({ busqueda }), clientesApi.topHistorico()])
-      .then(([c, t]) => { setClientes(c.data); setTop(t.data) })
+    Promise.all([
+      clientesApi.listar({ busqueda }),
+      clientesApi.topHistorico(),
+      clientesApi.alertasRecompra().catch(() => ({ data: [] }))
+    ])
+      .then(([c, t, a]) => { setClientes(c.data); setTop(t.data); setAlertas(a.data || []) })
       .finally(() => setLoading(false))
   }
   useEffect(() => { cargar() }, [busqueda])
@@ -87,6 +93,34 @@ export function Clientes() {
         </div>
       </div>
       <div className="content page-enter">
+        {/* Alertas de recompra */}
+        {alertas.length > 0 && (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card-header"><span className="card-title" style={{ color: 'var(--gold)' }}>Alertas de Recompra ({alertas.length})</span></div>
+            <div className="card-body" style={{ padding: 0, overflow: 'hidden', borderRadius: '0 0 12px 12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 1, background: 'var(--border)' }}>
+                {alertas.map((a, i) => (
+                  <div key={`${a.cliente_id}-${a.variante_id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', background: 'var(--surface1)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{a.cliente_nombre}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.producto_nombre} {[a.sabor, a.tamanio].filter(Boolean).join(' · ')}</div>
+                      {a.cliente_telefono && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>📞 {a.cliente_telefono}</div>}
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: a.dias_restantes <= 0 ? 'var(--red)' : 'var(--gold)' }}>
+                        {a.dias_restantes < 0 ? `Hace ${Math.abs(a.dias_restantes)} d.` : a.dias_restantes === 0 ? '¡Hoy!' : `En ${a.dias_restantes} d.`}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Últ. compra: {new Date(a.ultima_compra).toLocaleDateString('es-AR')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid-2">
           <div className="card">
             <div className="card-header"><span className="card-title">Clientes con más compras</span></div>

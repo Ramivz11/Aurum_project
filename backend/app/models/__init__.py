@@ -111,6 +111,7 @@ class Variante(Base):
     precio_venta = Column(Numeric(12, 2), nullable=False, default=0)
     stock_actual = Column(Integer, default=0)   # stock en depósito central
     stock_minimo = Column(Integer, default=0)
+    dias_duracion = Column(Integer, nullable=True) # Duración estimada para recompras
     activa = Column(Boolean, default=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
     actualizado_en = Column(DateTime(timezone=True), onupdate=func.now())

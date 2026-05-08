@@ -33,6 +33,7 @@ class VarianteBase(BaseModel):
     costo: Decimal = Decimal("0")
     precio_venta: Decimal = Decimal("0")
     stock_minimo: int = 0
+    dias_duracion: Optional[int] = None
 
 class VarianteCreate(VarianteBase):
     pass
@@ -44,6 +45,7 @@ class VarianteUpdate(BaseModel):
     costo: Optional[Decimal] = None
     precio_venta: Optional[Decimal] = None
     stock_minimo: Optional[int] = None
+    dias_duracion: Optional[int] = None
     activa: Optional[bool] = None
 
 class VarianteResponse(VarianteBase):
