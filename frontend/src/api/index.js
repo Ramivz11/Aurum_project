@@ -52,6 +52,7 @@ export const clientesApi = {
   },
   topMes: () => api.get('/clientes/top-mes'),
   topHistorico: () => api.get('/clientes/top-historico'),
+  sinComprasRecientes: (dias = 57) => api.get(`/clientes/sin-compras-recientes?dias=${dias}`),
   alertasRecompra: () => api.get('/clientes/alertas-recompra'),
   obtener: (id) => api.get(`/clientes/${id}`),
   crear: (data) => api.post('/clientes', data),
@@ -81,6 +82,7 @@ export const finanzasApi = {
   categoriasGasto: () => api.get('/finanzas/categorias-gasto'),
   crearCategoria: (nombre) => api.post(`/finanzas/categorias-gasto?nombre=${encodeURIComponent(nombre)}`),
   resumenDia: () => api.get('/finanzas/resumen-dia'),
+  valorStock: () => api.get('/finanzas/valor-stock'),
   exportarCsv: (params = {}) => {
     const q = new URLSearchParams(params).toString()
     return `${api.defaults.baseURL}/finanzas/exportar-csv${q ? '?' + q : ''}`
@@ -113,6 +115,7 @@ export const stockApi = {
     const q = new URLSearchParams(params).toString()
     return api.get(`/stock${q ? '?' + q : ''}`)
   },
+  marcas: () => api.get('/stock/marcas'),
   ajustarManual: (varianteId, data) => api.put(`/stock/variante/${varianteId}/ajuste`, data),
   transferir: (data) => api.post('/stock/transferencia', data),
   listarTransferencias: (params = {}) => {
