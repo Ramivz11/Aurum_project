@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { configuracionErpApi } from '../api/services'
+import { configuracionErpApi } from '../api'
 import { useToast } from '../components/Toast'
 
 const CAMPOS = [

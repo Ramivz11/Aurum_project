@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { productosApi, categoriasProductoApi, stockApi, sucursalesApi, finanzasApi } from '../../api/services'
+import { productosApi, categoriasProductoApi, stockApi, sucursalesApi, finanzasApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
 import jsPDF from 'jspdf'

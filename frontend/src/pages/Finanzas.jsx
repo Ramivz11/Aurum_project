@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { finanzasApi } from '../api/services'
+import { finanzasApi } from '../api'
 import { useToast } from '../components/Toast'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'

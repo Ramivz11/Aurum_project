@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { finanzasApi, ventasApi, recordatoriosApi, clientesApi } from '../../api/services'
+import { finanzasApi, ventasApi, recordatoriosApi, clientesApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { useToast } from '../../components/Toast'
 

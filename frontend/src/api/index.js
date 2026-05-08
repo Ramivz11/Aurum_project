@@ -167,6 +167,12 @@ export const categoriasProductoApi = {
   eliminar: (id) => api.delete(`/categorias-producto/${id}`),
 }
 
+export const marcasConfigApi = {
+  listar: () => api.get('/marcas-config'),
+  upsert: (nombre, color) => api.put(`/marcas-config/${encodeURIComponent(nombre)}`, { color }),
+  batch: (marcas) => api.post('/marcas-config/batch', marcas),
+}
+
 // ── CONFIGURACIÓN ERP ──
 export const configuracionErpApi = {
   obtener: () => api.get('/api/configuracion'),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { marcasConfigApi, stockApi } from '../api/services'
+import { marcasConfigApi, stockApi } from '../api'
 import { useMarca } from '../context/MarcaContext'
 import { useToast } from '../components/Toast'
 

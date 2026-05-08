@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '../../api/services'
+import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
 import jsPDF from 'jspdf'

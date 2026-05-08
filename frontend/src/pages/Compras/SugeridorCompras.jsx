@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { sugerenciasCompraApi } from '../../api/services'
+import { sugerenciasCompraApi } from '../../api'
 import { useToast } from '../../components/Toast'
 
 const PRIORIDAD_STYLES = {

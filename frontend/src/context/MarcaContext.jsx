@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { marcasConfigApi, stockApi } from '../api/services'
+import { marcasConfigApi, stockApi } from '../api'
 
 const MarcaContext = createContext(null)
 
