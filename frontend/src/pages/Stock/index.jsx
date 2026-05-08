@@ -3,6 +3,8 @@ import toast from 'react-hot-toast'
 import { productosApi, categoriasProductoApi, stockApi, sucursalesApi, finanzasApi } from '../../api/services'
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -593,6 +595,54 @@ export default function Stock() {
 
   const eliminar = async id => { await productosApi.eliminar(id); toast.success('Eliminado'); cargar() }
 
+  const handleExportarPDF = () => {
+    if (productos.length === 0) return toast.error('No hay productos para exportar')
+
+    const doc = new jsPDF()
+    doc.setFontSize(18)
+    doc.setFont("helvetica", "bold")
+    doc.text("Reporte de Stock", 14, 20)
+
+    doc.setFontSize(11)
+    doc.setFont("helvetica", "normal")
+    let filtrosActivos = []
+    if (catFiltro) filtrosActivos.push(`Categoría: ${catFiltro}`)
+    if (marcaFiltro) filtrosActivos.push(`Marca: ${marcaFiltro}`)
+    if (sucFiltro) {
+      const suc = sucursales.find(s => String(s.id) === String(sucFiltro))
+      if (suc) filtrosActivos.push(`Sucursal: ${suc.nombre}`)
+    }
+    const txtFiltros = filtrosActivos.length ? filtrosActivos.join(' | ') : 'Todos los productos'
+    doc.text(`${txtFiltros} | Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
+
+    const tableData = []
+    productos.forEach(p => {
+      const variantes = p.variantes?.filter(v => v.activa !== false) || []
+      const stockTotal = variantes.reduce((a, v) => a + (v.stocks_sucursal || []).reduce((s, ss) => s + ss.cantidad, 0), 0)
+      const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
+
+      tableData.push([
+        p.nombre,
+        p.marca || '—',
+        p.categoria || '—',
+        `${variantes.length} v.`,
+        fmtN(stockTotal),
+        formatARS(precioMin)
+      ])
+    })
+
+    doc.autoTable({
+      startY: 35,
+      head: [['Producto', 'Marca', 'Categoría', 'Variantes', 'Stock Total', 'Precio (desde)']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 41, 41] },
+      styles: { fontSize: 9 }
+    })
+
+    doc.save(`Stock_${Date.now()}.pdf`)
+  }
+
   const hayFiltros = catFiltro || marcaFiltro || sucFiltro
 
   return (
@@ -606,6 +656,7 @@ export default function Stock() {
           </div>
         </div>
         <div className="topbar-actions">
+          <button className="btn btn-ghost" onClick={handleExportarPDF}>Exportar PDF</button>
           <button className="btn btn-ghost" onClick={() => setModalCats(true)}>Categorías</button>
           <button className="btn btn-primary" onClick={() => setModalProd({})}>+ Nuevo producto</button>
         </div>

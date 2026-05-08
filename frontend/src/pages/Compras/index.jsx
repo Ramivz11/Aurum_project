@@ -3,6 +3,8 @@ import { comprasApi, productosApi, categoriasProductoApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { useToast } from '../../components/Toast'
 import { useSucursal } from '../../context/SucursalContext'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const METODOS = ['efectivo', 'transferencia', 'tarjeta']
@@ -652,11 +654,44 @@ export default function Compras() {
 
   const getNombreSucursal = (id) => sucursales.find(s => s.id === id)?.nombre || `#${id}`
 
+  const handleExportarPDF = () => {
+    if (compras.length === 0) return toast('No hay compras para exportar', 'error')
+
+    const doc = new jsPDF()
+    doc.setFontSize(18)
+    doc.setFont("helvetica", "bold")
+    doc.text("Reporte de Compras", 14, 20)
+
+    doc.setFontSize(11)
+    doc.setFont("helvetica", "normal")
+    doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
+
+    const tableData = compras.map(c => [
+      new Date(c.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }),
+      c.proveedor || '—',
+      getNombreSucursal(c.sucursal_id),
+      c.metodo_pago,
+      fmt(c.total)
+    ])
+
+    doc.autoTable({
+      startY: 35,
+      head: [['Fecha', 'Proveedor', 'Sucursal', 'Pago', 'Total']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 41, 41] },
+      styles: { fontSize: 9 }
+    })
+
+    doc.save(`Compras_${Date.now()}.pdf`)
+  }
+
   return (
     <>
       <div className="topbar">
         <div className="page-title">Compras</div>
         <div className="topbar-actions">
+          <button className="btn btn-ghost" onClick={handleExportarPDF}>Exportar PDF</button>
           <button className="btn btn-ghost" onClick={() => setModalIA(true)} style={{ gap: 6 }}>
             ✨ Cargar con IA
           </button>
