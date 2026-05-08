@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { finanzasApi } from '../api/services'
 import { useToast } from '../components/Toast'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
@@ -23,7 +23,7 @@ function ModalGasto({ categorias, onClose, onSaved }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={e => e.targPet === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="modal-header">
           <div className="modal-title">Registrar gasto</div>
@@ -154,7 +154,7 @@ export function Finanzas() {
     doc.text("Resumen del Mes", 14, yPos)
     yPos += 6
 
-    autoTable(doc, {
+    doc.autoTable({
       startY: yPos,
       head: [['Concepto', 'Monto ($)']],
       body: [
@@ -179,7 +179,7 @@ export function Finanzas() {
       doc.text("Estado de Cuentas (Liquidez)", 14, yPos)
       yPos += 6
 
-      autoTable(doc, {
+      doc.autoTable({
         startY: yPos,
         head: [['Cuenta', 'Saldo ($)']],
         body: [
@@ -218,7 +218,7 @@ export function Finanzas() {
         `${p.margen_porcentaje}%`
       ])
 
-      autoTable(doc, {
+        doc.autoTable({
         startY: yPos,
         head: [['Producto', 'Detalle', 'Vendidos', 'Ingreso', 'Ganancia', 'Margen']],
         body: topBody,
@@ -249,7 +249,7 @@ export function Finanzas() {
         fmt(g.monto)
       ])
 
-      autoTable(doc, {
+        doc.autoTable({
         startY: yPos,
         head: [['Fecha', 'Concepto', 'Pago', 'Monto']],
         body: gastosBody,
