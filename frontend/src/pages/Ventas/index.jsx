@@ -4,7 +4,7 @@ import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '..
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 function ModalVenta({ onClose, onSaved, ventaEditar = null }) {
   const esEdicion = ventaEditar !== null
@@ -517,35 +517,53 @@ export default function Ventas() {
   const handleExportarPDF = () => {
     if (ventas.length === 0) return toast.error('No hay ventas para exportar')
 
-    const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.setFont("helvetica", "bold")
-    doc.text("Reporte de Ventas", 14, 20)
+    try {
+      const doc = new jsPDF()
+      doc.setFontSize(18)
+      doc.setFont("helvetica", "bold")
+      doc.text("Reporte de Ventas", 14, 20)
 
-    doc.setFontSize(11)
-    doc.setFont("helvetica", "normal")
-    const filtroLabel = filtros.find(f => f.key === filtro)?.label || 'Todas'
-    doc.text(`Filtro: ${filtroLabel} | Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "normal")
+      const filtroLabel = filtros.find(f => f.key === filtro)?.label || 'Todas'
+      doc.text(`Filtro: ${filtroLabel} | Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
 
-    const tableData = ventas.map(v => [
-      v.cliente_id ? (clienteMap[v.cliente_id] || `Cliente #${v.cliente_id}`) : 'Sin cliente',
-      sucursalMap[v.sucursal_id] || `Sucursal #${v.sucursal_id}`,
-      new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }),
-      METODO_PAGO_LABEL[v.metodo_pago] || v.metodo_pago,
-      formatARS(v.total),
-      v.estado.toUpperCase()
-    ])
+      const tableData = ventas.map(v => [
+        v.cliente_id ? (clienteMap[v.cliente_id] || `Cliente #${v.cliente_id}`) : 'Sin cliente',
+        sucursalMap[v.sucursal_id] || `Sucursal #${v.sucursal_id}`,
+        new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }),
+        METODO_PAGO_LABEL[v.metodo_pago] || v.metodo_pago,
+        formatARS(v.total),
+        v.estado.toUpperCase()
+      ])
 
-    doc.autoTable({
-      startY: 35,
-      head: [['Cliente', 'Sucursal', 'Fecha', 'Pago', 'Total', 'Estado']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [41, 41, 41] },
-      styles: { fontSize: 9 }
-    })
+      const config = {
+        startY: 35,
+        head: [['Cliente', 'Sucursal', 'Fecha', 'Pago', 'Total', 'Estado']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 41, 41] },
+        styles: { fontSize: 9 }
+      }
 
-    doc.save(`Ventas_${filtro || 'todas'}_${Date.now()}.pdf`)
+      let autoTableFn = null
+      try { autoTableFn = require('jspdf-autotable') } catch(e){}
+      if (typeof window !== 'undefined' && window.jspdfAutoTable) autoTableFn = window.jspdfAutoTable
+      
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable(config)
+      } else if (typeof autoTableFn === 'function') {
+        autoTableFn(doc, config)
+      } else if (autoTableFn && typeof autoTableFn.default === 'function') {
+        autoTableFn.default(doc, config)
+      } else {
+        throw new Error('La función autoTable no está disponible.')
+      }
+
+      doc.save(`Ventas_${filtro || 'todas'}_${Date.now()}.pdf`)
+    } catch (e) {
+      alert("Error al generar PDF: " + e.message)
+    }
   }
 
   const filtros = [

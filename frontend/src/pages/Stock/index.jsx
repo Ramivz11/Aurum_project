@@ -4,7 +4,7 @@ import { productosApi, categoriasProductoApi, stockApi, sucursalesApi, finanzasA
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -598,49 +598,68 @@ export default function Stock() {
   const handleExportarPDF = () => {
     if (productos.length === 0) return toast.error('No hay productos para exportar')
 
-    const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.setFont("helvetica", "bold")
-    doc.text("Reporte de Stock", 14, 20)
+    try {
+      const doc = new jsPDF()
+      doc.setFontSize(18)
+      doc.setFont("helvetica", "bold")
+      doc.text("Reporte de Stock", 14, 20)
 
-    doc.setFontSize(11)
-    doc.setFont("helvetica", "normal")
-    let filtrosActivos = []
-    if (catFiltro) filtrosActivos.push(`Categoría: ${catFiltro}`)
-    if (marcaFiltro) filtrosActivos.push(`Marca: ${marcaFiltro}`)
-    if (sucFiltro) {
-      const suc = sucursales.find(s => String(s.id) === String(sucFiltro))
-      if (suc) filtrosActivos.push(`Sucursal: ${suc.nombre}`)
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "normal")
+      let filtrosActivos = []
+      if (catFiltro) filtrosActivos.push(`Categoría: ${catFiltro}`)
+      if (marcaFiltro) filtrosActivos.push(`Marca: ${marcaFiltro}`)
+      if (sucFiltro) {
+        const suc = sucursales.find(s => String(s.id) === String(sucFiltro))
+        if (suc) filtrosActivos.push(`Sucursal: ${suc.nombre}`)
+      }
+      const txtFiltros = filtrosActivos.length ? filtrosActivos.join(' | ') : 'Todos los productos'
+      doc.text(`${txtFiltros} | Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
+
+      const tableData = []
+      productos.forEach(p => {
+        const variantes = p.variantes?.filter(v => v.activa !== false) || []
+        const stockTotal = variantes.reduce((a, v) => a + (v.stocks_sucursal || []).reduce((s, ss) => s + ss.cantidad, 0), 0)
+        const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
+
+        tableData.push([
+          p.nombre,
+          p.marca || '—',
+          p.categoria || '—',
+          `${variantes.length} v.`,
+          fmtN(stockTotal),
+          formatARS(precioMin)
+        ])
+      })
+
+      const config = {
+        startY: 35,
+        head: [['Producto', 'Marca', 'Categoría', 'Variantes', 'Stock Total', 'Precio (desde)']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 41, 41] },
+        styles: { fontSize: 9 }
+      }
+
+      // Hack para compatibilidad Vite / default export
+      let autoTableFn = null
+      try { autoTableFn = require('jspdf-autotable') } catch(e){}
+      if (typeof window !== 'undefined' && window.jspdfAutoTable) autoTableFn = window.jspdfAutoTable
+      
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable(config)
+      } else if (typeof autoTableFn === 'function') {
+        autoTableFn(doc, config)
+      } else if (autoTableFn && typeof autoTableFn.default === 'function') {
+        autoTableFn.default(doc, config)
+      } else {
+        throw new Error('La función autoTable no está disponible. Revisa la importación.')
+      }
+
+      doc.save(`Stock_${Date.now()}.pdf`)
+    } catch (e) {
+      alert("Error al generar PDF: " + e.message)
     }
-    const txtFiltros = filtrosActivos.length ? filtrosActivos.join(' | ') : 'Todos los productos'
-    doc.text(`${txtFiltros} | Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
-
-    const tableData = []
-    productos.forEach(p => {
-      const variantes = p.variantes?.filter(v => v.activa !== false) || []
-      const stockTotal = variantes.reduce((a, v) => a + (v.stocks_sucursal || []).reduce((s, ss) => s + ss.cantidad, 0), 0)
-      const precioMin = variantes.length ? Math.min(...variantes.map(v => Number(v.precio_venta || 0))) : 0
-
-      tableData.push([
-        p.nombre,
-        p.marca || '—',
-        p.categoria || '—',
-        `${variantes.length} v.`,
-        fmtN(stockTotal),
-        formatARS(precioMin)
-      ])
-    })
-
-    doc.autoTable({
-      startY: 35,
-      head: [['Producto', 'Marca', 'Categoría', 'Variantes', 'Stock Total', 'Precio (desde)']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [41, 41, 41] },
-      styles: { fontSize: 9 }
-    })
-
-    doc.save(`Stock_${Date.now()}.pdf`)
   }
 
   const hayFiltros = catFiltro || marcaFiltro || sucFiltro

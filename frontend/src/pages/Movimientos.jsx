@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { movimientosApi } from '../api'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chip-gray' }
@@ -73,33 +73,43 @@ export function Movimientos() {
   }
 
   const handleExportarPDF = () => {
-    const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.setFont("helvetica", "bold")
-    doc.text("Reporte de Movimientos", 14, 20)
+    try {
+      const doc = new jsPDF()
+      doc.setFontSize(18)
+      doc.setFont("helvetica", "bold")
+      doc.text("Reporte de Movimientos", 14, 20)
 
-    doc.setFontSize(11)
-    doc.setFont("helvetica", "normal")
-    doc.text(`Filtro: ${tipo.toUpperCase()} | Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Filtro: ${tipo.toUpperCase()} | Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
 
-    const tableData = lista.map(m => [
-      getChipInfo(m._tipo).label,
-      new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }),
-      getDescripcion(m),
-      m.metodo_pago || '—',
-      fmt(m.total || m.monto)
-    ])
+      const tableData = lista.map(m => [
+        getChipInfo(m._tipo).label,
+        new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }),
+        getDescripcion(m),
+        m.metodo_pago || '—',
+        fmt(m.total || m.monto)
+      ])
 
-    doc.autoTable({
-      startY: 35,
-      head: [['Tipo', 'Fecha', 'Descripción', 'Pago', 'Monto']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [41, 41, 41] },
-      styles: { fontSize: 9 }
-    })
+      const config = {
+        startY: 35,
+        head: [['Tipo', 'Fecha', 'Descripción', 'Pago', 'Monto']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 41, 41] },
+        styles: { fontSize: 9 }
+      }
 
-    doc.save(`Movimientos_${tipo}_${Date.now()}.pdf`)
+      if (typeof autoTable === 'function') {
+        autoTable(doc, config)
+      } else {
+        doc.autoTable(config)
+      }
+
+      doc.save(`Movimientos_${tipo}_${Date.now()}.pdf`)
+    } catch (e) {
+      alert("Error al generar PDF: " + e.message)
+    }
   }
 
   return (
