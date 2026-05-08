@@ -144,21 +144,32 @@ def top_clientes_historico(
 @router.get("/alertas-recompra")
 def alertas_recompra(db: Session = Depends(get_db)):
     from app.models import Variante, VentaItem
-    # Buscar última fecha de compra por cliente y variante
+    
+    # Subquery para obtener la última fecha de compra por cliente y variante
+    subquery = (
+        db.query(
+            Venta.cliente_id.label("cliente_id"),
+            VentaItem.variante_id.label("variante_id"),
+            func.max(Venta.fecha).label("ultima_fecha")
+        )
+        .join(VentaItem, VentaItem.venta_id == Venta.id)
+        .filter(Venta.estado == "confirmada")
+        .filter(Venta.cliente_id.isnot(None))
+        .group_by(Venta.cliente_id, VentaItem.variante_id)
+        .subquery()
+    )
+
     resultados = (
         db.query(
             Cliente,
             Variante,
-            func.max(Venta.fecha).label("ultima_fecha")
+            subquery.c.ultima_fecha
         )
-        .join(Venta, Venta.cliente_id == Cliente.id)
-        .join(VentaItem, VentaItem.venta_id == Venta.id)
-        .join(Variante, Variante.id == VentaItem.variante_id)
-        .filter(Venta.estado == "confirmada")
+        .join(subquery, Cliente.id == subquery.c.cliente_id)
+        .join(Variante, Variante.id == subquery.c.variante_id)
         .filter(Variante.dias_duracion.isnot(None))
         .filter(Variante.dias_duracion > 0)
         .filter(Cliente.activo == True)
-        .group_by(Cliente.id, Variante.id)
         .all()
     )
 
