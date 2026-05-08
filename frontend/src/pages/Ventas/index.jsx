@@ -479,6 +479,7 @@ export default function Ventas() {
   const [ventaEditando, setVentaEditando] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [filtro, setFiltro] = useState('')
+  const [alertas, setAlertas] = useState([])
 
   useEffect(() => {
     finanzasApi.resumenDia()
@@ -493,10 +494,12 @@ export default function Ventas() {
       ventasApi.listar({ estado: filtro || undefined }),
       clientesApi.listar(),
       sucursalesApi.listar(),
-    ]).then(([v, c, s]) => {
+      clientesApi.alertasRecompra().catch(() => ({ data: [] }))
+    ]).then(([v, c, s, a]) => {
       setVentas(v.data)
       setClientes(c.data)
       setSucursales(s.data)
+      setAlertas(a.data || [])
     }).catch(err => {
       console.error('Error cargando ventas:', err)
       toast.error('Error al cargar ventas: ' + (err.message || 'Sin conexión'))
@@ -597,6 +600,47 @@ export default function Ventas() {
     <div className="page-content">
       {loading ? <Loading /> : ventas.length === 0 ? <EmptyState icon="↑" text="Sin ventas." /> : (
         <>
+          {/* Alertas de recompra */}
+          {alertas.length > 0 && (
+            <div style={{
+              margin: '0 0 24px 0',
+              borderRadius: 20,
+              background: 'linear-gradient(135deg, rgba(255,152,0,0.08) 0%, rgba(255,152,0,0.04) 100%)',
+              border: '1px solid rgba(255,152,0,0.2)',
+              overflow: 'hidden',
+            }}>
+              <div style={{ padding: '24px 28px', borderBottom: '1px solid rgba(255,152,0,0.1)' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#ff9800', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>
+                  Clientes para contactar ({alertas.length})
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Estos clientes deben volver a comprar pronto</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 1, background: 'rgba(255,152,0,0.05)' }}>
+                {alertas.map((a, i) => (
+                  <div key={`${a.cliente_id}-${a.variante_id}-${i}`} style={{ 
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', 
+                    background: 'linear-gradient(135deg, rgba(26,32,53,0.8), rgba(22,28,48,0.75))',
+                    borderBottom: i < alertas.length - 1 ? '1px solid rgba(255,152,0,0.05)' : 'none'
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{a.cliente_nombre}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{a.producto_nombre} {[a.sabor, a.tamanio].filter(Boolean).join(' · ')}</div>
+                      {a.cliente_telefono && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 4 }}>📞 {a.cliente_telefono}</div>}
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: a.dias_restantes <= 0 ? '#ef4444' : '#ff9800' }}>
+                        {a.dias_restantes < 0 ? `Hace ${Math.abs(a.dias_restantes)}d` : a.dias_restantes === 0 ? '¡Hoy!' : `En ${a.dias_restantes}d`}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                        {new Date(a.ultima_compra).toLocaleDateString('es-AR')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Column headers */}
           <div style={{
             display: 'grid',
