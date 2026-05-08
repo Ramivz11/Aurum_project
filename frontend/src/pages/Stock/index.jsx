@@ -3,7 +3,6 @@ import toast from 'react-hot-toast'
 import { productosApi, categoriasProductoApi, stockApi, sucursalesApi, finanzasApi } from '../../api/services'
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
-import { exportElementToPDF } from '../../api/pdfExport'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -569,7 +568,6 @@ export default function Stock() {
   const [modalLote, setModalLote]     = useState(null)
   const [modalCats, setModalCats]     = useState(false)
   const [confirm, setConfirm]         = useState(null)
-  const [exportandoPDF, setExportandoPDF] = useState(false)
 
   useEffect(() => {
     categoriasProductoApi.listar().then(r => setCategorias(r.data)).catch(() => {})
@@ -595,18 +593,6 @@ export default function Stock() {
 
   const eliminar = async id => { await productosApi.eliminar(id); toast.success('Eliminado'); cargar() }
 
-  const exportarPDF = async () => {
-    try {
-      setExportandoPDF(true)
-      await exportElementToPDF('stock-content', 'Reporte-Inventario', 'Reporte de Inventario')
-      toast.success('PDF exportado exitosamente')
-    } catch (error) {
-      toast.error(error.message)
-    } finally {
-      setExportandoPDF(false)
-    }
-  }
-
   const hayFiltros = catFiltro || marcaFiltro || sucFiltro
 
   return (
@@ -620,13 +606,12 @@ export default function Stock() {
           </div>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-ghost" onClick={exportarPDF} disabled={exportandoPDF}>📄 {exportandoPDF ? 'Exportando...' : 'Exportar PDF'}</button>
           <button className="btn btn-ghost" onClick={() => setModalCats(true)}>Categorías</button>
           <button className="btn btn-primary" onClick={() => setModalProd({})}>+ Nuevo producto</button>
         </div>
       </div>
 
-      <div className="page-content" id="stock-content">
+      <div className="page-content">
 
         {/* Stats */}
         <StatsBar productos={productos} sucursales={sucursales} resumenDia={resumenDia} loadingResumen={loadingResumen} />

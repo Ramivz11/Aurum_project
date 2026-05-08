@@ -3,7 +3,6 @@ import toast from 'react-hot-toast'
 import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '../../api/services'
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
-import { exportElementToPDF } from '../../api/pdfExport'
 
 function ModalVenta({ onClose, onSaved, ventaEditar = null }) {
   const esEdicion = ventaEditar !== null
@@ -478,7 +477,6 @@ export default function Ventas() {
   const [ventaEditando, setVentaEditando] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [filtro, setFiltro] = useState('')
-  const [exportandoPDF, setExportandoPDF] = useState(false)
 
   useEffect(() => {
     finanzasApi.resumenDia()
@@ -514,18 +512,6 @@ export default function Ventas() {
     catch (e) { toast.error(e.message || 'Error al confirmar') }
   }
 
-  const exportarPDF = async () => {
-    try {
-      setExportandoPDF(true)
-      await exportElementToPDF('ventas-content', 'Reporte-Ventas', 'Reporte de Ventas')
-      toast.success('PDF exportado exitosamente')
-    } catch (error) {
-      toast.error(error.message)
-    } finally {
-      setExportandoPDF(false)
-    }
-  }
-
   const filtros = [
     { key: '', label: 'Todas' },
     { key: 'abierta', label: 'Pedidos abiertos' },
@@ -557,12 +543,11 @@ export default function Ventas() {
             >{f.label}</button>
           )
         })}
-        <button className="btn btn-ghost" onClick={exportarPDF} disabled={exportandoPDF}>📄 {exportandoPDF ? 'Exportando...' : 'Exportar PDF'}</button>
         <button className="btn btn-primary" onClick={() => setModal(true)}>+ Registrar venta</button>
       </div>
     </div>
 
-    <div className="page-content" id="ventas-content">
+    <div className="page-content">
       {loading ? <Loading /> : ventas.length === 0 ? <EmptyState icon="↑" text="Sin ventas." /> : (
         <>
           {/* Column headers */}

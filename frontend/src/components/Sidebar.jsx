@@ -20,10 +20,9 @@ const NAV = [
     { to: '/finanzas', icon: '◇', label: 'Finanzas' },
     { to: '/sucursales', icon: '⬙', label: 'Sucursales' },
   ]},
-  { label: 'Configuraciones', items: [
+  { label: 'Configuración', items: [
     { to: '/config/marcas', icon: '⚙', label: 'Marcas' },
     { to: '/config/sistema', icon: '📐', label: 'Sistema' },
-    { to: '/config/exportar', icon: '📄', label: 'Exportar PDFs' },
   ]},
 ]
 

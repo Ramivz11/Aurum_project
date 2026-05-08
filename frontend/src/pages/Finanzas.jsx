@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { finanzasApi } from '../api/services'
 import { useToast } from '../components/Toast'
-import { exportElementToPDF } from '../api/pdfExport'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
@@ -82,7 +83,6 @@ export function Finanzas() {
   const [ajuste, setAjuste] = useState({ tipo: 'efectivo', monto_nuevo: '', nota: '' })
   const [gananciaNota, setGananciaNota] = useState('')
   const [limpiandoGanancia, setLimpiandoGanancia] = useState(false)
-  const [exportandoPDF, setExportandoPDF] = useState(false)
 
   const handleLimpiarGanancia = async () => {
     if (limpiandoGanancia) return
@@ -131,16 +131,145 @@ export function Finanzas() {
     }
   }
 
-  const exportarPDF = async () => {
-    try {
-      setExportandoPDF(true)
-      await exportElementToPDF('finanzas-content', 'Reporte-Finanzas', 'Reporte de Finanzas')
-      toast('PDF exportado exitosamente')
-    } catch (error) {
-      toast(error.message, 'error')
-    } finally {
-      setExportandoPDF(false)
+  const handleExportarPDF = () => {
+    if (!analisis) return toast('Cargando datos...', 'error')
+
+    const doc = new jsPDF()
+    const periodo = analisis.periodo || 'Mes actual'
+    
+    // Título Principal
+    doc.setFontSize(22)
+    doc.setFont("helvetica", "bold")
+    doc.text(`Reporte Financiero Aurum`, 14, 20)
+    
+    doc.setFontSize(12)
+    doc.setFont("helvetica", "normal")
+    doc.text(`Período: ${periodo} | Generado el: ${new Date().toLocaleDateString('es-AR')}`, 14, 28)
+    
+    let yPos = 40
+
+    // Sección 1: Análisis del mes (Resumen)
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.text("Resumen del Mes", 14, yPos)
+    yPos += 6
+    
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Concepto', 'Monto ($)']],
+      body: [
+        ['Ingresos (Ventas)', fmt(analisis.ingresos)],
+        ['Egresos (Compras)', `-${fmt(analisis.compras)}`],
+        ['Gastos Operativos', `-${fmt(analisis.gastos)}`],
+        ['Neto Final', fmt(analisis.neto)],
+        ['Ganancia Bruta', fmt(analisis.ganancia)],
+        ['Margen Promedio', `${analisis.margen_promedio}%`]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [41, 41, 41] },
+      margin: { left: 14 }
+    })
+    
+    yPos = doc.lastAutoTable.finalY + 15
+
+    // Sección 2: Liquidez Actual
+    if (liquidez) {
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Estado de Cuentas (Liquidez)", 14, yPos)
+      yPos += 6
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Cuenta', 'Saldo ($)']],
+        body: [
+          ['Efectivo', fmt(liquidez.efectivo)],
+          ['Banco / Transferencia', fmt(liquidez.transferencia)],
+          ['Tarjeta', fmt(liquidez.tarjeta)],
+          ['Total en Cuentas', fmt(liquidez.total)],
+          ['Ganancia Acumulada', fmt(liquidez.ganancia_acumulada)]
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [41, 41, 41] },
+        margin: { left: 14 }
+      })
+      yPos = doc.lastAutoTable.finalY + 15
     }
+
+    // Nueva página para tablas largas si estamos muy abajo
+    if (yPos > 200) {
+      doc.addPage()
+      yPos = 20
+    }
+
+    // Sección 3: Productos Top
+    if (top && top.length > 0) {
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Productos Más Rentables del Mes", 14, yPos)
+      yPos += 6
+      
+      const topBody = top.map(p => [
+        p.nombre_producto,
+        [p.sabor, p.tamanio].filter(Boolean).join(' · '),
+        `${p.cantidad_vendida} ud.`,
+        fmt(p.ingreso_total),
+        fmt(p.ganancia),
+        `${p.margen_porcentaje}%`
+      ])
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Producto', 'Detalle', 'Vendidos', 'Ingreso', 'Ganancia', 'Margen']],
+        body: topBody,
+        theme: 'striped',
+        headStyles: { fillColor: [41, 41, 41] },
+        margin: { left: 14 }
+      })
+      yPos = doc.lastAutoTable.finalY + 15
+    }
+
+    // Nueva página para gastos si estamos muy abajo
+    if (yPos > 200) {
+      doc.addPage()
+      yPos = 20
+    }
+
+    // Sección 4: Gastos Recientes
+    if (gastos && gastos.length > 0) {
+      doc.setFontSize(14)
+      doc.setFont("helvetica", "bold")
+      doc.text("Listado de Gastos", 14, yPos)
+      yPos += 6
+      
+      const gastosBody = gastos.map(g => [
+        new Date(g.fecha).toLocaleDateString('es-AR'),
+        g.concepto,
+        g.metodo_pago,
+        fmt(g.monto)
+      ])
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Fecha', 'Concepto', 'Pago', 'Monto']],
+        body: gastosBody,
+        theme: 'striped',
+        headStyles: { fillColor: [41, 41, 41] },
+        margin: { left: 14 }
+      })
+    }
+
+    // Footer en cada página
+    const pageCount = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(10)
+      doc.setTextColor(150)
+      doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' })
+    }
+
+    doc.save(`Reporte_Financiero_Aurum_${periodo.replace('/', '_')}.pdf`)
+    toast('Reporte PDF generado y descargado')
   }
 
   const maxIngreso = Math.max(Number(analisis?.ingresos || 0), 1)
@@ -150,12 +279,12 @@ export function Finanzas() {
       <div className="topbar">
         <div className="page-title">Finanzas</div>
         <div className="topbar-actions">
-          <button className="btn btn-ghost" onClick={exportarPDF} disabled={exportandoPDF}>📄 {exportandoPDF ? 'Exportando...' : 'Exportar PDF'}</button>
+          <button className="btn btn-ghost" onClick={handleExportarPDF}>Exportar PDF</button>
           <button className="btn btn-ghost" onClick={() => setModalAjuste(true)}>Ajustar saldo</button>
           <button className="btn btn-primary" onClick={() => setModalGasto(true)}>+ Registrar gasto</button>
         </div>
       </div>
-      <div className="content page-enter" id="finanzas-content">
+      <div className="content page-enter">
         {/* Liquidez */}
         {liquidez && (
           <div className="card">

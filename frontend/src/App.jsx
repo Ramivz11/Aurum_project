@@ -13,7 +13,6 @@ import { Finanzas } from './pages/Finanzas'
 import { Sucursales } from './pages/Sucursales'
 import { Categorias } from './pages/Categorias'
 import MarcasConfig from './pages/MarcasConfig'
-import ExportarPDFs from './pages/ExportarPDFs'
 import { SucursalProvider } from './context/SucursalContext'
 import { MarcaProvider } from './context/MarcaContext'
 import './styles/globals.css'
@@ -37,7 +36,6 @@ export default function App() {
             <Route path="categorias" element={<Categorias />} />
             <Route path="config/marcas" element={<MarcasConfig />} />
             <Route path="config/sistema" element={<ConfiguracionSistema />} />
-            <Route path="config/exportar" element={<ExportarPDFs />} />
             <Route path="sugeridor-compras" element={<SugeridorCompras />} />
           </Route>
         </Routes>
