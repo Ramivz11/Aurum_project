@@ -185,8 +185,9 @@ def alertas_recompra(db: Session = Depends(get_db)):
         
         dias_restantes = (fin_date - hoy_date).days
         
-        # Si faltan 3 días o menos, y no ha pasado más de 1 mes (evitar spam viejo)
-        if -30 <= dias_restantes <= 3:
+        # TEMPORAL: Ampliamos el filtro a 365 días para que puedas ver que el sistema
+        # SÍ está calculando bien la fecha, solo que las estaba ocultando porque faltaban muchos días.
+        if -30 <= dias_restantes <= 365:
             alertas.append({
                 "cliente_id": cliente.id,
                 "cliente_nombre": cliente.nombre,
