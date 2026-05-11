@@ -491,7 +491,7 @@ export default function Ventas() {
   const cargar = () => {
     setLoading(true)
     Promise.all([
-      ventasApi.listar({ estado: filtro || undefined }),
+      ventasApi.listar(filtro ? { estado: filtro } : {}),
       clientesApi.listar(),
       sucursalesApi.listar(),
       clientesApi.alertasRecompra().catch(() => ({ data: [] }))
