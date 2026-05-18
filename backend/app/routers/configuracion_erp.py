@@ -146,6 +146,12 @@ def _obtener_inventario_con_velocidad(db: Session, ventana_dias: int) -> list[di
     for row in rows:
         total_vendido = int(row.total_vendido)
         velocidad = round(total_vendido / ventana_dias, 2) if ventana_dias > 0 else 0.0
+
+        # Excluir productos sin ninguna venta en la ventana de análisis:
+        # no tiene sentido reponer algo que no se vende.
+        if total_vendido == 0:
+            continue
+
         inventario.append({
             "variante_id": row.id,
             "producto": row.nombre,
