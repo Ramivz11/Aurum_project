@@ -177,32 +177,39 @@ def _obtener_inventario_con_velocidad(db: Session, ventana_dias: int) -> list[di
 
 def _ajustar_al_presupuesto(resultado: dict, presupuesto: float) -> dict:
     """
-    Garantiza que la lista de productos sugeridos no supere el presupuesto.
-    Recorre los productos en orden de prioridad y:
-      1. Si el subtotal del producto cabe en el presupuesto restante, lo incluye completo.
-      2. Si no cabe completo, ajusta la cantidad_sugerida para que quepa parcialmente
-         (siempre y cuando quede al menos 1 unidad).
-      3. Descarta el producto si no cabe ni 1 unidad.
-    Actualiza total_estimado y presupuesto_restante al final.
+    Garantiza que la lista de productos sugeridos no supere el presupuesto
+    y a su vez maximiza el uso del presupuesto disponible.
+
+    Paso 1 — Recorte: incluye productos en orden de prioridad hasta agotar el presupuesto.
+    Paso 2 — Expansión: con el presupuesto restante, aumenta cantidades en orden de prioridad.
     """
+    ORDEN_PRIORIDAD = {"critico": 0, "alto": 1, "medio": 2, "bajo": 3}
+
+    # Ordenar por prioridad (por si la IA no lo hizo)
+    productos_ia = sorted(
+        resultado.get("productos", []),
+        key=lambda p: ORDEN_PRIORIDAD.get(p.get("prioridad", "bajo"), 99)
+    )
+
     disponible = presupuesto
     productos_ajustados = []
 
-    for p in resultado.get("productos", []):
+    # ── Paso 1: incluir lo que entra ─────────────────────────────────────────
+    for p in productos_ia:
         costo_u = float(p.get("costo_unitario", 0))
         if costo_u <= 0:
             continue
 
-        cant_original = int(p.get("cantidad_sugerida", 0))
-        subtotal_original = costo_u * cant_original
+        cant = int(p.get("cantidad_sugerida", 0))
+        if cant <= 0:
+            continue
+        subtotal = costo_u * cant
 
-        if subtotal_original <= disponible:
-            # Cabe completo
-            p["subtotal"] = round(subtotal_original, 2)
+        if subtotal <= disponible:
+            p["subtotal"] = round(subtotal, 2)
             productos_ajustados.append(p)
-            disponible -= subtotal_original
+            disponible -= subtotal
         elif disponible >= costo_u:
-            # Cabe parcialmente: cuántas unidades entran
             cant_ajustada = int(disponible / costo_u)
             if cant_ajustada >= 1:
                 p["cantidad_sugerida"] = cant_ajustada
@@ -211,15 +218,32 @@ def _ajustar_al_presupuesto(resultado: dict, presupuesto: float) -> dict:
                 disponible -= p["subtotal"]
         # Si no cabe ni 1 unidad, se omite
 
+    # ── Paso 2: redistribuir sobrante aumentando cantidades ──────────────────
+    # Umbral: solo redistribuir si queda más del 5% del presupuesto sin usar
+    umbral = presupuesto * 0.05
+    if disponible >= umbral and productos_ajustados:
+        for p in productos_ajustados:  # ya están ordenados por prioridad
+            costo_u = float(p.get("costo_unitario", 0))
+            if costo_u <= 0:
+                continue
+            unidades_extra = int(disponible / costo_u)
+            if unidades_extra >= 1:
+                p["cantidad_sugerida"] = int(p["cantidad_sugerida"]) + unidades_extra
+                p["subtotal"] = round(p["cantidad_sugerida"] * costo_u, 2)
+                disponible -= unidades_extra * costo_u
+            if disponible < costo_u:
+                break  # Ya no entra ni 1 unidad más de nada
+
+    # ── Totales finales ───────────────────────────────────────────────────────
     total_usado = round(presupuesto - disponible, 2)
-    cantidad_original = len(resultado.get("productos", []))
+    cantidad_original = len(productos_ia)
     cantidad_final = len(productos_ajustados)
 
     resultado["productos"] = productos_ajustados
     resultado["total_estimado"] = total_usado
-    resultado["presupuesto_restante"] = round(disponible, 2)
+    resultado["presupuesto_restante"] = round(max(disponible, 0), 2)
 
-    # Si se eliminaron o recortaron productos, actualizar resumen_ia para que sea consistente
+    # Si se eliminaron productos por presupuesto, avisar en el resumen
     if cantidad_final < cantidad_original:
         nota = (
             f" ⚠️ Nota: el análisis inicial identificó {cantidad_original} productos, "

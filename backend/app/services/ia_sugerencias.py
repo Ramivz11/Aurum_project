@@ -70,10 +70,14 @@ dado un presupuesto de ${presupuesto:,.2f} ARS.
    - "alto": cobertura < lead_time + stock_seguridad
    - "medio": producto estrella con cobertura < 2× (lead_time + stock_seguridad)
    - "bajo": resto que convenga reponer
-4. Calculá la cantidad sugerida para llevar cada producto a al menos (lead_time + stock_seguridad) × velocidad_diaria.
-5. **CRÍTICO — NO superes el presupuesto total de ${presupuesto:,.2f} ARS bajo ninguna circunstancia.**
-   El campo "total_estimado" DEBE ser <= {presupuesto:,.2f}. Si la necesidad ideal supera el presupuesto, VOS MISMO DEBÉS REDUCIR directamente las cantidades ("cantidad_sugerida") o descartar productos de menor prioridad en el JSON final para que el "total_estimado" entre dentro del presupuesto. NO recomiendes reducciones en texto, APLICÁ el recorte directamente en los números que devolvés.
-6. Si tuviste que recortar cantidades o excluir productos por falta de presupuesto, dejá un mensaje en "alerta_presupuesto" explicando que el requerimiento ideal era mayor y que los datos mostrados ya fueron ajustados para cumplir con tu presupuesto actual.
+4. Calculá la cantidad **mínima necesaria** para cada producto para cubrir (lead_time + stock_seguridad) × velocidad_diaria.
+5. **MAXIMIZÁ el uso del presupuesto hasta ${presupuesto:,.2f} ARS.**
+   Una vez calculadas las cantidades mínimas de todos los productos, si todavía queda presupuesto disponible, **aumentá las cantidades** de los productos más prioritarios para acercarte lo más posible al presupuesto total.
+   El objetivo es que el "total_estimado" sea lo más cercano posible a ${presupuesto:,.2f} ARS sin superarlo.
+   Orden para aumentar cantidades: primero los "critico", luego "alto", luego "medio", luego "bajo".
+   NO dejes una gran diferencia entre el total y el presupuesto sin justificación.
+6. **NUNCA superes el presupuesto total de ${presupuesto:,.2f} ARS.** El campo "total_estimado" DEBE ser ≤ {presupuesto:,.2f}. Si la necesidad ideal supera el presupuesto, VOS MISMO DEBÉS REDUCIR directamente las cantidades ("cantidad_sugerida") en el JSON final.
+7. Si tuviste que recortar cantidades o excluir productos por falta de presupuesto, dejá un mensaje en "alerta_presupuesto" explicando que el requerimiento ideal era mayor y que los datos mostrados ya fueron ajustados para cumplir con tu presupuesto actual.
 
 ## FORMATO DE RESPUESTA
 Respondé ÚNICAMENTE con un JSON válido (sin texto extra, sin bloques de código) con esta estructura exacta:
