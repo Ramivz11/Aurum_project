@@ -72,8 +72,8 @@ dado un presupuesto de ${presupuesto:,.2f} ARS.
    - "bajo": resto que convenga reponer
 4. Calculá la cantidad sugerida para llevar cada producto a al menos (lead_time + stock_seguridad) × velocidad_diaria.
 5. **CRÍTICO — NO superes el presupuesto total de ${presupuesto:,.2f} ARS bajo ninguna circunstancia.**
-   El campo "total_estimado" DEBE ser ≤ {presupuesto:,.2f}. Si incluís todos los productos críticos y el total supera el presupuesto, reducí las cantidades o descartá los productos de menor prioridad hasta que el total entre dentro del presupuesto.
-6. Si el presupuesto no alcanza para cubrir todos los quiebres críticos, incluí una alerta en "alerta_presupuesto".
+   El campo "total_estimado" DEBE ser <= {presupuesto:,.2f}. Si la necesidad ideal supera el presupuesto, VOS MISMO DEBÉS REDUCIR directamente las cantidades ("cantidad_sugerida") o descartar productos de menor prioridad en el JSON final para que el "total_estimado" entre dentro del presupuesto. NO recomiendes reducciones en texto, APLICÁ el recorte directamente en los números que devolvés.
+6. Si tuviste que recortar cantidades o excluir productos por falta de presupuesto, dejá un mensaje en "alerta_presupuesto" explicando que el requerimiento ideal era mayor y que los datos mostrados ya fueron ajustados para cumplir con tu presupuesto actual.
 
 ## FORMATO DE RESPUESTA
 Respondé ÚNICAMENTE con un JSON válido (sin texto extra, sin bloques de código) con esta estructura exacta:

@@ -37,7 +37,7 @@ export default function SugeridorCompras() {
   }
 
   return (
-    <div className="page-enter">
+    <div className="page-enter" style={{ paddingBottom: '80px' }}>
       {/* ── BANNER IA ── */}
       <div className="ia-banner" style={{ marginBottom: 24 }}>
         <div className="ia-banner-icon">🧠</div>
@@ -147,7 +147,7 @@ export default function SugeridorCompras() {
               <span style={{ fontSize: 20 }}>⚠️</span>
               <div>
                 <div style={{ fontWeight: 600, color: 'var(--red)', fontSize: 13, marginBottom: 2 }}>
-                  Presupuesto Insuficiente
+                  Presupuesto Ajustado
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   {resultado.alerta_presupuesto}
@@ -177,7 +177,7 @@ export default function SugeridorCompras() {
                   Ordenados por prioridad
                 </span>
               </div>
-              <div className="table-wrap" style={{ maxHeight: 420, overflowY: 'auto' }}>
+              <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
