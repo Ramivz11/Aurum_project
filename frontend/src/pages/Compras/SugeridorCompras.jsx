@@ -37,7 +37,7 @@ export default function SugeridorCompras() {
   }
 
   return (
-    <div className="page-enter" style={{ paddingBottom: '80px' }}>
+    <div className="content page-enter">
       {/* ── BANNER IA ── */}
       <div className="ia-banner" style={{ marginBottom: 24 }}>
         <div className="ia-banner-icon">🧠</div>
