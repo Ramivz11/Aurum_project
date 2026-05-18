@@ -206,15 +206,26 @@ def _ajustar_al_presupuesto(resultado: dict, presupuesto: float) -> dict:
         # Si no cabe ni 1 unidad, se omite
 
     total_usado = round(presupuesto - disponible, 2)
+    cantidad_original = len(resultado.get("productos", []))
+    cantidad_final = len(productos_ajustados)
+
     resultado["productos"] = productos_ajustados
     resultado["total_estimado"] = total_usado
     resultado["presupuesto_restante"] = round(disponible, 2)
 
-    if disponible < 0:
-        resultado["alerta_presupuesto"] = (
-            resultado.get("alerta_presupuesto")
-            or "El presupuesto fue ajustado para no superar el límite ingresado."
+    # Si se eliminaron o recortaron productos, actualizar resumen_ia para que sea consistente
+    if cantidad_final < cantidad_original:
+        nota = (
+            f" ⚠️ Nota: el análisis inicial identificó {cantidad_original} productos, "
+            f"pero se muestran {cantidad_final} luego de ajustar al presupuesto disponible. "
+            f"Los de menor prioridad fueron excluidos o reducidos para no superar el límite."
         )
+        resultado["resumen_ia"] = resultado.get("resumen_ia", "") + nota
+        if not resultado.get("alerta_presupuesto"):
+            resultado["alerta_presupuesto"] = (
+                f"Presupuesto ajustado: se muestran {cantidad_final} de "
+                f"{cantidad_original} productos sugeridos originalmente."
+            )
 
     return resultado
 
