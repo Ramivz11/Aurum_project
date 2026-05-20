@@ -192,6 +192,73 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
     return ajuste
 
 
+# ─── TRANSFERENCIA ENTRE CUENTAS ─────────────────────────────────────────────
+
+@router.post("/transferencia-cuentas", status_code=201)
+def transferir_entre_cuentas(
+    origen: str,
+    destino: str,
+    monto: float,
+    nota: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Transfiere un monto de una cuenta a otra.
+    Registra dos ajustes: uno de débito en origen y uno de crédito en destino.
+    """
+    from fastapi import HTTPException
+
+    tipos_validos = ['efectivo', 'transferencia', 'tarjeta']
+    if origen not in tipos_validos:
+        raise HTTPException(status_code=400, detail=f"Cuenta origen inválida")
+    if destino not in tipos_validos:
+        raise HTTPException(status_code=400, detail=f"Cuenta destino inválida")
+    if origen == destino:
+        raise HTTPException(status_code=400, detail="La cuenta origen y destino no pueden ser iguales")
+    if monto <= 0:
+        raise HTTPException(status_code=400, detail="El monto debe ser mayor a cero")
+
+    monto_dec = Decimal(str(monto))
+    liquidez = obtener_liquidez(db)
+
+    # Calcular nuevos saldos
+    saldo_origen = getattr(liquidez, origen)
+    saldo_destino = getattr(liquidez, destino)
+
+    nuevo_origen = saldo_origen - monto_dec
+    nuevo_destino = saldo_destino + monto_dec
+
+    nota_final = nota or f"Transferencia de {origen} → {destino}"
+
+    # Ajuste en cuenta origen (débito)
+    ajuste_origen = AjusteSaldo(
+        tipo=MetodoPagoEnum(origen),
+        monto_anterior=saldo_origen,
+        monto_nuevo=nuevo_origen,
+        nota=f"[Origen] {nota_final}",
+    )
+    db.add(ajuste_origen)
+
+    # Ajuste en cuenta destino (crédito)
+    ajuste_destino = AjusteSaldo(
+        tipo=MetodoPagoEnum(destino),
+        monto_anterior=saldo_destino,
+        monto_nuevo=nuevo_destino,
+        nota=f"[Destino] {nota_final}",
+    )
+    db.add(ajuste_destino)
+    db.commit()
+
+    return {
+        "ok": True,
+        "monto": float(monto_dec),
+        "origen": origen,
+        "destino": destino,
+        "saldo_origen_nuevo": float(nuevo_origen),
+        "saldo_destino_nuevo": float(nuevo_destino),
+    }
+
+
 # ─── ANÁLISIS DEL MES ────────────────────────────────────────────────────────
 
 @router.get("/analisis-mes", response_model=AnalisisMesResponse)

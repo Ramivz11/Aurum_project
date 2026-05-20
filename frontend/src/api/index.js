@@ -83,6 +83,10 @@ export const finanzasApi = {
   crearCategoria: (nombre) => api.post(`/finanzas/categorias-gasto?nombre=${encodeURIComponent(nombre)}`),
   resumenDia: () => api.get('/finanzas/resumen-dia'),
   valorStock: () => api.get('/finanzas/valor-stock'),
+  transferirCuentas: (origen, destino, monto, nota) => {
+    const q = new URLSearchParams({ origen, destino, monto: String(monto), ...(nota ? { nota } : {}) }).toString()
+    return api.post(`/finanzas/transferencia-cuentas?${q}`, {})
+  },
   exportarCsv: (params = {}) => {
     const q = new URLSearchParams(params).toString()
     return `${api.defaults.baseURL}/finanzas/exportar-csv${q ? '?' + q : ''}`

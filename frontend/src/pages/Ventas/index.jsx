@@ -377,17 +377,12 @@ function VentasFooter({ ventas, resumenDia, loadingResumen }) {
 
 function VentaRow({ venta, clienteNombre, sucursalNombre, onConfirmar, onEliminar, onEditar }) {
   const [hovered, setHovered] = useState(false)
+  const [expandido, setExpandido] = useState(false)
+  const tieneItems = venta.items && venta.items.length > 0
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 160px 100px 120px 140px 110px auto',
-        alignItems: 'center',
-        gap: 12,
-        padding: '16px 20px',
         borderRadius: 16,
         background: hovered
           ? 'linear-gradient(135deg, rgba(26,32,53,0.98), rgba(22,28,48,0.95))'
@@ -397,71 +392,158 @@ function VentaRow({ venta, clienteNombre, sucursalNombre, onConfirmar, onElimina
         transform: hovered ? 'translateX(2px)' : 'translateX(0)',
         boxShadow: hovered ? '0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,152,0,0.06)' : 'none',
         marginBottom: 8,
-        cursor: 'default',
+        overflow: 'hidden',
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {/* Cliente + fecha */}
-      <div>
-        <div style={{ fontWeight: 600, fontSize: 14, color: '#f1f5f9', marginBottom: 2 }}>
-          {clienteNombre || '— Sin cliente —'}
+      {/* Fila principal */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 160px 120px 120px 140px 110px auto',
+          alignItems: 'center',
+          gap: 12,
+          padding: '16px 20px',
+          cursor: 'default',
+        }}
+      >
+        {/* Cliente + fecha */}
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: '#f1f5f9', marginBottom: 2 }}>
+            {clienteNombre || '— Sin cliente —'}
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{formatDateTime(venta.fecha)}</div>
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{formatDateTime(venta.fecha)}</div>
-      </div>
 
-      {/* Sucursal */}
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{sucursalNombre}</div>
+        {/* Sucursal */}
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{sucursalNombre}</div>
 
-      {/* Items */}
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-        {venta.items?.length || 0} producto{(venta.items?.length || 0) !== 1 ? 's' : ''}
-      </div>
-
-      {/* Pago */}
-      <div><PagoBadge metodo={venta.metodo_pago} /></div>
-
-      {/* Total */}
-      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, color: '#ff9800' }}>
-        {formatARS(venta.total)}
-      </div>
-
-      {/* Estado */}
-      <div><EstadoBadge estado={venta.estado} /></div>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 6, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
-        {venta.estado === 'abierta' && (
+        {/* Items — clic para expandir */}
+        <div>
           <button
-            onClick={onEditar}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(91,143,232,0.15)'; e.currentTarget.style.borderColor = 'rgba(91,143,232,0.4)'; e.currentTarget.style.color = '#5b8fe8' }}
+            onClick={() => tieneItems && setExpandido(e => !e)}
+            style={{
+              background: expandido ? 'rgba(255,152,0,0.12)' : 'rgba(255,255,255,0.05)',
+              border: expandido ? '1px solid rgba(255,152,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: '3px 10px', cursor: tieneItems ? 'pointer' : 'default',
+              fontSize: 11, fontWeight: 600,
+              color: expandido ? '#ff9800' : 'rgba(255,255,255,0.45)',
+              transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            <span>{venta.items?.length || 0} ítem{(venta.items?.length || 0) !== 1 ? 's' : ''}</span>
+            {tieneItems && (
+              <span style={{ fontSize: 9, transition: 'transform 0.2s', display: 'inline-block', transform: expandido ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+            )}
+          </button>
+        </div>
+
+        {/* Pago */}
+        <div><PagoBadge metodo={venta.metodo_pago} /></div>
+
+        {/* Total */}
+        <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, color: '#ff9800' }}>
+          {formatARS(venta.total)}
+        </div>
+
+        {/* Estado */}
+        <div><EstadoBadge estado={venta.estado} /></div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 6, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+          {venta.estado === 'abierta' && (
+            <button
+              onClick={onEditar}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(91,143,232,0.15)'; e.currentTarget.style.borderColor = 'rgba(91,143,232,0.4)'; e.currentTarget.style.color = '#5b8fe8' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+              style={{
+                background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+              }}>✎</button>
+          )}
+          {venta.estado === 'abierta' && (
+            <button
+              onClick={onConfirmar}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'; e.currentTarget.style.color = '#22c55e' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+              style={{
+                background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+              }}>✓</button>
+          )}
+          <button
+            onClick={onEliminar}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#ef4444' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
             style={{
               background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
-              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
-            }}>✎</button>
-        )}
-        {venta.estado === 'abierta' && (
-          <button
-            onClick={onConfirmar}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'; e.currentTarget.style.color = '#22c55e' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
-            style={{
-              background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
-              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
-            }}>✓</button>
-        )}
-        <button
-          onClick={onEliminar}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#ef4444' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
-          style={{
-            background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
-          }}>✕</button>
+              borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+            }}>✕</button>
+        </div>
       </div>
+
+      {/* Panel expandible con detalle de productos */}
+      {expandido && tieneItems && (
+        <div style={{
+          borderTop: '1px solid rgba(255,152,0,0.1)',
+          background: 'rgba(255,152,0,0.03)',
+          padding: '12px 20px 16px',
+        }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,152,0,0.6)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10 }}>
+            Detalle de productos
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {venta.items.map((item, idx) => {
+              const nombre = item.producto_nombre || (item.variante?.producto?.nombre) || `Variante #${item.variante_id}`
+              const marca = item.producto_marca || item.variante?.producto?.marca || null
+              const sabor = item.variante_sabor || item.variante?.sabor || null
+              const tamanio = item.variante_tamanio || item.variante?.tamanio || null
+              const detalle = [sabor, tamanio].filter(Boolean).join(' · ')
+              return (
+                <div key={idx} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 12px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                      background: 'linear-gradient(135deg, rgba(255,152,0,0.2), rgba(255,152,0,0.08))',
+                      border: '1px solid rgba(255,152,0,0.2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 800, color: '#ff9800',
+                    }}>{item.cantidad}×</div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{nombre}</span>
+                        {marca && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 6,
+                            background: 'rgba(255,152,0,0.12)', color: '#ff9800', border: '1px solid rgba(255,152,0,0.2)',
+                          }}>{marca}</span>
+                        )}
+                      </div>
+                      {detalle && (
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>{detalle}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#ff9800' }}>{formatARS(item.subtotal)}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{formatARS(item.precio_unitario)} c/u</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -496,13 +578,14 @@ export default function Ventas() {
       sucursalesApi.listar(),
       clientesApi.alertasRecompra().catch(() => ({ data: [] }))
     ]).then(([v, c, s, a]) => {
-      setVentas(v.data)
-      setClientes(c.data)
-      setSucursales(s.data)
-      setAlertas(a.data || [])
+      setVentas(v?.data || [])
+      setClientes(c?.data || [])
+      setSucursales(s?.data || [])
+      setAlertas(a?.data || [])
     }).catch(err => {
       console.error('Error cargando ventas:', err)
       toast.error('Error al cargar ventas: ' + (err.message || 'Sin conexión'))
+      setVentas([])
     }).finally(() => setLoading(false))
   }
 
@@ -644,14 +727,14 @@ export default function Ventas() {
           {/* Column headers */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 160px 100px 120px 140px 110px auto',
+            gridTemplateColumns: '1fr 160px 120px 120px 140px 110px auto',
             gap: 12, padding: '0 20px 10px',
             fontSize: 11, color: 'rgba(255,255,255,0.25)',
             fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
           }}>
             <div>Cliente</div>
             <div>Sucursal</div>
-            <div>Items</div>
+            <div>Ítems ▾</div>
             <div>Pago</div>
             <div>Total</div>
             <div>Estado</div>

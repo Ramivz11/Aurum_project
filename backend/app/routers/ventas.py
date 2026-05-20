@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Optional, List
 from datetime import datetime
@@ -12,10 +13,25 @@ from app.schemas import VentaCreate, VentaUpdate, VentaResponse
 router = APIRouter(prefix="/ventas", tags=["Ventas"])
 
 
+def _query_ventas_completo(db: Session):
+    """Query base con eager loading de todas las relaciones necesarias."""
+    return db.query(Venta).options(
+        joinedload(Venta.cliente),
+        joinedload(Venta.items).joinedload(VentaItem.variante).joinedload(Variante.producto),
+    )
+
+
 def _venta_a_response(venta: Venta) -> dict:
-    """Convierte una Venta ORM en dict con cliente_nombre incluido."""
+    """Convierte una Venta ORM en dict con cliente_nombre e info de productos incluidos."""
     data = VentaResponse.model_validate(venta).model_dump()
     data["cliente_nombre"] = venta.cliente.nombre if venta.cliente else None
+    # Enriquecer cada item con datos del producto
+    for i, item in enumerate(venta.items):
+        if item.variante and item.variante.producto:
+            data["items"][i]["producto_nombre"] = item.variante.producto.nombre
+            data["items"][i]["producto_marca"] = item.variante.producto.marca
+            data["items"][i]["variante_sabor"] = item.variante.sabor
+            data["items"][i]["variante_tamanio"] = item.variante.tamanio
     return data
 
 
@@ -76,7 +92,7 @@ def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):
     venta.total = total
 
 
-@router.get("", response_model=List[VentaResponse])
+@router.get("")
 def listar_ventas(
     estado: Optional[str] = Query(None),
     sucursal_id: Optional[int] = Query(None),
@@ -86,7 +102,7 @@ def listar_ventas(
     fecha_hasta: Optional[datetime] = Query(None),
     db: Session = Depends(get_db)
 ):
-    query = db.query(Venta)
+    query = _query_ventas_completo(db)
     if estado:
         query = query.filter(Venta.estado == estado)
     if sucursal_id:
@@ -103,21 +119,21 @@ def listar_ventas(
     return [_venta_a_response(v) for v in ventas]
 
 
-@router.get("/pedidos-abiertos", response_model=List[VentaResponse])
+@router.get("/pedidos-abiertos")
 def listar_pedidos_abiertos(db: Session = Depends(get_db)):
-    ventas = db.query(Venta).filter(Venta.estado == EstadoVentaEnum.abierta).order_by(Venta.fecha.desc()).all()
+    ventas = _query_ventas_completo(db).filter(Venta.estado == EstadoVentaEnum.abierta).order_by(Venta.fecha.desc()).all()
     return [_venta_a_response(v) for v in ventas]
 
 
-@router.get("/{venta_id}", response_model=VentaResponse)
+@router.get("/{venta_id}")
 def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    venta = _query_ventas_completo(db).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     return _venta_a_response(venta)
 
 
-@router.post("", response_model=VentaResponse, status_code=201)
+@router.post("", status_code=201)
 def crear_venta(data: VentaCreate, db: Session = Depends(get_db)):
     venta = Venta(
         cliente_id=data.cliente_id,
@@ -130,11 +146,12 @@ def crear_venta(data: VentaCreate, db: Session = Depends(get_db)):
     db.flush()
     _calcular_y_guardar_venta(db, venta, data.items)
     db.commit()
-    db.refresh(venta)
+    # Re-query con eager loading para tener todas las relaciones cargadas
+    venta = _query_ventas_completo(db).filter(Venta.id == venta.id).first()
     return _venta_a_response(venta)
 
 
-@router.post("/{venta_id}/confirmar", response_model=VentaResponse)
+@router.post("/{venta_id}/confirmar")
 def confirmar_pedido(venta_id: int, db: Session = Depends(get_db)):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
@@ -147,11 +164,11 @@ def confirmar_pedido(venta_id: int, db: Session = Depends(get_db)):
 
     venta.estado = EstadoVentaEnum.confirmada
     db.commit()
-    db.refresh(venta)
+    venta = _query_ventas_completo(db).filter(Venta.id == venta_id).first()
     return _venta_a_response(venta)
 
 
-@router.put("/{venta_id}", response_model=VentaResponse)
+@router.put("/{venta_id}")
 def actualizar_venta(venta_id: int, data: VentaUpdate, db: Session = Depends(get_db)):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
@@ -169,7 +186,7 @@ def actualizar_venta(venta_id: int, data: VentaUpdate, db: Session = Depends(get
         _calcular_y_guardar_venta(db, venta, data.items)
 
     db.commit()
-    db.refresh(venta)
+    venta = _query_ventas_completo(db).filter(Venta.id == venta_id).first()
     return _venta_a_response(venta)
 
 

@@ -154,6 +154,11 @@ class VentaItemResponse(BaseModel):
     precio_unitario: Decimal
     subtotal: Decimal
     variante: Optional[VarianteResponse] = None
+    # Campos desnormalizados para facilitar el display en frontend
+    producto_nombre: Optional[str] = None
+    producto_marca: Optional[str] = None
+    variante_sabor: Optional[str] = None
+    variante_tamanio: Optional[str] = None
 
     class Config:
         from_attributes = True
