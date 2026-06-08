@@ -22,7 +22,7 @@ def listar_deudas(
         query = query.filter(Deuda.tipo == tipo)
     if solo_pendientes:
         query = query.filter(Deuda.saldada == False)
-    return query.order_by(Deuda.fecha_vencimiento.asc()).all()
+    return query.order_by(Deuda.fecha_vencimiento.asc().nullslast()).all()
 
 
 @router.get("/resumen")

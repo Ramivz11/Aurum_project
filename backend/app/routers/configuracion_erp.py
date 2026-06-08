@@ -7,6 +7,7 @@ Endpoints:
   POST /api/compras/sugerencias → Genera la sugerencia de compra con IA.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -32,6 +33,8 @@ from app.schemas import (
     ProductoSugerido,
 )
 from app.services.ia_sugerencias import generar_sugerencia_compra
+
+logger = logging.getLogger(__name__)
 
 # ─── Sub-routers ──────────────────────────────────────────────────────────────
 

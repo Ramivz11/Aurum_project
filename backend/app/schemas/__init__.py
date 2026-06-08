@@ -138,6 +138,7 @@ class ClienteResponse(ClienteBase):
 class ClienteConResumen(ClienteResponse):
     total_gastado: Decimal = Decimal("0")
     cantidad_compras: int = 0
+    ultima_compra: Optional[datetime] = None
 
 
 # ─── VENTAS ──────────────────────────────────────────────────────────────────

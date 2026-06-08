@@ -36,7 +36,11 @@ def _restar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cant
         StockSucursal.sucursal_id == sucursal_id
     ).first()
     if ss:
-        ss.cantidad = max(0, ss.cantidad - cantidad)
+        # No se acota a 0: si quedara negativo, refleja un descuadre real
+        # (stock ya movido/vendido) en lugar de ocultarlo perdiendo unidades.
+        ss.cantidad -= cantidad
+    else:
+        db.add(StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=-cantidad))
 
 
 @router.get("", response_model=List[CompraResponse])
@@ -116,6 +120,7 @@ def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
                 tipo=TipoTransferenciaEnum.central_a_sucursal,
                 sucursal_origen_id=None,
                 sucursal_destino_id=central.id,
+                compra_id=compra.id,
                 cantidad=a_central,
                 notas=f"Ingreso al depósito central — compra #{compra.id}",
             ))
@@ -128,6 +133,7 @@ def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
                     tipo=TipoTransferenciaEnum.central_a_sucursal,
                     sucursal_origen_id=None,
                     sucursal_destino_id=dist.sucursal_id,
+                    compra_id=compra.id,
                     cantidad=dist.cantidad,
                     notas=f"Distribución de compra #{compra.id}",
                 ))
@@ -137,19 +143,20 @@ def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
 
 def _revertir_items(db: Session, compra: Compra):
     """Revierte completamente el stock de una compra antes de modificarla o eliminarla."""
-    for item in compra.items:
-        # Revertir todas las transferencias asociadas a esta compra
-        transferencias = db.query(Transferencia).filter(
-            Transferencia.variante_id == item.variante_id,
-            Transferencia.notas.in_([
-                f"Distribución de compra #{compra.id}",
-                f"Ingreso al depósito central — compra #{compra.id}",
-            ])
-        ).all()
-        for t in transferencias:
-            _restar_stock_sucursal(db, item.variante_id, t.sucursal_destino_id, t.cantidad)
-            db.delete(t)
+    # Transferencias enlazadas por FK (compras nuevas). Para compras viejas sin
+    # compra_id se usa el respaldo por texto de notas.
+    transferencias = db.query(Transferencia).filter(
+        (Transferencia.compra_id == compra.id) |
+        Transferencia.notas.in_([
+            f"Distribución de compra #{compra.id}",
+            f"Ingreso al depósito central — compra #{compra.id}",
+        ])
+    ).all()
+    for t in transferencias:
+        _restar_stock_sucursal(db, t.variante_id, t.sucursal_destino_id, t.cantidad)
+        db.delete(t)
 
+    for item in compra.items:
         db.delete(item)
 
 

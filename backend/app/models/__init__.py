@@ -152,6 +152,7 @@ class Transferencia(Base):
     tipo = Column(Enum(TipoTransferenciaEnum), nullable=False)
     sucursal_origen_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)   # null = central
     sucursal_destino_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)  # null = central
+    compra_id = Column(Integer, ForeignKey("compras.id"), nullable=True)  # origen de la transferencia, si vino de una compra
     cantidad = Column(Integer, nullable=False)
     notas = Column(Text)
     fecha = Column(DateTime(timezone=True), server_default=func.now())

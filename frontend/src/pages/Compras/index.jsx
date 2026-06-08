@@ -307,7 +307,7 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
       const form = new FormData()
       form.append('archivo', archivo)
       const res = await comprasApi.analizarFactura(form)
-      setResultado(res)
+      setResultado(res.data)
     } catch (e) {
       const msg = e.message || 'Error al analizar'
       setErrorIA(msg)
@@ -363,7 +363,7 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
                 Analizando factura...
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                Gemini está leyendo el documento. Esto puede tardar unos segundos.
+                La IA está leyendo el documento. Esto puede tardar unos segundos.
               </div>
             </div>
           ) : errorIA ? (
@@ -371,9 +371,9 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
               <div style={{ background: 'rgba(224,85,85,0.1)', border: '1px solid rgba(224,85,85,0.3)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--red, #e05555)', marginBottom: 6 }}>⚠ Error al analizar la factura</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{errorIA}</div>
-                {errorIA.toLowerCase().includes('gemini') && (
+                {errorIA.toLowerCase().includes('anthropic') && (
                   <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, padding: '8px 10px', background: 'var(--surface3)', borderRadius: 6 }}>
-                    💡 Para activar el análisis con IA, configurá la variable <code>GEMINI_API_KEY</code> en tu entorno de Railway.
+                    💡 Para activar el análisis con IA, configurá la variable <code>ANTHROPIC_API_KEY</code> en tu entorno de Railway.
                   </div>
                 )}
               </div>
@@ -386,7 +386,7 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
             <div className="ia-banner">
             <div className="ia-banner-icon">🧾</div>
             <div className="ia-banner-text">
-              <div className="ia-banner-title">Gemini analiza tu factura</div>
+              <div className="ia-banner-title">La IA analiza tu factura</div>
               <div className="ia-banner-desc">Subí una foto o PDF de tu recibo y la IA detectará automáticamente los productos, cantidades y precios.</div>
             </div>
           </div>

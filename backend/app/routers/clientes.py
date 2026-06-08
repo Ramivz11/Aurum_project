@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from typing import Optional, List
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.database import get_db
 from app.models import Cliente, Venta, VentaItem
@@ -49,7 +49,7 @@ def clientes_sin_compras_recientes(
     db: Session = Depends(get_db)
 ):
     """Clientes activos cuya última compra fue hace más de `dias` días (o nunca compraron)."""
-    limite = datetime.now() - timedelta(days=dias)
+    limite = datetime.now(timezone.utc) - timedelta(days=dias)
     clientes = db.query(Cliente).filter(Cliente.activo == True).all()
 
     resultado = []
@@ -184,10 +184,9 @@ def alertas_recompra(db: Session = Depends(get_db)):
         fin_date = fin_estimado.date() if hasattr(fin_estimado, 'date') else fin_estimado
         
         dias_restantes = (fin_date - hoy_date).days
-        
-        # TEMPORAL: Ampliamos el filtro a 365 días para que puedas ver que el sistema
-        # SÍ está calculando bien la fecha, solo que las estaba ocultando porque faltaban muchos días.
-        if -30 <= dias_restantes <= 365:
+
+        # Alertar de productos próximos a agotarse (o ya vencidos hace poco)
+        if -30 <= dias_restantes <= 30:
             alertas.append({
                 "cliente_id": cliente.id,
                 "cliente_nombre": cliente.nombre,

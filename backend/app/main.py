@@ -23,6 +23,8 @@ def _run_migrations():
             text("ALTER TABLE venta_items ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(12,2)"))
         conn.execute(
             text("ALTER TABLE variantes ADD COLUMN IF NOT EXISTS dias_duracion INTEGER"))
+        conn.execute(
+            text("ALTER TABLE transferencias ADD COLUMN IF NOT EXISTS compra_id INTEGER REFERENCES compras(id)"))
         # Tabla de ajustes de ganancia
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ganancia_ajuste (

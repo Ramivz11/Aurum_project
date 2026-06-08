@@ -226,9 +226,11 @@ def comparar_sucursales(
         ticket = round(total / cantidad, 2) if cantidad else Decimal("0")
         porcentaje = float(total / total_global * 100) if total_global > 0 else 0.0
 
-        # Rentabilidad = ingresos - costos de los items vendidos
+        # Rentabilidad = ingresos - costos de los items vendidos.
+        # Usa el costo congelado al momento de la venta (costo_unitario),
+        # cayendo al costo actual solo si el item no lo tiene registrado.
         costo_total = sum(
-            item.variante.costo * item.cantidad
+            (item.costo_unitario if item.costo_unitario is not None else item.variante.costo) * item.cantidad
             for v in ventas
             for item in v.items
         )
@@ -305,8 +307,10 @@ def dashboard_sucursal(
     porcentaje = float(total_ventas / total_global * 100) if total_global > 0 else 0.0
 
     # ── Rentabilidad ─────────────────────────────────────────────────────────
+    # Usa el costo congelado al momento de la venta (costo_unitario),
+    # cayendo al costo actual solo si el item no lo tiene registrado.
     costo_total = sum(
-        item.variante.costo * item.cantidad
+        (item.costo_unitario if item.costo_unitario is not None else item.variante.costo) * item.cantidad
         for v in ventas
         for item in v.items
     )

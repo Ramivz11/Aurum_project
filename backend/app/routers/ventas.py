@@ -176,14 +176,23 @@ def actualizar_venta(venta_id: int, data: VentaUpdate, db: Session = Depends(get
     if venta.estado == EstadoVentaEnum.confirmada:
         raise HTTPException(status_code=400, detail="No se puede editar una venta confirmada.")
 
+    estado_anterior = venta.estado
+
     for campo, valor in data.model_dump(exclude_unset=True, exclude={"items"}).items():
         setattr(venta, campo, valor)
 
     if data.items is not None:
+        # Al recrear items, _calcular_y_guardar_venta descuenta stock si el
+        # estado (ya seteado arriba) quedó como confirmada.
         for item in venta.items:
             db.delete(item)
         db.flush()
         _calcular_y_guardar_venta(db, venta, data.items)
+    elif estado_anterior != EstadoVentaEnum.confirmada and venta.estado == EstadoVentaEnum.confirmada:
+        # Transición abierta→confirmada sin reenviar items: descontar stock
+        # de los items existentes (equivalente a usar /confirmar).
+        for item in venta.items:
+            _descontar_stock(db, item.variante_id, venta.sucursal_id, item.cantidad)
 
     db.commit()
     venta = _query_ventas_completo(db).filter(Venta.id == venta_id).first()

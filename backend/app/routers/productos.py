@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import Optional, List
 from decimal import Decimal
-from pydantic import BaseModel as PydanticBase
 
 from app.database import get_db
 from app.models import Producto, Variante, PrecioHistorial
@@ -78,21 +77,9 @@ def ajustar_precio_lote(data: AjustePrecioLote, db: Session = Depends(get_db)):
     return variantes
 
 
-# ─── AJUSTE DE STOCK DIRECTO (también antes de /{producto_id}) ────────────────
-
-class StockAjuste(PydanticBase):
-    stock_actual: int
-
-
-@router.put("/variantes/{variante_id}/stock", response_model=VarianteResponse)
-def ajustar_stock(variante_id: int, data: StockAjuste, db: Session = Depends(get_db)):
-    variante = db.query(Variante).filter(Variante.id == variante_id).first()
-    if not variante:
-        raise HTTPException(status_code=404, detail="Variante no encontrada")
-    variante.stock_actual = data.stock_actual
-    db.commit()
-    db.refresh(variante)
-    return variante
+# El ajuste de stock se hace vía /stock/variante/{id}/ajuste (StockSucursal).
+# El antiguo PUT /productos/variantes/{id}/stock escribía variante.stock_actual,
+# un campo legacy que quedó sin uso tras la migración a stock por sucursal.
 
 
 # ─── PRODUCTOS ───────────────────────────────────────────────────────────────

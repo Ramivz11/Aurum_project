@@ -320,13 +320,19 @@ def productos_mas_vendidos(
     mes = mes or now.month
     anio = anio or now.year
 
+    # Costo histórico: usa el costo congelado al momento de la venta (costo_unitario)
+    # y cae al costo actual de la variante solo si el item no lo tiene registrado.
+    costo_item = func.coalesce(VentaItem.costo_unitario, Variante.costo)
+
     resultados = (
         db.query(
             VentaItem.variante_id,
             func.sum(VentaItem.cantidad).label("cantidad_vendida"),
             func.sum(VentaItem.subtotal).label("ingreso_total"),
+            func.sum(costo_item * VentaItem.cantidad).label("costo_total"),
         )
         .join(Venta, Venta.id == VentaItem.venta_id)
+        .join(Variante, Variante.id == VentaItem.variante_id)
         .filter(
             Venta.estado == "confirmada",
             extract("month", Venta.fecha) == mes,
@@ -339,12 +345,11 @@ def productos_mas_vendidos(
     )
 
     lista = []
-    for variante_id, cantidad, ingreso in resultados:
+    for variante_id, cantidad, ingreso, costo_total in resultados:
         variante = db.query(Variante).filter(Variante.id == variante_id).first()
         if not variante:
             continue
 
-        costo_total = variante.costo * cantidad
         ganancia = ingreso - costo_total
         margen = float(ganancia / ingreso * 100) if ingreso > 0 else 0.0
 

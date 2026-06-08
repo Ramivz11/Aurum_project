@@ -1,4 +1,4 @@
-import { api } from './client'
+import { api, BASE_URL } from './client'
 
 // ── PRODUCTOS ──
 export const productosApi = {
@@ -14,7 +14,6 @@ export const productosApi = {
   crearVariante: (productoId, data) => api.post(`/productos/${productoId}/variantes`, data),
   actualizarVariante: (varianteId, data) => api.put(`/productos/variantes/${varianteId}`, data),
   eliminarVariante: (varianteId) => api.delete(`/productos/variantes/${varianteId}`),
-  ajustarStock: (varianteId, stockActual) => api.put(`/productos/variantes/${varianteId}/stock`, { stock_actual: stockActual }),
   historialPrecios: (varianteId) => api.get(`/productos/variantes/${varianteId}/historial-precios`),
 }
 
@@ -89,7 +88,7 @@ export const finanzasApi = {
   },
   exportarCsv: (params = {}) => {
     const q = new URLSearchParams(params).toString()
-    return `${api.defaults.baseURL}/finanzas/exportar-csv${q ? '?' + q : ''}`
+    return `${BASE_URL}/finanzas/exportar-csv${q ? '?' + q : ''}`
   },
 }
 

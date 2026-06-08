@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://vivacious-truth-production-b827.up.railway.app'
+export const BASE_URL = import.meta.env.VITE_API_URL || 'https://vivacious-truth-production-b827.up.railway.app'
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -30,7 +30,8 @@ export const api = {
     const r = await fetch(`${BASE_URL}${path}`, { method: 'POST', body: formData })
     const data = await r.json().catch(() => ({ detail: 'Error de red' }))
     if (!r.ok) throw new Error(data.detail || `Error ${r.status}`)
-    return data
+    // Misma forma que get/post/put: { data }
+    return { data }
   },
 
 }
