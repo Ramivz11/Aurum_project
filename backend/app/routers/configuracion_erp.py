@@ -96,7 +96,7 @@ def actualizar_configuracion(data: ConfiguracionERPUpdate, db: Session = Depends
 
 def _obtener_inventario_con_velocidad(db: Session, ventana_dias: int) -> list[dict]:
     """
-    Consulta variantes activas con su stock total (central + sucursales),
+    Consulta variantes activas con su stock total (todas las sucursales),
     costo unitario y velocidad de ventas (unidades/día) calculada
     estrictamente dentro de la ventana de análisis.
     """

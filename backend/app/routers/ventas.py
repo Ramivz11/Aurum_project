@@ -49,21 +49,32 @@ def _get_stock_disponible(db: Session, variante_id: int, sucursal_id: int) -> in
 
 
 def _descontar_stock(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
-    """Descuenta stock de la sucursal indicada. Permite stock negativo (ventas sin stock)."""
-    ss = _get_stock_sucursal(db, variante_id, sucursal_id)
-    if ss:
-        ss.cantidad -= cantidad
-    else:
+    """Descuenta stock de la sucursal indicada de forma atómica. Permite stock
+    negativo (ventas sin stock)."""
+    actualizado = db.query(StockSucursal).filter(
+        StockSucursal.variante_id == variante_id,
+        StockSucursal.sucursal_id == sucursal_id
+    ).update(
+        {StockSucursal.cantidad: StockSucursal.cantidad - cantidad},
+        synchronize_session=False,
+    )
+    if not actualizado:
         db.add(StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=-cantidad))
+        db.flush()  # materializa la fila para que un UPDATE posterior de la misma clave la encuentre
 
 
 def _restaurar_stock(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
-    """Devuelve stock a la sucursal al eliminar/revertir una venta."""
-    ss = _get_stock_sucursal(db, variante_id, sucursal_id)
-    if ss:
-        ss.cantidad += cantidad
-    else:
+    """Devuelve stock a la sucursal al eliminar/revertir una venta (atómico)."""
+    actualizado = db.query(StockSucursal).filter(
+        StockSucursal.variante_id == variante_id,
+        StockSucursal.sucursal_id == sucursal_id
+    ).update(
+        {StockSucursal.cantidad: StockSucursal.cantidad + cantidad},
+        synchronize_session=False,
+    )
+    if not actualizado:
         db.add(StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=cantidad))
+        db.flush()  # materializa la fila para que un UPDATE posterior de la misma clave la encuentre
 
 
 def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):

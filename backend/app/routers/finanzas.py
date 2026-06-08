@@ -155,11 +155,20 @@ def ajustar_saldo(data: AjusteSaldoCreate, db: Session = Depends(get_db)):
     # Si es ganancia, registrar en GananciaAjuste
     if data.tipo == 'ganancia':
         ganancia_actual = _calcular_ganancia_neta(db)
-        # monto_nuevo es el saldo deseado; la diferencia es lo que se "extrae"
+        # monto_nuevo es el saldo deseado; la diferencia es lo que se "extrae".
         diferencia = ganancia_actual - monto_nuevo
         if diferencia == 0:
             from fastapi import HTTPException
             raise HTTPException(status_code=400, detail="El saldo ya es el indicado")
+        # No permitir que el total retirado quede negativo (inflaría la ganancia
+        # acumulada por encima de la ganancia bruta real).
+        total_retirado_prev = db.query(func.sum(GananciaAjuste.monto_extraido)).scalar() or Decimal("0")
+        if diferencia < 0 and (total_retirado_prev + diferencia) < 0:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400,
+                detail="El saldo indicado supera la ganancia bruta histórica registrada"
+            )
         ajuste_ganancia = GananciaAjuste(
             monto_extraido=diferencia,
             nota=data.nota or "Ajuste manual de ganancia",
@@ -419,15 +428,17 @@ def crear_categoria(nombre: str, db: Session = Depends(get_db)):
 
 @router.get("/resumen-dia")
 def resumen_del_dia(db: Session = Depends(get_db)):
-    from datetime import date, timedelta
+    from datetime import timedelta, timezone
     from app.models import Variante as VarianteModel
 
-    hoy = date.today()
+    # Trabajamos en UTC de forma consistente con las columnas TIMESTAMPTZ para
+    # evitar comparar datetimes naive contra aware (desajuste de zona horaria).
+    hoy = datetime.now(timezone.utc).date()
     ayer = hoy - timedelta(days=1)
 
     def ingresos_dia(d):
-        inicio = datetime.combine(d, datetime.min.time())
-        fin = datetime.combine(d, datetime.max.time())
+        inicio = datetime.combine(d, datetime.min.time(), tzinfo=timezone.utc)
+        fin = datetime.combine(d, datetime.max.time(), tzinfo=timezone.utc)
         return db.query(func.sum(Venta.total)).filter(
             Venta.estado == "confirmada",
             Venta.fecha >= inicio,
@@ -442,7 +453,7 @@ def resumen_del_dia(db: Session = Depends(get_db)):
     else:
         delta = None
 
-    primer_dia = datetime.combine(hoy.replace(day=1), datetime.min.time())
+    primer_dia = datetime.combine(hoy.replace(day=1), datetime.min.time(), tzinfo=timezone.utc)
     ventas_mes = db.query(
         func.date(Venta.fecha).label("dia"),
         func.sum(Venta.total).label("total")

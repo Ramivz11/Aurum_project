@@ -338,7 +338,6 @@ class SucursalResponse(BaseModel):
     id: int
     nombre: str
     activa: bool
-    es_central: bool = False
 
     class Config:
         from_attributes = True
@@ -413,8 +412,7 @@ class VarianteConStockResponse(BaseModel):
     sku: Optional[str]
     costo: Decimal
     precio_venta: Decimal
-    stock_central: int           # depósito central
-    stock_total: int             # suma de todo (central + sucursales)
+    stock_total: int             # suma del stock en todas las sucursales
     stock_minimo: int
     activa: bool
     creado_en: datetime
@@ -447,7 +445,7 @@ class CompraItemConDistribucion(BaseModel):
     variante_id: int
     cantidad: int = Field(..., gt=0)
     costo_unitario: Decimal = Field(..., gt=0)
-    distribucion: List[DistribucionSucursal] = []  # si vacío, va todo a central
+    distribucion: List[DistribucionSucursal] = []  # si vacío, va todo a la sucursal de la compra
 
 class CompraCreateConDistribucion(BaseModel):
     proveedor: Optional[str] = None
@@ -462,8 +460,8 @@ class CompraCreateConDistribucion(BaseModel):
 class TransferenciaCreate(BaseModel):
     variante_id: int
     cantidad: int = Field(..., gt=0)
-    sucursal_origen_id: Optional[int] = None   # None = central
-    sucursal_destino_id: Optional[int] = None  # None = central
+    sucursal_origen_id: int
+    sucursal_destino_id: int
     notas: Optional[str] = None
 
 class TransferenciaResponse(BaseModel):

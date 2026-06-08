@@ -100,14 +100,14 @@ function ModalTransferencia({ variante, productoNombre, sucursales, onClose, onS
         <label className="input-label">Desde</label>
         <select style={sel} value={origenId} onChange={e => { setOrigenId(e.target.value); setDestinoId(''); setCantidad(1) }}>
           <option value="">Seleccioná origen...</option>
-          {conStock.map(s => { const ss = (variante.stocks_sucursal || []).find(x => x.sucursal_id === s.id); return <option key={s.id} value={s.id}>{s.nombre}{s.es_central ? ' (Central)' : ''} — {ss?.cantidad ?? 0} uds</option> })}
+          {conStock.map(s => { const ss = (variante.stocks_sucursal || []).find(x => x.sucursal_id === s.id); return <option key={s.id} value={s.id}>{s.nombre} — {ss?.cantidad ?? 0} uds</option> })}
         </select>
       </div>
       <div className="form-group">
         <label className="input-label">Hacia</label>
         <select style={sel} value={destinoId} onChange={e => setDestinoId(e.target.value)} disabled={!origenId}>
           <option value="">Seleccioná destino...</option>
-          {destinos.map(s => <option key={s.id} value={s.id}>{s.nombre}{s.es_central ? ' (Central)' : ''}</option>)}
+          {destinos.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
       </div>
       <div className="form-group">
@@ -511,7 +511,7 @@ function StatsBar({ productos, sucursales, resumenDia, loadingResumen }) {
 
   const stats = [
     { label: 'Productos', value: totalProds, color: '#f1f5f9', icon: '◉' },
-    { label: 'Unidades en stock', value: fmtN(totalUnids), sub: `${sucursales.filter(s => !s.es_central).length} sucursales + central`, color: '#f1f5f9', icon: '▣' },
+    { label: 'Unidades en stock', value: fmtN(totalUnids), sub: `${sucursales.length} sucursal${sucursales.length === 1 ? '' : 'es'}`, color: '#f1f5f9', icon: '▣' },
     { label: 'Bajo mínimo', value: bajoStock, sub: bajoStock > 0 ? '⚠ Revisar' : '✓ OK', color: bajoStock > 0 ? '#fbbf24' : '#22c55e', icon: '◈' },
     { label: 'Ingresos hoy', value: loadingResumen ? '—' : formatARS(ingresos), sub: delta !== null ? `${delta >= 0 ? '+' : ''}${delta}% vs ayer` : undefined, color: delta !== null ? (delta >= 0 ? '#22c55e' : '#ef4444') : '#f1f5f9', icon: '$' },
     { label: 'Margen promedio', value: loadingResumen ? '—' : `${margen}%`, color: margen >= 25 ? '#22c55e' : margen >= 15 ? '#fbbf24' : '#ef4444', icon: '◇' },
@@ -662,7 +662,7 @@ export default function Stock() {
         <div>
           <div className="page-title">Inventario</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)', marginTop: 1 }}>
-            {productos.length} productos · {sucursales.filter(s => !s.es_central).length} sucursales + central
+            {productos.length} productos · {sucursales.length} sucursal{sucursales.length === 1 ? '' : 'es'}
           </div>
         </div>
         <div className="topbar-actions">
@@ -725,7 +725,7 @@ export default function Stock() {
                 style={{ padding: '5px 12px', borderRadius: 8, border: `1px solid ${sucFiltro ? 'rgba(255,152,0,0.4)' : 'rgba(255,255,255,0.08)'}`, background: 'rgba(15,22,41,0.8)', color: sucFiltro ? '#ff9800' : 'rgba(255,255,255,0.38)', fontSize: 12, outline: 'none', cursor: 'pointer', appearance: 'none' }}
               >
                 <option value="">Todas las sucursales</option>
-                {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}{s.es_central ? ' (Central)' : ''}</option>)}
+                {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
             )}
 

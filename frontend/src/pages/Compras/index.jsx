@@ -15,7 +15,7 @@ function Distribuidor({ item, sucursales, onChange }) {
   const total = parseInt(item.cantidad) || 0
   const distribucion = item.distribucion || []
   const distribuido = distribucion.reduce((s, d) => s + (parseInt(d.cantidad) || 0), 0)
-  const aCentral = Math.max(0, total - distribuido)
+  const sinDistribuir = Math.max(0, total - distribuido)
 
   const setCant = (sucursalId, cant) => {
     const val = parseInt(cant) || 0
@@ -36,8 +36,8 @@ function Distribuidor({ item, sucursales, onChange }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 120 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-dim)' }} />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>Central</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: aCentral > 0 ? 'var(--text)' : 'var(--text-dim)' }}>{aCentral}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>Sin distribuir</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: sinDistribuir > 0 ? 'var(--text)' : 'var(--text-dim)' }}>{sinDistribuir}</span>
         </div>
         {sucursales.map(s => (
           <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -247,7 +247,7 @@ function ModalIAConfirmacion({ resultado, productos, sucursales, onConfirm, onCl
           {paso === 2 && (
             <>
               <div style={{ marginBottom: 16, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)' }}>
-                Distribuí el stock entre las sucursales. Lo que no distribuyas queda en el <strong style={{ color: 'var(--text)' }}>depósito central</strong>.
+                Distribuí el stock entre las sucursales. Lo que no distribuyas queda en la <strong style={{ color: 'var(--text)' }}>sucursal de la compra</strong>.
               </div>
               {items.map((item, i) => {
                 const v = variantesFlat.find(x => x.id === Number(item.variante_id))
@@ -271,7 +271,7 @@ function ModalIAConfirmacion({ resultado, productos, sucursales, onConfirm, onCl
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
           {paso === 1 && (
             <>
-              <button className="btn btn-ghost" onClick={() => confirmar()}>Guardar (todo a central)</button>
+              <button className="btn btn-ghost" onClick={() => confirmar()}>Guardar (sin distribuir)</button>
               <button className="btn btn-primary" onClick={() => { if (!validar()) return toast('Completá todos los campos', 'error'); setPaso(2) }}>
                 Distribuir por sucursal →
               </button>
@@ -579,7 +579,7 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
           {paso === 2 && (
             <>
               <div style={{ marginBottom: 16, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)' }}>
-                Distribuí el stock de cada producto entre las sucursales. Lo que no distribuyas queda en el <strong style={{ color: 'var(--text)' }}>depósito central</strong>.
+                Distribuí el stock de cada producto entre las sucursales. Lo que no distribuyas queda en la <strong style={{ color: 'var(--text)' }}>sucursal de la compra</strong>.
               </div>
               {items.map((item, i) => {
                 const v = variantesFlat.find(x => x.id === Number(item.variante_id))
@@ -599,7 +599,7 @@ function ModalCompra({ compra, sucursales, productos, onClose, onSaved }) {
           {paso === 1 && (
             <>
               <button className="btn btn-ghost" onClick={save} disabled={saving || items.length === 0}>
-                {saving ? 'Guardando...' : 'Guardar (todo a central)'}
+                {saving ? 'Guardando...' : 'Guardar (sin distribuir)'}
               </button>
               <button className="btn btn-primary" onClick={() => { if (items.length === 0) return toast('Agregá al menos un producto', 'error'); setPaso(2) }}>
                 Distribuir por sucursal →

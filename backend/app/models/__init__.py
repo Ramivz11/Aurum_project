@@ -38,9 +38,8 @@ class PrioridadEnum(str, enum.Enum):
 
 
 class TipoTransferenciaEnum(str, enum.Enum):
-    central_a_sucursal = "central_a_sucursal"
-    sucursal_a_central = "sucursal_a_central"
-    entre_sucursales = "entre_sucursales"
+    ingreso_compra = "ingreso_compra"      # entrada de stock por compra (sin sucursal de origen)
+    entre_sucursales = "entre_sucursales"  # movimiento de stock entre dos sucursales
 
 
 # ─── SUCURSALES ───────────────────────────────────────────────────────────────
@@ -51,7 +50,6 @@ class Sucursal(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     activa = Column(Boolean, default=True)
-    es_central = Column(Boolean, default=False)   # depósito central — reemplaza variante.stock_actual
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     ventas = relationship("Venta", back_populates="sucursal")
@@ -109,7 +107,7 @@ class Variante(Base):
     sku = Column(String(100), unique=True)
     costo = Column(Numeric(12, 2), nullable=False, default=0)
     precio_venta = Column(Numeric(12, 2), nullable=False, default=0)
-    stock_actual = Column(Integer, default=0)   # stock en depósito central
+    stock_actual = Column(Integer, default=0)   # legado — el stock real vive en StockSucursal
     stock_minimo = Column(Integer, default=0)
     dias_duracion = Column(Integer, nullable=True) # Duración estimada para recompras
     activa = Column(Boolean, default=True)
@@ -144,14 +142,15 @@ class StockSucursal(Base):
 # ─── TRANSFERENCIAS ───────────────────────────────────────────────────────────
 
 class Transferencia(Base):
-    """Movimiento de stock entre central y sucursales, o entre sucursales."""
+    """Movimiento de stock entre sucursales, o ingreso por compra."""
     __tablename__ = "transferencias"
 
     id = Column(Integer, primary_key=True, index=True)
     variante_id = Column(Integer, ForeignKey("variantes.id"), nullable=False)
-    tipo = Column(Enum(TipoTransferenciaEnum), nullable=False)
-    sucursal_origen_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)   # null = central
-    sucursal_destino_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)  # null = central
+    # String (no Enum) para tolerar valores históricos de versiones anteriores.
+    tipo = Column(String(30), nullable=False)
+    sucursal_origen_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)   # null = ingreso por compra
+    sucursal_destino_id = Column(Integer, ForeignKey("sucursales.id"), nullable=True)
     compra_id = Column(Integer, ForeignKey("compras.id"), nullable=True)  # origen de la transferencia, si vino de una compra
     cantidad = Column(Integer, nullable=False)
     notas = Column(Text)

@@ -73,8 +73,13 @@ def _normalizar_numeros_arg(texto: str) -> str:
     """
     Convierte números en formato argentino a formato JSON válido.
     Ejemplos: 108.964,01 → 108964.01 | 15.349,49 → 15349.49 | 110.079,12 → 110079.12
+
+    Nota: el formato argentino (punto = miles) es ambiguo con un decimal JSON válido
+    (punto = decimal). Se prioriza el caso con coma decimal (inequívoco) y, para el
+    caso de solo puntos, se evita tocar valores que claramente son decimales
+    (parte entera "0", como 0.500).
     """
-    # Patrón: números con punto como miles Y coma como decimal
+    # Patrón: números con punto como miles Y coma como decimal (inequívocamente AR)
     # Ej: 108.964,01 o 1.234.567,89
     patron_con_decimal = re.compile(r'\b(\d{1,3}(?:\.\d{3})+),(\d+)\b')
     texto = patron_con_decimal.sub(
@@ -82,13 +87,17 @@ def _normalizar_numeros_arg(texto: str) -> str:
         texto
     )
 
-    # Patrón: números con punto como miles SIN decimal
-    # Ej: 108.964 (solo si siguen el patrón de miles: grupos de exactamente 3 dígitos)
+    # Patrón: números con punto como miles SIN decimal (grupos de exactamente 3 dígitos)
+    # Ej: 108.964 → 108964. Se omite cuando la parte entera es "0" (ej: 0.500), que
+    # es casi con seguridad un decimal y no un separador de miles.
     patron_solo_miles = re.compile(r'\b(\d{1,3})(\.\d{3})+\b')
-    texto = patron_solo_miles.sub(
-        lambda m: m.group(0).replace('.', ''),
-        texto
-    )
+
+    def _strip_miles(m):
+        if m.group(1) == "0":
+            return m.group(0)
+        return m.group(0).replace('.', '')
+
+    texto = patron_solo_miles.sub(_strip_miles, texto)
 
     return texto
 
@@ -100,7 +109,7 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
             "Agregá la variable de entorno ANTHROPIC_API_KEY en Railway con tu clave de Anthropic."
         )
 
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
     imagen_b64 = base64.standard_b64encode(contenido).decode("utf-8")
 
     # Normalizar content_type
@@ -138,7 +147,7 @@ async def procesar_factura_con_ia(contenido: bytes, content_type: str) -> Factur
         }
 
     try:
-        message = client.messages.create(
+        message = await client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=1500,
             messages=[

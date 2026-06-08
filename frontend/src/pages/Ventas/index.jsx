@@ -35,7 +35,7 @@ function ModalVenta({ onClose, onSaved, ventaEditar = null }) {
 
   useEffect(() => {
     Promise.all([sucursalesApi.listar(), clientesApi.listar(), stockApi.listar()])
-      .then(([s, c, p]) => { setSucursales(s.data.filter(x => !x.es_central)); setClientes(c.data); setProductos(p.data) })
+      .then(([s, c, p]) => { setSucursales(s.data); setClientes(c.data); setProductos(p.data) })
   }, [])
 
   const { getStyles } = useMarca()
@@ -169,7 +169,7 @@ function ModalVenta({ onClose, onSaved, ventaEditar = null }) {
                     {' — '}Stock en sucursal:{' '}
                     {(() => {
                       const ss = v.stocks_sucursal?.find(s => s.sucursal_id === Number(form.sucursal_id))
-                      const cant = ss ? ss.cantidad : (v.stock_central || 0)
+                      const cant = ss ? ss.cantidad : 0
                       return <strong style={{ color: cant <= (v.stock_minimo || 0) ? 'var(--red)' : 'var(--text-muted)' }}>{cant}</strong>
                     })()}
                   </div>

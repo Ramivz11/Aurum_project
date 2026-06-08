@@ -10,15 +10,13 @@ export function SucursalProvider({ children }) {
   const cargarSucursales = () => {
     sucursalesApi.listar()
       .then(({ data: lista }) => {
-        // Excluir el depósito central del selector de sucursales de venta
-        const sucursalesVenta = lista.filter(s => !s.es_central)
-        setSucursales(lista)          // lista completa (para stock, transfers, etc.)
+        setSucursales(lista)
         setSucursalActual(prev => {
           if (prev) {
-            const updated = sucursalesVenta.find(s => s.id === prev.id)
-            return updated || (sucursalesVenta.length > 0 ? sucursalesVenta[0] : null)
+            const updated = lista.find(s => s.id === prev.id)
+            return updated || (lista.length > 0 ? lista[0] : null)
           }
-          return sucursalesVenta.length > 0 ? sucursalesVenta[0] : null
+          return lista.length > 0 ? lista[0] : null
         })
       })
       .catch(() => {})

@@ -173,7 +173,7 @@ def alertas_recompra(db: Session = Depends(get_db)):
         .all()
     )
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     alertas = []
     for cliente, variante, ultima_fecha in resultados:
         # Asegurarse de calcular los días bien, independientemente del timezone

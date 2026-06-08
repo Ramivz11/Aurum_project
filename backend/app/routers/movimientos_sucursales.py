@@ -340,7 +340,7 @@ def dashboard_sucursal(
     stocks = db.query(StockSucursal).filter(StockSucursal.sucursal_id == sucursal_id).all()
     stock_total_sucursal = sum(s.cantidad for s in stocks)
 
-    # Stock total global (todas las sucursales + central)
+    # Stock total global (todas las sucursales)
     stock_total_global = int(db.query(func.sum(StockSucursal.cantidad)).scalar() or 0)
     porcentaje_stock = float(stock_total_sucursal / stock_total_global * 100) if stock_total_global > 0 else 0.0
 

@@ -15,16 +15,48 @@ Base.metadata.create_all(bind=engine)
 
 
 def _run_migrations():
+    # Las migraciones usan SQL específico de PostgreSQL (ADD COLUMN IF NOT EXISTS,
+    # SERIAL, TIMESTAMPTZ, DO $$...$$). En otros motores (ej. SQLite local) se omiten
+    # y se confía en Base.metadata.create_all para el esquema base.
+    if engine.dialect.name != "postgresql":
+        return
+
     with engine.connect() as conn:
-        conn.execute(
-            text("ALTER TABLE sucursales ADD COLUMN IF NOT EXISTS es_central BOOLEAN DEFAULT FALSE NOT NULL")
-        )
         conn.execute(
             text("ALTER TABLE venta_items ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(12,2)"))
         conn.execute(
             text("ALTER TABLE variantes ADD COLUMN IF NOT EXISTS dias_duracion INTEGER"))
         conn.execute(
             text("ALTER TABLE transferencias ADD COLUMN IF NOT EXISTS compra_id INTEGER REFERENCES compras(id)"))
+        # Convertir transferencias.tipo de ENUM a VARCHAR (se eliminó el concepto de
+        # depósito central; los tipos pasaron a 'ingreso_compra' / 'entre_sucursales').
+        # Idempotente: solo corre si la columna sigue siendo un tipo enumerado.
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'transferencias'
+                      AND column_name = 'tipo'
+                      AND data_type = 'USER-DEFINED'
+                ) THEN
+                    ALTER TABLE transferencias ALTER COLUMN tipo TYPE VARCHAR(30) USING tipo::text;
+                END IF;
+            END$$;
+        """))
+        # Neutralizar cualquier depósito central heredado (ya no se usa el modelo
+        # de central): lo desactivamos para que no aparezca como sucursal de venta.
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'sucursales' AND column_name = 'es_central'
+                ) THEN
+                    UPDATE sucursales SET activa = FALSE WHERE es_central = TRUE;
+                END IF;
+            END$$;
+        """))
         # Tabla de ajustes de ganancia
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ganancia_ajuste (
@@ -66,21 +98,14 @@ def _run_migrations():
 
 
 async def _seed_and_migrate():
-    from app.models import Sucursal, CategoriaGasto, CategoriaProducto, Variante, StockSucursal
+    from app.models import Sucursal, CategoriaGasto, CategoriaProducto
 
     _run_migrations()
 
     db = SessionLocal()
     try:
-        # ── Depósito Central ─────────────────────────────────────────────────
-        central = db.query(Sucursal).filter(Sucursal.es_central == True).first()
-        if not central:
-            central = Sucursal(nombre="Depósito Central", es_central=True)
-            db.add(central)
-            db.flush()
-
-        # ── Sucursales de ejemplo ─────────────────────────────────────────────
-        if db.query(Sucursal).filter(Sucursal.es_central == False).count() == 0:
+        # ── Sucursales de ejemplo (solo si no hay ninguna activa) ─────────────
+        if db.query(Sucursal).filter(Sucursal.activa == True).count() == 0:
             for nombre in ["Sucursal 1", "Sucursal 2", "Sucursal 3"]:
                 db.add(Sucursal(nombre=nombre))
 
@@ -96,27 +121,6 @@ async def _seed_and_migrate():
                 db.add(CategoriaProducto(nombre=nombre))
 
         db.commit()
-
-        # ── Migración one-time: variante.stock_actual → StockSucursal(central) ─
-        central = db.query(Sucursal).filter(Sucursal.es_central == True).first()
-        variantes_con_stock = db.query(Variante).filter(Variante.stock_actual > 0).all()
-        for variante in variantes_con_stock:
-            ss = db.query(StockSucursal).filter(
-                StockSucursal.variante_id == variante.id,
-                StockSucursal.sucursal_id == central.id
-            ).first()
-            if ss:
-                ss.cantidad += variante.stock_actual
-            else:
-                db.add(StockSucursal(
-                    variante_id=variante.id,
-                    sucursal_id=central.id,
-                    cantidad=variante.stock_actual,
-                ))
-            variante.stock_actual = 0
-
-        if variantes_con_stock:
-            db.commit()
 
     finally:
         db.close()

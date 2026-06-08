@@ -4,43 +4,40 @@ from typing import Optional, List
 from decimal import Decimal
 
 from app.database import get_db
-from app.models import Compra, CompraItem, Variante, StockSucursal, Sucursal, Transferencia, TipoTransferenciaEnum
+from app.models import Compra, CompraItem, Variante, StockSucursal, Transferencia, TipoTransferenciaEnum
 from app.schemas import CompraCreate, CompraCreateConDistribucion, CompraResponse, FacturaIAResponse
 from app.services.ia_facturas import procesar_factura_con_ia
 
 router = APIRouter(prefix="/compras", tags=["Compras"])
 
 
-def _get_central(db: Session) -> Sucursal:
-    """Retorna el depósito central. Lanza 500 si no existe (no debería ocurrir)."""
-    central = db.query(Sucursal).filter(Sucursal.es_central == True, Sucursal.activa == True).first()
-    if not central:
-        raise HTTPException(status_code=500, detail="Depósito central no configurado")
-    return central
-
-
 def _sumar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
-    ss = db.query(StockSucursal).filter(
+    """Suma stock de forma atómica (UPDATE ... SET cantidad = cantidad + n)."""
+    actualizado = db.query(StockSucursal).filter(
         StockSucursal.variante_id == variante_id,
         StockSucursal.sucursal_id == sucursal_id
-    ).first()
-    if ss:
-        ss.cantidad += cantidad
-    else:
+    ).update(
+        {StockSucursal.cantidad: StockSucursal.cantidad + cantidad},
+        synchronize_session=False,
+    )
+    if not actualizado:
         db.add(StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=cantidad))
+        db.flush()  # materializa la fila para que un UPDATE posterior de la misma clave la encuentre
 
 
 def _restar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
-    ss = db.query(StockSucursal).filter(
+    """Resta stock de forma atómica. No se acota a 0: si quedara negativo, refleja
+    un descuadre real (stock ya movido/vendido) en lugar de ocultarlo perdiendo unidades."""
+    actualizado = db.query(StockSucursal).filter(
         StockSucursal.variante_id == variante_id,
         StockSucursal.sucursal_id == sucursal_id
-    ).first()
-    if ss:
-        # No se acota a 0: si quedara negativo, refleja un descuadre real
-        # (stock ya movido/vendido) en lugar de ocultarlo perdiendo unidades.
-        ss.cantidad -= cantidad
-    else:
+    ).update(
+        {StockSucursal.cantidad: StockSucursal.cantidad - cantidad},
+        synchronize_session=False,
+    )
+    if not actualizado:
         db.add(StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=-cantidad))
+        db.flush()
 
 
 @router.get("", response_model=List[CompraResponse])
@@ -82,8 +79,10 @@ def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
 
 
 def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
-    """Crea CompraItems, actualiza stock y registra transferencias. Retorna el total."""
-    central = _get_central(db)
+    """Crea CompraItems, actualiza stock y registra transferencias. Retorna el total.
+
+    Lo que no se distribuye explícitamente a otras sucursales queda en la sucursal
+    de la compra (`compra.sucursal_id`)."""
     total = Decimal("0")
 
     for item_data in items_data:
@@ -111,18 +110,18 @@ def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
         ))
         variante.costo = item_data.costo_unitario
 
-        # Lo que no se distribuye explícitamente va al depósito central
-        a_central = item_data.cantidad - total_distribuido
-        if a_central > 0:
-            _sumar_stock_sucursal(db, variante.id, central.id, a_central)
+        # Lo que no se distribuye explícitamente queda en la sucursal de la compra
+        a_sucursal_base = item_data.cantidad - total_distribuido
+        if a_sucursal_base > 0:
+            _sumar_stock_sucursal(db, variante.id, compra.sucursal_id, a_sucursal_base)
             db.add(Transferencia(
                 variante_id=variante.id,
-                tipo=TipoTransferenciaEnum.central_a_sucursal,
+                tipo=TipoTransferenciaEnum.ingreso_compra.value,
                 sucursal_origen_id=None,
-                sucursal_destino_id=central.id,
+                sucursal_destino_id=compra.sucursal_id,
                 compra_id=compra.id,
-                cantidad=a_central,
-                notas=f"Ingreso al depósito central — compra #{compra.id}",
+                cantidad=a_sucursal_base,
+                notas=f"Ingreso por compra #{compra.id}",
             ))
 
         for dist in item_data.distribucion:
@@ -130,7 +129,7 @@ def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
                 _sumar_stock_sucursal(db, variante.id, dist.sucursal_id, dist.cantidad)
                 db.add(Transferencia(
                     variante_id=variante.id,
-                    tipo=TipoTransferenciaEnum.central_a_sucursal,
+                    tipo=TipoTransferenciaEnum.ingreso_compra.value,
                     sucursal_origen_id=None,
                     sucursal_destino_id=dist.sucursal_id,
                     compra_id=compra.id,
@@ -144,16 +143,19 @@ def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
 def _revertir_items(db: Session, compra: Compra):
     """Revierte completamente el stock de una compra antes de modificarla o eliminarla."""
     # Transferencias enlazadas por FK (compras nuevas). Para compras viejas sin
-    # compra_id se usa el respaldo por texto de notas.
+    # compra_id se usa el respaldo por texto de notas (incluye los textos legados
+    # del modelo con depósito central).
     transferencias = db.query(Transferencia).filter(
         (Transferencia.compra_id == compra.id) |
         Transferencia.notas.in_([
             f"Distribución de compra #{compra.id}",
+            f"Ingreso por compra #{compra.id}",
             f"Ingreso al depósito central — compra #{compra.id}",
         ])
     ).all()
     for t in transferencias:
-        _restar_stock_sucursal(db, t.variante_id, t.sucursal_destino_id, t.cantidad)
+        if t.sucursal_destino_id is not None:
+            _restar_stock_sucursal(db, t.variante_id, t.sucursal_destino_id, t.cantidad)
         db.delete(t)
 
     for item in compra.items:
@@ -188,6 +190,7 @@ def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Ses
 
     # Actualizar campos del encabezado
     compra.proveedor = data.proveedor
+    compra.sucursal_id = data.sucursal_id
     compra.metodo_pago = data.metodo_pago
     compra.notas = data.notas
 

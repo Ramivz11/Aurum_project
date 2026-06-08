@@ -19,43 +19,27 @@ router = APIRouter(prefix="/stock", tags=["Stock"])
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 def _sumar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
-    """Suma stock a una sucursal, creando el registro si no existe."""
-    ss = db.query(StockSucursal).filter(
+    """Suma stock a una sucursal de forma atómica, creando el registro si no existe."""
+    actualizado = db.query(StockSucursal).filter(
         StockSucursal.variante_id == variante_id,
         StockSucursal.sucursal_id == sucursal_id
-    ).first()
-    if ss:
-        ss.cantidad += cantidad
-    else:
+    ).update(
+        {StockSucursal.cantidad: StockSucursal.cantidad + cantidad},
+        synchronize_session=False,
+    )
+    if not actualizado:
         db.add(StockSucursal(variante_id=variante_id, sucursal_id=sucursal_id, cantidad=cantidad))
-
-
-def _get_central(db: Session) -> Sucursal:
-    """Retorna el depósito central."""
-    central = db.query(Sucursal).filter(Sucursal.es_central == True, Sucursal.activa == True).first()
-    if not central:
-        raise HTTPException(status_code=500, detail="Depósito central no configurado")
-    return central
-
-
-def _resolve_sucursal(db: Session, sucursal_id: Optional[int]) -> int:
-    """None → ID del depósito central. Permite compatibilidad con el frontend existente."""
-    if sucursal_id is None:
-        return _get_central(db).id
-    return sucursal_id
+        db.flush()  # materializa la fila para que un UPDATE posterior de la misma clave la encuentre
 
 
 def _get_variante_con_stock(variante: Variante) -> VarianteConStockResponse:
     """Construye el response de variante con desglose de stock por sucursal."""
     stock_sucursales = []
     stock_total = 0
-    stock_central = 0
 
     for ss in variante.stocks_sucursal:
         if ss.sucursal and ss.sucursal.activa:
             stock_total += ss.cantidad
-            if ss.sucursal.es_central:
-                stock_central = ss.cantidad
             if ss.cantidad > 0:
                 stock_sucursales.append(StockSucursalResponse(
                     sucursal_id=ss.sucursal_id,
@@ -71,7 +55,6 @@ def _get_variante_con_stock(variante: Variante) -> VarianteConStockResponse:
         sku=variante.sku,
         costo=variante.costo,
         precio_venta=variante.precio_venta,
-        stock_central=stock_central,
         stock_total=stock_total,
         stock_minimo=variante.stock_minimo,
         activa=variante.activa,
@@ -156,7 +139,7 @@ from pydantic import BaseModel as PydanticBase
 
 class AjusteStockManual(PydanticBase):
     cantidad: int
-    sucursal_id: Optional[int] = None  # None = depósito central
+    sucursal_id: int
 
 @router.put("/variante/{variante_id}/ajuste")
 def ajustar_stock_manual(
@@ -169,7 +152,13 @@ def ajustar_stock_manual(
     if not variante:
         raise HTTPException(status_code=404, detail="Variante no encontrada")
 
-    sucursal_id = _resolve_sucursal(db, data.sucursal_id)
+    sucursal = db.query(Sucursal).filter(
+        Sucursal.id == data.sucursal_id, Sucursal.activa == True
+    ).first()
+    if not sucursal:
+        raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+
+    sucursal_id = data.sucursal_id
 
     ss = db.query(StockSucursal).filter(
         StockSucursal.variante_id == variante_id,
@@ -189,29 +178,28 @@ def ajustar_stock_manual(
 
 @router.post("/transferencia", response_model=TransferenciaResponse, status_code=201)
 def crear_transferencia(data: TransferenciaCreate, db: Session = Depends(get_db)):
-    """
-    Transfiere stock entre sucursales (incluyendo el depósito central).
-    - sucursal_origen_id=None  → desde el depósito central
-    - sucursal_destino_id=None → hacia el depósito central
-    """
+    """Transfiere stock entre dos sucursales. Origen y destino son obligatorios."""
     variante = db.query(Variante).filter(Variante.id == data.variante_id).first()
     if not variante:
         raise HTTPException(status_code=404, detail="Variante no encontrada")
 
-    origen_id = _resolve_sucursal(db, data.sucursal_origen_id)
-    destino_id = _resolve_sucursal(db, data.sucursal_destino_id)
+    if data.sucursal_origen_id is None or data.sucursal_destino_id is None:
+        raise HTTPException(status_code=400, detail="Origen y destino son obligatorios")
+
+    origen_id = data.sucursal_origen_id
+    destino_id = data.sucursal_destino_id
 
     if origen_id == destino_id:
         raise HTTPException(status_code=400, detail="El origen y destino no pueden ser la misma sucursal")
 
-    # Determinar tipo de transferencia
-    central = _get_central(db)
-    if origen_id == central.id:
-        tipo = TipoTransferenciaEnum.central_a_sucursal
-    elif destino_id == central.id:
-        tipo = TipoTransferenciaEnum.sucursal_a_central
-    else:
-        tipo = TipoTransferenciaEnum.entre_sucursales
+    # Validar que ambas sucursales existan y estén activas
+    sucursales_validas = {
+        s.id for s in db.query(Sucursal).filter(
+            Sucursal.id.in_([origen_id, destino_id]), Sucursal.activa == True
+        ).all()
+    }
+    if origen_id not in sucursales_validas or destino_id not in sucursales_validas:
+        raise HTTPException(status_code=404, detail="Sucursal de origen o destino no encontrada")
 
     # Verificar stock en origen
     ss_origen = db.query(StockSucursal).filter(
@@ -225,12 +213,19 @@ def crear_transferencia(data: TransferenciaCreate, db: Session = Depends(get_db)
             detail=f"Stock insuficiente en origen. Disponible: {disponible}, solicitado: {data.cantidad}"
         )
 
-    ss_origen.cantidad -= data.cantidad
+    # Descuento atómico del origen y suma al destino
+    db.query(StockSucursal).filter(
+        StockSucursal.variante_id == data.variante_id,
+        StockSucursal.sucursal_id == origen_id
+    ).update(
+        {StockSucursal.cantidad: StockSucursal.cantidad - data.cantidad},
+        synchronize_session=False,
+    )
     _sumar_stock_sucursal(db, data.variante_id, destino_id, data.cantidad)
 
     transferencia = Transferencia(
         variante_id=data.variante_id,
-        tipo=tipo,
+        tipo=TipoTransferenciaEnum.entre_sucursales.value,
         sucursal_origen_id=origen_id,
         sucursal_destino_id=destino_id,
         cantidad=data.cantidad,

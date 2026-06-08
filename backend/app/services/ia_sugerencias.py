@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 
 
-def _get_client() -> anthropic.Anthropic:
-    """Inicializa y devuelve el cliente de Anthropic.  Lanza si falta la key."""
+def _get_client() -> anthropic.AsyncAnthropic:
+    """Inicializa y devuelve el cliente async de Anthropic.  Lanza si falta la key."""
     if not settings.ANTHROPIC_API_KEY:
         raise RuntimeError(
             "ANTHROPIC_API_KEY no configurada. "
             "Agregá la variable de entorno ANTHROPIC_API_KEY."
         )
-    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    return anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
 
 def _build_prompt(
@@ -162,7 +162,7 @@ async def generar_sugerencia_compra(
     prompt = _build_prompt(presupuesto, config, inventario)
 
     try:
-        message = client.messages.create(
+        message = await client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
