@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { finanzasApi } from '../api'
 import { useToast } from '../components/Toast'
 import { ConfirmDialog } from '../components/ui'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { loadPdf } from '../utils/pdf'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
@@ -572,9 +571,10 @@ export function Finanzas() {
 
   useEffect(() => { cargar() }, [])
 
-  const handleExportarPDF = () => {
+  const handleExportarPDF = async () => {
     try {
       if (!analisis) return toast('Cargando datos...', 'error')
+      const { jsPDF, autoTable } = await loadPdf()
       const doc = new jsPDF()
       const periodo = analisis.periodo || 'Mes actual'
 

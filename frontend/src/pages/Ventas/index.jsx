@@ -3,8 +3,7 @@ import { toast } from '../../components/Toast'
 import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, Chip, ConfirmDialog, FAB, DropdownMenu, useIsMobile, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { loadPdf } from '../../utils/pdf'
 
 function ModalVenta({ onClose, onSaved, ventaEditar = null }) {
   const esEdicion = ventaEditar !== null
@@ -631,16 +630,20 @@ export default function Ventas() {
   const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.nombre]))
   const sucursalMap = Object.fromEntries(sucursales.map(s => [s.id, s.nombre]))
 
-  const eliminar = async (id) => { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
+  const eliminar = async (id) => {
+    try { await ventasApi.eliminar(id); toast.success('Eliminada'); cargar() }
+    catch (e) { toast.error(e.message || 'Error al eliminar') }
+  }
   const confirmar = async (id) => {
     try { await ventasApi.confirmar(id); toast.success('Confirmado'); cargar() }
     catch (e) { toast.error(e.message || 'Error al confirmar') }
   }
 
-  const handleExportarPDF = () => {
+  const handleExportarPDF = async () => {
     if (ventas.length === 0) return toast.error('No hay ventas para exportar')
 
     try {
+      const { jsPDF, autoTable } = await loadPdf()
       const doc = new jsPDF()
       doc.setFontSize(18)
       doc.setFont("helvetica", "bold")

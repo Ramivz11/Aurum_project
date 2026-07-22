@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
+/* Las fuentes se cargan desde index.html (link preconnect + stylesheet):
+   un @import acá bloquea el primer render, sobre todo en redes móviles. */
 :root {
   --gold: #ff9800;
   --gold-light: #ffb74d;
@@ -41,7 +41,12 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html { -webkit-tap-highlight-color: transparent; }
+html {
+  -webkit-tap-highlight-color: transparent;
+  /* iOS agranda el texto en landscape si no se fija esto */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
@@ -50,7 +55,12 @@ body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  /* Sin rebote/pull-to-refresh accidental al scrollear listas (feel nativo) */
+  overscroll-behavior-y: none;
 }
+
+/* Elimina el retraso de doble-tap-zoom en todos los controles */
+button, a, input, select, textarea, label { touch-action: manipulation; }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1048,6 +1058,30 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 @media (max-width: 768px) {
   .desktop-only { display: none !important; }
   .mobile-only { display: block !important; }
+}
+
+/* ── FEEL NATIVO EN TOUCH ───────────────────────────────────────────────── */
+/* En pantallas táctiles no existe hover: el estado :hover queda "pegado"
+   después de tocar. Se neutralizan los efectos de hover y se reemplazan
+   por feedback :active inmediato, como en una app nativa. */
+@media (hover: none) {
+  .stat-card:hover { transform: none; box-shadow: none; border-color: var(--border); }
+  .stat-card:hover::after { opacity: 0; }
+  .suc-card:hover { transform: none; box-shadow: none; border-color: var(--border); }
+  .btn-primary:hover { transform: none; box-shadow: 0 2px 14px rgba(255,152,0,0.3); }
+
+  .btn:active { transform: scale(0.97); }
+  .nav-item:active, .bottom-nav-item:active,
+  .sucursal-item:active, .dropdown-item:active { background: rgba(255,152,0,0.1); }
+  .data-card:active, .pedido-card:active { background: var(--surface2); }
+
+  /* Sin menú contextual de iOS al mantener presionado un control de navegación */
+  .nav-item, .bottom-nav-item, .btn, .fab { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
+
+/* Accesibilidad: respeta la preferencia de reducir movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
 /* EmptyState component */

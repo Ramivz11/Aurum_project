@@ -4,8 +4,7 @@ import { useMarca } from '../../context/MarcaContext'
 import { useToast } from '../../components/Toast'
 import { useSucursal } from '../../context/SucursalContext'
 import { DataCard, FAB, useIsMobile, ConfirmDialog } from '../../components/ui'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { loadPdf } from '../../utils/pdf'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const METODOS = ['efectivo', 'transferencia', 'tarjeta']
@@ -655,10 +654,11 @@ export default function Compras() {
 
   const getNombreSucursal = (id) => sucursales.find(s => s.id === id)?.nombre || `#${id}`
 
-  const handleExportarPDF = () => {
+  const handleExportarPDF = async () => {
     if (compras.length === 0) return toast('No hay compras para exportar', 'error')
 
     try {
+      const { jsPDF, autoTable } = await loadPdf()
       const doc = new jsPDF()
       doc.setFontSize(18)
       doc.setFont("helvetica", "bold")

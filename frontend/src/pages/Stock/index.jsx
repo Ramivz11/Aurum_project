@@ -3,8 +3,7 @@ import { toast } from '../../components/Toast'
 import { productosApi, categoriasProductoApi, stockApi, sucursalesApi, finanzasApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { Modal, Loading, EmptyState, ConfirmDialog, FAB, DropdownMenu, useIsMobile, formatARS } from '../../components/ui'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { loadPdf } from '../../utils/pdf'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -657,12 +656,16 @@ export default function Stock() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  const eliminar = async id => { await productosApi.eliminar(id); toast.success('Eliminado'); cargar() }
+  const eliminar = async id => {
+    try { await productosApi.eliminar(id); toast.success('Eliminado'); cargar() }
+    catch (e) { toast.error(e.message || 'Error al eliminar') }
+  }
 
-  const handleExportarPDF = () => {
+  const handleExportarPDF = async () => {
     if (productos.length === 0) return toast.error('No hay productos para exportar')
 
     try {
+      const { jsPDF, autoTable } = await loadPdf()
       const doc = new jsPDF()
       doc.setFontSize(18)
       doc.setFont("helvetica", "bold")
