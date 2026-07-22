@@ -115,7 +115,7 @@ function ModalTransferencia({ variante, productoNombre, sucursales, onClose, onS
           <button onClick={() => setCantidad(c => Math.max(1, c - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#f1f5f9', cursor: 'pointer', fontSize: 18 }}>−</button>
           <input type="number" min={1} max={stockOrigen} value={cantidad} onChange={e => setCantidad(Math.max(1, Number(e.target.value)))} style={{ ...sel, textAlign: 'center', width: 80 }} />
           <button onClick={() => setCantidad(c => Math.min(stockOrigen, c + 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#f1f5f9', cursor: 'pointer', fontSize: 18 }}>+</button>
-          {origenId && <button onClick={() => setCantidad(stockOrigen)} style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Todo ({fmtN(stockOrigen)})</button>}
+          {origenId && <button onClick={() => setCantidad(stockOrigen)} style={{ background: 'none', border: 'none', color: '#ff9800', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '10px 8px', minHeight: 40 }}>Todo ({fmtN(stockOrigen)})</button>}
         </div>
         {cantidad > stockOrigen && origenId && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>⚠ Supera el disponible ({fmtN(stockOrigen)})</div>}
       </div>
@@ -223,7 +223,7 @@ function ModalProducto({ producto, categorias, onClose, onSaved }) {
         <div key={v.id || i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 10, border: v._eliminada ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent', opacity: v._eliminada ? 0.5 : 1 }}>
           {v._eliminada
             ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{[v.sabor, v.tamanio].filter(Boolean).join(' · ') || `Variante ${i + 1}`} — <em>se eliminará</em></span><button className="btn btn-ghost btn-sm" onClick={() => upVar(i, '_eliminada', false)}>Deshacer</button></div>
-            : <><div className="grid-2" style={{ marginBottom: 8 }}><div><label className="input-label">Sabor</label><input className="input" value={v.sabor || ''} onChange={e => upVar(i, 'sabor', e.target.value)} /></div><div><label className="input-label">Tamaño</label><input className="input" value={v.tamanio || ''} onChange={e => upVar(i, 'tamanio', e.target.value)} /></div></div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}><div><label className="input-label">Costo $</label><input className="input" type="number" value={v.costo || ''} onChange={e => upVar(i, 'costo', e.target.value)} /></div><div><label className="input-label">Precio $</label><input className="input" type="number" value={v.precio_venta || ''} onChange={e => upVar(i, 'precio_venta', e.target.value)} /></div><div><label className="input-label">Mín.</label><input className="input" type="number" value={v.stock_minimo || 0} onChange={e => upVar(i, 'stock_minimo', e.target.value)} /></div><div><label className="input-label" title="Días estimados para recompra">Días dur.</label><input className="input" type="number" placeholder="Ej: 60" value={v.dias_duracion || ''} onChange={e => upVar(i, 'dias_duracion', e.target.value)} /></div><button className="btn btn-danger btn-sm" style={{ alignSelf: 'flex-end' }} onClick={() => { if (v.id) upVar(i, '_eliminada', true); else setVars(arr => arr.filter((_, idx) => idx !== i)) }}>✕</button></div></>
+            : <><div className="grid-2" style={{ marginBottom: 8 }}><div><label className="input-label">Sabor</label><input className="input" value={v.sabor || ''} onChange={e => upVar(i, 'sabor', e.target.value)} /></div><div><label className="input-label">Tamaño</label><input className="input" value={v.tamanio || ''} onChange={e => upVar(i, 'tamanio', e.target.value)} /></div></div><div className="var-fields-grid" style={{ gap: 10, alignItems: 'end' }}><div><label className="input-label">Costo $</label><input className="input" type="number" value={v.costo || ''} onChange={e => upVar(i, 'costo', e.target.value)} /></div><div><label className="input-label">Precio $</label><input className="input" type="number" value={v.precio_venta || ''} onChange={e => upVar(i, 'precio_venta', e.target.value)} /></div><div><label className="input-label">Mín.</label><input className="input" type="number" value={v.stock_minimo || 0} onChange={e => upVar(i, 'stock_minimo', e.target.value)} /></div><div><label className="input-label" title="Días estimados para recompra">Días dur.</label><input className="input" type="number" placeholder="Ej: 60" value={v.dias_duracion || ''} onChange={e => upVar(i, 'dias_duracion', e.target.value)} /></div><button className="btn btn-danger btn-sm" style={{ alignSelf: 'flex-end' }} onClick={() => { if (v.id) upVar(i, '_eliminada', true); else setVars(arr => arr.filter((_, idx) => idx !== i)) }}>✕</button></div></>
           }
         </div>
       ))}
@@ -279,7 +279,7 @@ function VarianteRow({ variante, sucursales, productoNombre, onStockSaved, onTra
     ? Math.round(((variante.precio_venta - variante.costo) / variante.precio_venta) * 100) : null
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12, padding: '9px 14px 9px 54px', borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.15)' }}>
+    <div className="variante-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.15)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
         {/* Etiqueta */}
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, minWidth: 80 }}>{varLabel}</span>
@@ -761,7 +761,7 @@ export default function Stock() {
               onFocus={e => { e.target.style.borderColor = 'rgba(255,152,0,0.35)' }}
               onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.07)' }}
             />
-            {busqueda && <button onClick={() => setBusqueda('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 14 }}>✕</button>}
+            {busqueda && <button onClick={() => setBusqueda('')} aria-label="Limpiar búsqueda" style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 14, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>}
           </div>
 
           {/* Filtros */}

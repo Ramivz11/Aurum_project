@@ -707,7 +707,7 @@ export default function Ventas() {
             <button key={f.key}
               onClick={() => setFiltro(f.key)}
               style={{
-                padding: '6px 16px', borderRadius: 999,
+                padding: '9px 16px', minHeight: 38, borderRadius: 999,
                 fontSize: 13, fontWeight: 500,
                 border: isActive ? '1px solid rgba(255,152,0,0.5)' : '1px solid rgba(255,255,255,0.08)',
                 background: isActive ? 'rgba(255,152,0,0.15)' : 'rgba(15,22,41,0.6)',

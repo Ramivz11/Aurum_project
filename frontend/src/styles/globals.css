@@ -266,6 +266,10 @@ body::before {
 .product-price { min-width: 120px; }
 .product-actions { display: flex; align-items: center; gap: 6px; }
 
+/* La sangría izquierda alinea la variante bajo el nombre del producto en
+   desktop; en móvil se quitaría demasiado ancho útil. */
+.variante-row { padding: 9px 14px 9px 54px; }
+
 .main-area {
   flex: 1;
   display: flex;
@@ -394,6 +398,10 @@ body::before {
   height: 100%;
   align-items: center;
   justify-content: space-around;
+  /* .bottom-nav es flex en móvil, así que este wrapper es un flex item: sin
+     width:100% se encoge al ancho de su contenido y la navegación queda
+     apiñada a la izquierda en vez de repartirse toda la barra. */
+  width: 100%;
 }
 
 .bottom-nav-item {
@@ -499,6 +507,10 @@ body::before {
 .btn-xs { padding: 3px 8px; font-size: 11px; }
 
 /* ─── GRIDS ───────────────────────────────────────── */
+/* Campos numéricos de una variante (modal de Stock): 4 en línea + botón
+   eliminar en desktop. En móvil no entran — pasan a 2 columnas y el botón
+   ocupa su propia fila. */
+.var-fields-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; }
 .ventas-footer-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
 .stats-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
@@ -987,6 +999,17 @@ tbody td { padding: 12px 16px; font-size: 13px; }
   .dash-2col { grid-template-columns: 1fr !important; }
   .dash-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
 
+  .variante-row { padding: 10px 0 10px 8px; margin-top: 8px; border-radius: 10px; }
+
+  /* Los 4 inputs numéricos de variante no entran en línea a 360px */
+  .var-fields-grid { grid-template-columns: 1fr 1fr; }
+  .var-fields-grid > .btn-danger { grid-column: 1 / -1; justify-content: center; }
+
+  /* A 2 columnas la tarjeta queda angosta: menos padding para que importes
+     de 7 cifras no desborden. */
+  .stat-card { padding: 14px 14px; }
+  .stat-value { overflow-wrap: anywhere; }
+
   /* Carrito (Ventas/Compras): a 320-360px de ancho, nombre + qty + precio +
      subtotal + quitar no entran en una sola fila — el nombre pasa a ocupar
      su propia línea y el resto de controles se reacomoda debajo. */
@@ -1001,7 +1024,11 @@ tbody td { padding: 12px 16px; font-size: 13px; }
   .search-input, .carrito-qty, .carrito-precio {
     font-size: 16px;
   }
-  .btn:not(.btn-xs):not(.btn-sm) { min-height: 44px; }
+  .form-input, .form-select, .input, .select, .search-input { min-height: 44px; }
+  .btn:not(.btn-xs):not(.btn-sm) { min-height: 44px; min-width: 44px; justify-content: center; }
+  /* Los btn-sm quedaban en 27px de alto: por debajo del mínimo cómodo para el pulgar */
+  .btn-sm { min-height: 36px; }
+  .btn-xs { min-height: 32px; }
   .modal-close, .mobile-menu-btn { min-width: 40px; min-height: 40px; }
 
   .modal-drag-handle {
