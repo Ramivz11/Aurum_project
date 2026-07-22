@@ -716,6 +716,15 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 }
 .modal-lg { max-width: 740px; }
 .modal-drag-handle { display: none; }
+
+/* Sin esto, al llegar al final del scroll del modal el gesto sigue en el
+   contenido de atrás (scroll chaining) — se siente a web, no a app. */
+.modal, .modal-overlay { overscroll-behavior: contain; }
+
+/* El fondo no debe moverse mientras hay un modal o el drawer abierto. El
+   scroll real vive en .content/.page-content, no en <body>. */
+body.scroll-locked .content,
+body.scroll-locked .page-content { overflow: hidden; }
 .modal-header {
   padding: 18px 22px;
   border-bottom: 1px solid var(--border);

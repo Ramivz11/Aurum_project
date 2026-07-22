@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { ventasApi, sucursalesApi } from '../api'
 import { useSucursal } from '../context/SucursalContext'
 import { useToast } from './Toast'
+import { useScrollLock } from './ui'
 
 const NAV = [
   { label: 'Principal', items: [
@@ -158,6 +159,8 @@ export default function Sidebar() {
 
   // Cerrar drawer al cambiar de ruta
   useEffect(() => { setDrawerOpen(false) }, [location.pathname])
+
+  useScrollLock(drawerOpen)
 
   const navProps = {
     pedidosAbiertos, sucursalesOpen, setSucursalesOpen,
