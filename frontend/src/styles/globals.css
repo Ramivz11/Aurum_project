@@ -313,6 +313,18 @@ body::before {
   padding-bottom: 32px;
 }
 
+/* ─── OFFLINE BANNER ──────────────────────────────── */
+.offline-banner {
+  flex-shrink: 0;
+  background: rgba(251,191,36,0.12);
+  border-bottom: 1px solid rgba(251,191,36,0.25);
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 16px;
+}
+
 /* ─── MOBILE HEADER ───────────────────────────────── */
 .mobile-header {
   display: none;
