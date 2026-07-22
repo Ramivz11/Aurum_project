@@ -1041,10 +1041,10 @@ body.scroll-locked .page-content { overflow: hidden; }
 
   /* Objetivos táctiles: 16px evita el auto-zoom de iOS en foco;
      44px de alto es el mínimo recomendado para tocar con el pulgar. */
-  .form-input, .form-select, .form-textarea, .input, .select,
-  .search-input, .carrito-qty, .carrito-precio {
-    font-size: 16px;
-  }
+  /* iOS hace zoom automático al enfocar un campo de menos de 16px y no
+     vuelve solo. El !important es deliberado: varios inputs traen fontSize
+     inline (que de otro modo gana), y basta uno para que Safari haga zoom. */
+  input, select, textarea { font-size: 16px !important; }
   .form-input, .form-select, .input, .select, .search-input { min-height: 44px; }
   .btn:not(.btn-xs):not(.btn-sm) { min-height: 44px; min-width: 44px; justify-content: center; }
   /* Los btn-sm quedaban en 27px de alto: por debajo del mínimo cómodo para el pulgar */
