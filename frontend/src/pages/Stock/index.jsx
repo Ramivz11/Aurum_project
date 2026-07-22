@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from '../../components/Toast'
 import { productosApi, categoriasProductoApi, stockApi, sucursalesApi, finanzasApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
-import { Modal, Loading, EmptyState, ConfirmDialog, formatARS } from '../../components/ui'
+import { Modal, Loading, EmptyState, ConfirmDialog, FAB, DropdownMenu, useIsMobile, formatARS } from '../../components/ui'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -372,6 +372,103 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
   const statusDot   = hayNegativo ? '#ef4444' : hayAlerta ? '#fbbf24' : stockTotal === 0 ? '#ef4444' : '#22c55e'
 
   const { getStyles } = useMarca()
+  const isMobile = useIsMobile()
+
+  // Chips de stock por sucursal — editables si el producto tiene una única
+  // variante, de solo lectura (totales) si tiene varias. Se comparte entre
+  // el layout desktop y el móvil.
+  const renderChips = () => esSingle
+    ? sucursales.map(s => {
+        const ss = (v0.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
+        const qty = ss?.cantidad ?? 0
+        const key = `${v0.id}_${s.id}`
+        const isSaving = savingKey === key
+        return (
+          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.28)' }}>{shortNom(s.nombre)}</span>
+            {editingKey === key ? (
+              <input autoFocus type="number" min="0" value={editingVal}
+                onChange={e => setEditingVal(e.target.value)}
+                onBlur={() => commitEdit(key, v0.id, s.id)}
+                onKeyDown={e => { if (e.key === 'Enter') commitEdit(key, v0.id, s.id); if (e.key === 'Escape') setEditingKey(null) }}
+                style={{ width: 44, padding: '2px 5px', textAlign: 'center', background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)', borderRadius: 999, color: '#ff9800', fontSize: 12, fontWeight: 700, outline: 'none' }}
+              />
+            ) : (
+              <SucChip label="" qty={isSaving ? 0 : qty} minimo={v0.stock_minimo} editable={!isSaving} onEdit={() => startEdit(key, qty)} />
+            )}
+            {isSaving && <span style={{ fontSize: 10, color: '#ff9800' }}>…</span>}
+          </div>
+        )
+      })
+    : stockPorSuc.map(s => {
+        const c = s.total === 0 ? stockColor(0, 1) : s.bajo ? stockColor(1, 999) : stockColor(999, 0)
+        return (
+          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.28)' }}>{shortNom(s.nombre)}</span>
+            <span style={{ minWidth: 30, height: 24, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', background: c.bg, color: c.fg, fontSize: 12, fontWeight: 700, border: `1px solid ${c.border}` }}>{fmtN(s.total)}</span>
+          </div>
+        )
+      })
+
+  const rowActions = [
+    { label: 'Transferir stock', onClick: () => setTransferVar(v0), hidden: !esSingle },
+    { label: 'Ajustar precios', onClick: onLote },
+    { label: 'Editar producto', onClick: onEdit },
+    { label: 'Eliminar', onClick: onDelete, danger: true },
+  ]
+
+  if (isMobile) {
+    return (
+      <>
+        <div className="product-card" style={{ background: 'rgba(15,22,41,0.75)', border: `1px solid ${borderColor}`, borderRadius: 14, marginBottom: 8, overflow: 'hidden', padding: '12px 14px' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: !esSingle ? 'pointer' : 'default' }}
+            onClick={() => !esSingle && setExpanded(e => !e)}
+          >
+            <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              {p.imagen_url
+                ? <img src={p.imagen_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
+                : <span style={{ fontSize: 16, opacity: 0.2 }}>◉</span>
+              }
+              {esSingle && (
+                <span style={{ position: 'absolute', top: 2, right: 2, width: 7, height: 7, borderRadius: '50%', background: statusDot, boxShadow: `0 0 6px ${statusDot}88` }} />
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nombre}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
+                {p.marca && (() => { const s = getStyles(p.marca); return <span className="brand-badge" style={{ '--brand-color': s.color, '--brand-bg': s.background, '--brand-border': s.border }}>{p.marca}</span> })()}
+                {p.categoria && <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>{p.categoria}</span>}
+                {!esSingle && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>{variantes.length} var. {expanded ? '▲' : '▼'}</span>}
+              </div>
+            </div>
+            <div onClick={e => e.stopPropagation()}>
+              <DropdownMenu items={rowActions} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }} onClick={e => e.stopPropagation()}>
+            {renderChips()}
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.18)' }}>= <strong style={{ color: stockTotal === 0 ? '#ef4444' : 'rgba(255,255,255,0.4)' }}>{fmtN(stockTotal)}</strong></span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 16, alignItems: 'baseline', marginTop: 10, flexWrap: 'wrap' }}>
+            <div><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.36)' }}>Costo </span><span style={{ fontFamily: 'Syne, sans-serif', fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{formatARS(costoMin)}</span></div>
+            <div><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.24)' }}>Venta </span><span style={{ fontFamily: 'Syne, sans-serif', fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>{formatARS(precioMin)}</span></div>
+            {margen !== null && <span style={{ fontSize: 12, fontWeight: 700, color: margen >= 25 ? '#22c55e' : margen >= 15 ? '#fbbf24' : '#ef4444' }}>{margen}% mrg</span>}
+          </div>
+
+          {!esSingle && expanded && variantes.map(v => (
+            <VarianteRow key={v.id} variante={v} sucursales={sucursales} productoNombre={p.nombre} onStockSaved={onStockSaved} onTransfer={setTransferVar} />
+          ))}
+        </div>
+
+        {transferVar && (
+          <ModalTransferencia variante={transferVar} productoNombre={p.nombre} sucursales={sucursales} onClose={() => setTransferVar(null)} onSaved={onStockSaved} />
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -412,40 +509,7 @@ function ProductRow({ p, sucursales, onEdit, onLote, onDelete, onStockSaved }) {
 
               {/* Chips de stock — siempre visibles, editables si es variante única */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                {esSingle
-                  ? sucursales.map(s => {
-                      const ss = (v0.stocks_sucursal || []).find(x => x.sucursal_id === s.id)
-                      const qty = ss?.cantidad ?? 0
-                      const key = `${v0.id}_${s.id}`
-                      const isSaving = savingKey === key
-                      return (
-                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.28)' }}>{shortNom(s.nombre)}</span>
-                          {editingKey === key ? (
-                            <input autoFocus type="number" min="0" value={editingVal}
-                              onChange={e => setEditingVal(e.target.value)}
-                              onBlur={() => commitEdit(key, v0.id, s.id)}
-                              onKeyDown={e => { if (e.key === 'Enter') commitEdit(key, v0.id, s.id); if (e.key === 'Escape') setEditingKey(null) }}
-                              style={{ width: 44, padding: '2px 5px', textAlign: 'center', background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)', borderRadius: 999, color: '#ff9800', fontSize: 12, fontWeight: 700, outline: 'none' }}
-                            />
-                          ) : (
-                            <SucChip label="" qty={isSaving ? 0 : qty} minimo={v0.stock_minimo} editable={!isSaving} onEdit={() => startEdit(key, qty)} />
-                          )}
-                          {isSaving && <span style={{ fontSize: 10, color: '#ff9800' }}>…</span>}
-                        </div>
-                      )
-                    })
-                  : /* Multi-variante: solo totales por sucursal, no editables */
-                    stockPorSuc.map(s => {
-                      const c = s.total === 0 ? stockColor(0, 1) : s.bajo ? stockColor(1, 999) : stockColor(999, 0)
-                      return (
-                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.28)' }}>{shortNom(s.nombre)}</span>
-                          <span style={{ minWidth: 30, height: 24, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', background: c.bg, color: c.fg, fontSize: 12, fontWeight: 700, border: `1px solid ${c.border}` }}>{fmtN(s.total)}</span>
-                        </div>
-                      )
-                    })
-                }
+                {renderChips()}
                 {/* Total global */}
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.18)' }}>= <strong style={{ color: stockTotal === 0 ? '#ef4444' : 'rgba(255,255,255,0.4)' }}>{fmtN(stockTotal)}</strong></span>
               </div>
@@ -649,11 +713,12 @@ export default function Stock() {
 
       doc.save(`Stock_${Date.now()}.pdf`)
     } catch (e) {
-      alert("Error al generar PDF: " + e.message)
+      toast.error("Error al generar PDF: " + e.message)
     }
   }
 
   const hayFiltros = catFiltro || marcaFiltro || sucFiltro
+  const isMobile = useIsMobile()
 
   return (
     <>
@@ -668,9 +733,10 @@ export default function Stock() {
         <div className="topbar-actions">
           <button className="btn btn-ghost" onClick={handleExportarPDF}>Exportar PDF</button>
           <button className="btn btn-ghost" onClick={() => setModalCats(true)}>Categorías</button>
-          <button className="btn btn-primary" onClick={() => setModalProd({})}>+ Nuevo producto</button>
+          {!isMobile && <button className="btn btn-primary" onClick={() => setModalProd({})}>+ Nuevo producto</button>}
         </div>
       </div>
+      {isMobile && <FAB onClick={() => setModalProd({})} title="Nuevo producto" />}
 
       <div className="page-content">
 
@@ -685,7 +751,7 @@ export default function Stock() {
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.2)', fontSize: 16, pointerEvents: 'none' }}>⌕</span>
             <input
-              style={{ width: '100%', padding: '11px 40px', background: 'rgba(15,22,41,0.8)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, color: '#f1f5f9', fontSize: 14, outline: 'none', transition: 'border-color 0.2s' }}
+              style={{ width: '100%', padding: '11px 40px', background: 'rgba(15,22,41,0.8)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, color: '#f1f5f9', fontSize: 16, outline: 'none', transition: 'border-color 0.2s' }}
               placeholder="Buscar producto, marca..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
@@ -738,9 +804,9 @@ export default function Stock() {
           </div>
         </div>
 
-        {/* Header columnas */}
+        {/* Header columnas (solo desktop: en móvil cada ProductRow es una card autocontenida) */}
         {!loading && productos.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto auto', padding: '0 10px 6px 0' }}>
+          <div className="desktop-only" style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto auto', padding: '0 10px 6px 0' }}>
             <div />
             <div style={{ paddingLeft: 54, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.18)' }}>
               Producto · chips = stock por sucursal (click para editar)

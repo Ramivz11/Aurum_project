@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { clientesApi } from '../api'
 import { useToast } from '../components/Toast'
+import { ConfirmDialog } from '../components/ui'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const initials = (name) => name?.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
@@ -61,6 +62,7 @@ export function Clientes() {
   const [modal, setModal] = useState(null)
 
   const [alertas, setAlertas] = useState([])
+  const [confirmDel, setConfirmDel] = useState(null)
 
   const cargar = () => {
     setLoading(true)
@@ -75,7 +77,6 @@ export function Clientes() {
   useEffect(() => { cargar() }, [busqueda])
 
   const eliminar = async (id) => {
-    if (!confirm('¿Eliminar este cliente?')) return
     try { await clientesApi.eliminar(id); toast('Cliente eliminado'); cargar() }
     catch (e) { toast(e.message, 'error') }
   }
@@ -149,7 +150,7 @@ export function Clientes() {
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => setModal(c)}>Editar</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => eliminar(c.id)}>✕</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => setConfirmDel(c)}>✕</button>
                 </div>
               </div>
             ))}
@@ -157,6 +158,13 @@ export function Clientes() {
         </div>
       </div>
       {modal && <ModalCliente cliente={modal === 'nuevo' ? null : modal} onClose={() => setModal(null)} onSaved={() => { setModal(null); cargar() }} />}
+      {confirmDel && (
+        <ConfirmDialog
+          message={`¿Eliminar a "${confirmDel.nombre}"?`}
+          onConfirm={() => { eliminar(confirmDel.id); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
     </>
   )
 }

@@ -3,6 +3,7 @@ import { sucursalesApi, deudasApi } from '../api'
 import { useMarca } from '../context/MarcaContext'
 import { useToast } from '../components/Toast'
 import { useSucursal } from '../context/SucursalContext'
+import { ConfirmDialog } from '../components/ui'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 
@@ -233,6 +234,7 @@ export function Sucursales() {
   const [modalDeuda, setModalDeuda] = useState(false)
   const [modalSucursal, setModalSucursal] = useState(null) // null | 'nuevo' | sucursal
   const [dashboardSucursal, setDashboardSucursal] = useState(null)
+  const [confirmAccion, setConfirmAccion] = useState(null) // { msg, fn }
 
   const cargar = () => {
     setLoading(true)
@@ -249,13 +251,11 @@ export function Sucursales() {
   }
 
   const eliminarDeuda = async (id) => {
-    if (!confirm('¿Eliminar esta deuda?')) return
     try { await deudasApi.eliminar(id); toast('Deuda eliminada'); cargar() }
     catch (e) { toast(e.message, 'error') }
   }
 
   const eliminarSucursal = async (s) => {
-    if (!confirm(`¿Eliminar "${s.nombre}"? Esta acción no se puede deshacer.`)) return
     try {
       await sucursalesApi.eliminar(s.id)
       toast('Sucursal eliminada')
@@ -292,7 +292,7 @@ export function Sucursales() {
                     <span style={{ flex: 1, fontWeight: 500, fontSize: 14 }}>{s.nombre}</span>
                     <button className="btn btn-ghost btn-sm" onClick={() => setDashboardSucursal(s)} style={{ padding: '4px 8px' }} title="Ver dashboard">📊</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setModalSucursal(s)} style={{ padding: '4px 8px' }}>✎</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => eliminarSucursal(s)} style={{ padding: '4px 8px' }}>✕</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirmAccion({ msg: `¿Eliminar "${s.nombre}"? Esta acción no se puede deshacer.`, fn: () => eliminarSucursal(s) })} style={{ padding: '4px 8px' }}>✕</button>
                   </div>
                 ))}
               </div>
@@ -350,7 +350,7 @@ export function Sucursales() {
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn btn-ghost btn-sm" onClick={() => saldar(d.id)}>Saldar</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => eliminarDeuda(d.id)}>✕</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => setConfirmAccion({ msg: '¿Eliminar esta deuda?', fn: () => eliminarDeuda(d.id) })}>✕</button>
                         </div>
                       </td>
                     </tr>
@@ -374,6 +374,13 @@ export function Sucursales() {
         <DashboardSucursal
           sucursal={dashboardSucursal}
           onClose={() => setDashboardSucursal(null)}
+        />
+      )}
+      {confirmAccion && (
+        <ConfirmDialog
+          message={confirmAccion.msg}
+          onConfirm={() => { confirmAccion.fn(); setConfirmAccion(null) }}
+          onCancel={() => setConfirmAccion(null)}
         />
       )}
     </>

@@ -14,6 +14,62 @@ const fmt = (n) => {
   return isNaN(num) ? '$0' : `$${num.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
+function SugeridorProductoCard({ p, pStyle }) {
+  const [showJust, setShowJust] = useState(false)
+  return (
+    <div className="data-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13.5 }}>{p.producto}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            {[p.sabor, p.tamanio].filter(Boolean).join(' · ') || '—'}
+          </div>
+        </div>
+        <span className="chip" style={{ background: pStyle.bg, color: pStyle.color, fontWeight: 600, fontSize: 10, flexShrink: 0 }}>
+          {pStyle.label}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
+        <div>
+          <div style={{ color: 'var(--text-dim)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Stock</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace" }}>{p.stock_actual}</div>
+        </div>
+        <div>
+          <div style={{ color: 'var(--text-dim)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Vel. diaria</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace" }}>{p.velocidad_diaria.toFixed(1)}/d</div>
+        </div>
+        <div>
+          <div style={{ color: 'var(--text-dim)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Cobertura</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", color: p.dias_cobertura < 3 ? 'var(--red)' : p.dias_cobertura < 8 ? 'var(--warning)' : 'var(--green)' }}>
+            {p.dias_cobertura.toFixed(1)}d
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <div>
+          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--gold-light)' }}>{p.cantidad_sugerida}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> uds. × {fmt(p.costo_unitario)}</span>
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(p.subtotal)}</div>
+      </div>
+
+      {p.justificacion && (
+        <div>
+          <button
+            onClick={() => setShowJust(s => !s)}
+            style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+          >{showJust ? '▲ Ocultar justificación' : '▼ Ver justificación de la IA'}</button>
+          {showJust && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>{p.justificacion}</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SugeridorCompras() {
   const toast = useToast()
   const [presupuesto, setPresupuesto] = useState('')
@@ -37,7 +93,7 @@ export default function SugeridorCompras() {
   }
 
   return (
-    <div className="page-enter">
+    <div className="page-content page-enter">
       {/* ── BANNER IA ── */}
       <div className="ia-banner" style={{ marginBottom: 24 }}>
         <div className="ia-banner-icon">🧠</div>
@@ -174,7 +230,7 @@ export default function SugeridorCompras() {
                   Ordenados por prioridad
                 </span>
               </div>
-              <div className="table-wrap">
+              <div className="table-wrap desktop-only">
                 <table>
                   <thead>
                     <tr>
@@ -252,8 +308,25 @@ export default function SugeridorCompras() {
                   </tfoot>
                 </table>
               </div>
-              {/* Tooltip hint */}
-              <div style={{ padding: '10px 20px', fontSize: 11, color: 'var(--text-dim)', borderTop: '1px solid var(--border)' }}>
+
+              {/* Vista móvil: cards en vez de tabla de 8 columnas */}
+              <div className="mobile-only" style={{ padding: 12 }}>
+                {resultado.productos.map((p, i) => {
+                  const pStyle = PRIORIDAD_STYLES[p.prioridad] || PRIORIDAD_STYLES.bajo
+                  return <SugeridorProductoCard key={p.variante_id || i} p={p} pStyle={pStyle} />
+                })}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 4px 4px' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
+                    TOTAL — {resultado.productos.reduce((s, p) => s + p.cantidad_sugerida, 0)} uds.
+                  </span>
+                  <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--gold-light)' }}>
+                    {fmt(resultado.total_estimado)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Tooltip hint (solo desktop, donde existe hover) */}
+              <div className="desktop-only" style={{ padding: '10px 20px', fontSize: 11, color: 'var(--text-dim)', borderTop: '1px solid var(--border)' }}>
                 💡 Pasá el mouse sobre cada fila para ver la justificación de la IA.
               </div>
             </div>

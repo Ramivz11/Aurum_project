@@ -266,23 +266,25 @@ export default function Dashboard() {
       <div className="topbar">
         <div className="page-title">Dashboard</div>
         <div className="topbar-actions">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="btn btn-ghost" style={{ padding: '6px 8px', fontSize: 16 }} onClick={prevMonth}>◀</button>
-            <button className="btn btn-ghost" style={{ textTransform: 'capitalize', minWidth: 140, justifyContent: 'center' }}
-              onClick={() => document.getElementById('dash-month-input')?.showPicker?.() || document.getElementById('dash-month-input')?.click()}>
-              {mes}
-            </button>
-            <input id="dash-month-input" type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ display: 'none' }} />
-            <button className="btn btn-ghost" style={{ padding: '6px 8px', fontSize: 16 }} onClick={nextMonth}>▶</button>
-            <button className="btn btn-primary" onClick={() => navigate('/ventas')}>+ Nueva venta</button>
-          </div>
+          <button className="btn btn-ghost" style={{ padding: '6px 8px', fontSize: 16 }} onClick={prevMonth}>◀</button>
+          {/* Input nativo (en vez de un botón + showPicker(), poco fiable en Safari/iOS) */}
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={e => e.target.value && setSelectedMonth(e.target.value)}
+            className="btn btn-ghost"
+            style={{ textAlign: 'center', minWidth: 140, justifyContent: 'center', colorScheme: 'dark', cursor: 'pointer' }}
+            aria-label="Mes del dashboard"
+          />
+          <button className="btn btn-ghost" style={{ padding: '6px 8px', fontSize: 16 }} onClick={nextMonth}>▶</button>
+          <button className="btn btn-primary" onClick={() => navigate('/ventas')}>+ Nueva venta</button>
         </div>
       </div>
 
       <div className="content page-enter">
 
         {/* ─── FILA 1: KPIs HERO ──────────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
+        <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
           <HeroStat icon="💰" label="Ventas del mes" value={fmt(ingresos)} sub={`${analisis?.periodo || ''}`} accent="#ffb74d" />
           <HeroStat icon="📊" label="Neto" value={fmt(neto)} sub={neto >= 0 ? 'positivo' : 'negativo'} accent={neto >= 0 ? '#22c55e' : '#ef4444'} />
           <HeroStat icon="📈" label="Ganancia bruta" value={fmt(ganancia)}
@@ -300,7 +302,7 @@ export default function Dashboard() {
         </div>
 
         {/* ─── FILA 2: INGRESOS HOY + TENDENCIA ──────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 18, marginBottom: 18 }}>
+        <div className="dash-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 18, marginBottom: 18 }}>
           <div className="card">
             <div className="card-header"><span className="card-title">Hoy</span></div>
             <div className="card-body" style={{ textAlign: 'center' }}>
@@ -332,7 +334,7 @@ export default function Dashboard() {
         </div>
 
         {/* ─── FILA 3: PRODUCTOS TOP + PEDIDOS + LIQUIDEZ ────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, marginBottom: 18 }}>
+        <div className="dash-2col" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, marginBottom: 18 }}>
           <div className="card">
             <div className="card-header">
               <span className="card-title">Productos más vendidos</span>
