@@ -240,6 +240,8 @@ export function Sucursales() {
     setLoading(true)
     Promise.all([sucursalesApi.comparacion(), deudasApi.listar(), deudasApi.resumen()])
       .then(([c, d, r]) => { setComparacion(c.data); setDeudas(d.data); setResumenDeudas(r.data) })
+      // Sin esto, un request fallido dejaba la pantalla vacía y sin aviso
+      .catch(e => toast('No se pudo cargar sucursales: ' + (e.message || 'sin conexión'), 'error'))
       .finally(() => setLoading(false))
   }
 

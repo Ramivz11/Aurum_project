@@ -566,6 +566,8 @@ export function Finanzas() {
         setCategorias(c.data)
         setValorStock(vs.data)
       })
+      // Sin esto, un request fallido dejaba la pantalla vacía y sin aviso
+      .catch(e => toast('No se pudo cargar finanzas: ' + (e.message || 'sin conexión'), 'error'))
       .finally(() => setLoading(false))
   }
 

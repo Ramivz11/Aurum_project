@@ -203,6 +203,7 @@ export default function Dashboard() {
   })
   const navigate = useNavigate()
   const { getStyles } = useMarca()
+  const toast = useToast()
 
   useEffect(() => {
     setLoading(true)
@@ -220,7 +221,10 @@ export default function Dashboard() {
       setAnalisis(a.data); setLiquidez(l.data); setTopProducts(p.data)
       setPedidos(pd.data); setResumenDia(rd.data); setGastos(g.data)
       setDeudas(de.data); setAlertasRecompra(alrt.data || [])
-    }).catch(console.error).finally(() => setLoading(false))
+    }).catch(e => {
+      console.error(e)
+      toast('No se pudo cargar el dashboard: ' + (e.message || 'sin conexión'), 'error')
+    }).finally(() => setLoading(false))
   }, [selectedMonth])
 
   const [selYear, selMonth] = selectedMonth.split('-').map(Number)
