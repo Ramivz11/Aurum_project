@@ -33,6 +33,11 @@
   --radius: 16px;
   --radius-sm: 10px;
   --radius-lg: 20px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -56,7 +61,8 @@ body::before {
   content: '';
   pointer-events: none;
   position: fixed;
-  inset-x: 0;
+  left: 0;
+  right: 0;
   top: 0;
   height: 600px;
   z-index: 0;
@@ -240,85 +246,15 @@ body::before {
   flex-shrink: 0;
 }
 
-/* Product list layout helpers */
-.product-card { }
+/* Product list layout helpers (Stock, solo desktop — en móvil ProductRow
+   renderiza su propia estructura en vez de esta grilla de ancho fijo) */
+.product-card { transition: transform 0.12s; }
 .product-row-main { display: grid; grid-template-columns: 40px 1fr auto auto; gap: 12px; align-items: center; }
 .product-dot { display: flex; align-items: center; justify-content: center; }
 .product-thumb { width: 100px; height: 100px; }
 .product-info { min-width: 0; }
 .product-price { min-width: 120px; }
 .product-actions { display: flex; align-items: center; gap: 6px; }
-
-/* Responsive adjustments for mobile / small screens */
-@media (max-width: 900px) {
-  :root {
-    --sidebar-w: 0px;
-    --topbar-h: 56px; /* mobile header height */
-    --mobile-nav-h: 64px;
-  }
-
-  /* Hide desktop sidebar, show mobile header and bottom nav */
-  .sidebar { display: none; }
-  .mobile-header { display: flex; }
-  .bottom-nav { display: flex; }
-
-  /* Mobile drawer should be slightly narrower than full width */
-  .mobile-drawer { width: 86%; }
-
-  /* Hide desktop topbar (we use mobile header) */
-  .topbar { display: none; }
-
-  /* Content spacing so nothing quede debajo del header/footer */
-  .content, .page-content {
-    padding-left: 14px;
-    padding-right: 14px;
-    padding-top: calc(var(--topbar-h) + 12px);
-    padding-bottom: calc(var(--mobile-nav-h) + 20px);
-  }
-
-  /* Slightly smaller titles on mobile */
-  .page-title { font-size: 16px; }
-
-  /* Make cards and lists more compact */
-  .card, .modal, .product-rank, .pedido-card { padding: 10px; }
-
-  /* Buttons and chips size adjustments */
-  .btn { padding: 6px 10px; }
-  .brand-badge { padding: 2px 6px; font-size: 10px; border-radius: 6px; }
-
-  /* Stock list adjustments for mobile */
-  .product-row-main { grid-template-columns: 40px 1fr auto; grid-template-rows: auto auto; grid-template-areas: "dot info actions" "dot info price"; gap: 8px; align-items: start; }
-  .product-dot { grid-area: dot; }
-  .product-info-wrapper, .product-info { grid-area: info; }
-  .product-price { grid-area: price; text-align: left; padding-left: 54px; }
-  .product-actions { grid-area: actions; }
-  .product-thumb { width: 56px; height: 56px; border-radius: 8px; }
-  .product-card { border-radius: 12px; }
-  .product-price div { line-height: 1; }
-
-  /* Reduce thumbnail and title sizes on mobile */
-  .product-info .page-title, .product-info span { font-size: 13px; }
-}
-
-/* Stock page: product card responsive helpers */
-.product-card { transition: transform 0.12s; }
-.product-row-main { display: grid; grid-template-columns: 40px 1fr auto auto; gap: 12px; }
-.product-thumb { width: 100px; height: 100px; }
-
-@media (max-width: 720px) {
-  .product-row-main { grid-template-columns: 1fr; grid-auto-rows: auto; gap: 8px; padding: 12px; }
-  .product-thumb { width: 72px; height: 72px; border-radius: 8px; }
-  .product-card { border-radius: 12px; }
-  .product-row-main > div:nth-child(3), .product-row-main > div:nth-child(4) { justify-self: end; }
-  /* Make action buttons stack below on very small screens */
-  .product-row-main .btn { padding: 8px 10px; font-size: 13px; }
-}
-
-@media (max-width: 420px) {
-  .product-thumb { width: 56px; height: 56px; }
-  .product-row-main { padding: 10px; }
-  .product-row-main .product-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-}
 
 .main-area {
   flex: 1;
@@ -366,10 +302,12 @@ body::before {
 /* ─── MOBILE HEADER ───────────────────────────────── */
 .mobile-header {
   display: none;
-  height: 56px;
+  height: calc(56px + var(--safe-top));
+  padding-top: var(--safe-top);
   background: rgba(10, 16, 33, 0.95);
   border-bottom: 1px solid var(--border);
-  padding: 0 16px;
+  padding-left: 16px;
+  padding-right: 16px;
   align-items: center;
   justify-content: space-between;
   position: fixed;
@@ -425,7 +363,7 @@ body::before {
   backdrop-filter: blur(20px);
 }
 .mobile-drawer.open { transform: translateX(0); }
-.mobile-drawer .sidebar-logo { padding: 20px 16px 16px; }
+.mobile-drawer .sidebar-logo { padding: calc(20px + var(--safe-top)) 16px 16px; }
 .mobile-drawer .sidebar-nav { padding: 10px 8px; }
 
 .bottom-nav {
@@ -488,6 +426,20 @@ body::before {
 .sucursal-add-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; transition: color 0.15s; }
 .sucursal-add-btn:hover { color: var(--gold); }
 
+.sucursal-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; color: var(--text-muted); font-size: 13px;
+  transition: all 0.15s; min-height: 40px;
+}
+.sucursal-item:hover { background: rgba(255,152,0,0.06); color: var(--text); }
+.sucursal-item.active { background: rgba(255,152,0,0.1); color: var(--gold-light); font-weight: 500; }
+.sucursal-item-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+.sucursal-item.active .sucursal-item-dot { background: var(--gold); }
+.sucursal-item-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sucursal-item-edit { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 4px; opacity: 0.5; transition: opacity 0.15s; }
+.sucursal-item:hover .sucursal-item-edit, .sucursal-item-edit:hover { opacity: 1; }
+
 /* ─── BUTTONS ─────────────────────────────────────── */
 .btn {
   padding: 8px 16px;
@@ -537,6 +489,7 @@ body::before {
 .btn-xs { padding: 3px 8px; font-size: 11px; }
 
 /* ─── GRIDS ───────────────────────────────────────── */
+.ventas-footer-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
 .stats-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
@@ -740,6 +693,7 @@ tbody td { padding: 12px 16px; font-size: 13px; }
   box-shadow: 0 24px 80px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.04);
 }
 .modal-lg { max-width: 740px; }
+.modal-drag-handle { display: none; }
 .modal-header {
   padding: 18px 22px;
   border-bottom: 1px solid var(--border);
@@ -831,7 +785,7 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 .fin-bar { height: 100%; border-radius: 6px; }
 .fin-amount { width: 90px; text-align: right; font-size: 13px; font-weight: 500; flex-shrink: 0; }
 
-.liquidez-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.liquidez-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
 .liq-item { background: var(--surface2); border-radius: var(--radius-sm); padding: 14px; text-align: center; border: 1px solid var(--border); }
 .liq-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
 .liq-val { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; color: var(--gold-light); }
@@ -914,6 +868,30 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 .dropdown-item { padding: 10px 16px; font-size: 13px; cursor: pointer; transition: background 0.1s; color: var(--text-muted); }
 .dropdown-item:hover { background: var(--surface2); color: var(--text); }
 .dropdown-item.danger { color: var(--red); }
+.dropdown-item[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+/* ─── DATA CARD (reemplazo de <tr> en móvil) ─────── */
+.data-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.data-card-body { flex: 1; min-width: 0; }
+.data-card-title { font-weight: 600; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.data-card-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.data-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.data-card-value { text-align: right; flex-shrink: 0; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
+.data-card-menu-btn {
+  width: 32px; height: 32px; flex-shrink: 0;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface2);
+  color: var(--text-muted); cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
 
 /* ─── ANIMATIONS ──────────────────────────────────── */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -930,47 +908,21 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 
 /* ─── RESPONSIVE: MOBILE ──────────────────────────── */
 @media (max-width: 768px) {
+  :root { --topbar-h: calc(56px + var(--safe-top)); }
+
   .sidebar { display: none; }
   .mobile-header { display: flex; }
-  .bottom-nav { display: block; }
+  .bottom-nav { display: flex; }
   .app-layout { flex-direction: column; }
-  .main-area { overflow: hidden; padding-top: 56px; }
+  .main-area { padding-top: var(--topbar-h); }
 
   .content, .page-content {
     padding: 16px;
-    padding-bottom: calc(var(--mobile-nav-h) + 16px);
+    padding-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 16px);
   }
 
-  .topbar { padding: 0 16px; height: 52px; }
-
-  .toast-wrap { bottom: calc(var(--mobile-nav-h) + 12px); right: 12px; left: 12px; }
-  .toast { min-width: unset; }
-
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .stats-grid-3 { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .grid-2 { grid-template-columns: 1fr; gap: 12px; }
-  .form-row { grid-template-columns: 1fr; gap: 12px; }
-  .form-row-3 { grid-template-columns: 1fr; gap: 12px; }
-  .liquidez-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-
-  .table-wrap { margin: 0 -20px; }
-  .topbar-actions { gap: 6px; }
-  .topbar-actions .search-input { width: 140px; font-size: 12px; }
-  .topbar-actions .search-input:focus { width: 160px; }
-
-  .stat-value { font-size: 20px; }
-
-  .modal-overlay { padding: 0; align-items: flex-end; }
-  .modal { border-radius: 20px 20px 0 0; max-height: 92dvh; width: 100%; max-width: 100%; }
-  .modal-footer { flex-direction: column-reverse; }
-  .modal-footer .btn { width: 100%; justify-content: center; }
-
-  .ia-banner { flex-direction: column; gap: 12px; text-align: center; }
-  .ia-banner-icon { font-size: 40px; }
-  .suc-card { flex-wrap: wrap; }
-  .suc-metrics { gap: 14px; }
-  .page-title { font-size: 16px; }
-
+  /* El topbar de escritorio se apila (título + acciones) en vez de ocultarse,
+     así ninguna acción de página queda inalcanzable en móvil. */
   .topbar {
     height: auto;
     min-height: 52px;
@@ -978,10 +930,105 @@ tbody td { padding: 12px 16px; font-size: 13px; }
     flex-wrap: wrap;
     gap: 10px;
   }
-  .topbar-actions { flex-wrap: wrap; gap: 6px; width: 100%; }
-  .topbar-actions .btn-primary { width: 100%; justify-content: center; order: -1; }
+  .topbar-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
   .topbar-actions .btn-ghost.btn-sm,
-  .topbar-actions .btn-primary.btn-sm { font-size: 11px; padding: 5px 10px; width: auto; }
+  .topbar-actions .btn-primary.btn-sm { font-size: 11px; padding: 6px 10px; }
+  .topbar-actions .search-input { width: 100%; font-size: 16px; }
+  .topbar-actions .search-input:focus { width: 100%; }
+
+  .toast-wrap { bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 12px); right: 12px; left: 12px; }
+  .toast { min-width: unset; }
+
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stats-grid-3 { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+  .form-row { grid-template-columns: 1fr; gap: 12px; }
+  .form-row-3 { grid-template-columns: 1fr; gap: 12px; }
+  .liquidez-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+  .table-wrap { margin: 0 -16px; }
+
+  .stat-value { font-size: 20px; }
+  .page-title { font-size: 16px; }
+
+  /* El modal se comporta como bottom-sheet: ancho completo, esquinas
+     redondeadas arriba, anclado abajo y respetando el home-indicator. */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    border-radius: 20px 20px 0 0;
+    max-height: calc(92dvh - var(--safe-top));
+    width: 100%;
+    max-width: 100%;
+  }
+  .modal-footer { flex-direction: column-reverse; padding-bottom: calc(14px + var(--safe-bottom)); }
+  .modal-footer .btn { width: 100%; justify-content: center; }
+
+  .ia-banner { flex-direction: column; gap: 12px; text-align: center; }
+  .ia-banner-icon { font-size: 40px; }
+  .suc-card { flex-wrap: wrap; }
+  .suc-metrics { gap: 14px; }
+
+  .ventas-footer-grid { grid-template-columns: 1fr !important; }
+  .cuenta-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .dash-2col { grid-template-columns: 1fr !important; }
+  .dash-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Carrito (Ventas/Compras): a 320-360px de ancho, nombre + qty + precio +
+     subtotal + quitar no entran en una sola fila — el nombre pasa a ocupar
+     su propia línea y el resto de controles se reacomoda debajo. */
+  .carrito-item { flex-wrap: wrap; row-gap: 8px; }
+  .carrito-nombre { flex-basis: 100%; }
+  .ventas-footer-grid > div { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .ventas-footer-grid > div:last-child { border-bottom: none; }
+
+  /* Objetivos táctiles: 16px evita el auto-zoom de iOS en foco;
+     44px de alto es el mínimo recomendado para tocar con el pulgar. */
+  .form-input, .form-select, .form-textarea, .input, .select,
+  .search-input, .carrito-qty, .carrito-precio {
+    font-size: 16px;
+  }
+  .btn:not(.btn-xs):not(.btn-sm) { min-height: 44px; }
+  .modal-close, .mobile-menu-btn { min-width: 40px; min-height: 40px; }
+
+  .modal-drag-handle {
+    display: block;
+    width: 36px; height: 4px;
+    border-radius: 4px;
+    background: var(--border-hover);
+    margin: 10px auto 0;
+  }
+}
+
+/* ─── FAB ─────────────────────────────────────────── */
+.fab {
+  display: none;
+}
+@media (max-width: 768px) {
+  .fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 18px;
+    bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 16px);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #ffb74d 0%, #ff9800 100%);
+    color: #020617;
+    font-size: 26px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 28px rgba(255,152,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 190;
+    transition: transform 0.15s;
+  }
+  .fab:active { transform: scale(0.94); }
 }
 
 @media (max-width: 380px) {
@@ -994,6 +1041,14 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .mb-8 { margin-bottom: 8px; }
 .mb-12 { margin-bottom: 12px; }
+
+/* Alterna entre la vista de tabla (desktop) y la de tarjetas (móvil).
+   !important porque suele convivir con estilos inline (display:grid/flex). */
+.mobile-only { display: none !important; }
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: block !important; }
+}
 
 /* EmptyState component */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--text-muted); }

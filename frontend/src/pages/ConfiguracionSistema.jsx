@@ -100,10 +100,14 @@ export default function ConfiguracionSistema() {
     return <div className="loading">Cargando configuración...</div>
   }
 
+  if (!config) {
+    return <div className="empty">No se pudo cargar la configuración. Revisá la conexión con el servidor.</div>
+  }
+
   return (
-    <div className="page-enter">
+    <>
       {/* Header */}
-      <div className="topbar" style={{ marginBottom: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+      <div className="topbar" style={{ borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
         <div className="page-title">⚙ Configuración del Sistema</div>
         <div className="topbar-actions">
           {dirty && (
@@ -122,20 +126,21 @@ export default function ConfiguracionSistema() {
         </div>
       </div>
 
-      {/* Info banner */}
-      <div className="ia-banner" style={{ marginBottom: 24 }}>
-        <div className="ia-banner-icon">📐</div>
-        <div className="ia-banner-text">
-          <div className="ia-banner-title">Reglas de Negocio</div>
-          <div className="ia-banner-desc">
-            Estos parámetros alimentan al Sugeridor de Compras Inteligente.
-            Se leen dinámicamente de la base de datos, no están hardcodeados.
+      <div className="content page-enter">
+        {/* Info banner */}
+        <div className="ia-banner" style={{ marginBottom: 24 }}>
+          <div className="ia-banner-icon">📐</div>
+          <div className="ia-banner-text">
+            <div className="ia-banner-title">Reglas de Negocio</div>
+            <div className="ia-banner-desc">
+              Estos parámetros alimentan al Sugeridor de Compras Inteligente.
+              Se leen dinámicamente de la base de datos, no están hardcodeados.
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Campos */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+        {/* Campos */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
         {CAMPOS.map(campo => {
           const changed = form[campo.key] !== config[campo.key]
           return (
@@ -182,7 +187,8 @@ export default function ConfiguracionSistema() {
             </div>
           )
         })}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

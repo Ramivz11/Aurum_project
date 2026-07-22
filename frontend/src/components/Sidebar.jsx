@@ -108,7 +108,36 @@ function NavContent({ onItemClick, pedidosAbiertos, sucursalesOpen, setSucursale
         </div>
       ))}
 
-
+      {sucursales.length > 0 && (
+        <div className="sucursal-section">
+          <div className="sucursal-header" onClick={() => setSucursalesOpen(o => !o)}>
+            <span className="sucursal-title">Sucursal activa</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                className="sucursal-add-btn"
+                title="Nueva sucursal"
+                onClick={e => { e.stopPropagation(); setEditando('nuevo') }}
+              >+</button>
+              <span className={`sucursal-toggle${sucursalesOpen ? ' open' : ''}`}>▶</span>
+            </div>
+          </div>
+          {sucursalesOpen && sucursales.map(s => (
+            <div
+              key={s.id}
+              className={`sucursal-item${sucursalActual?.id === s.id ? ' active' : ''}`}
+              onClick={() => setSucursalActual(s)}
+            >
+              <span className="sucursal-item-dot" />
+              <span className="sucursal-item-name">{s.nombre}</span>
+              <button
+                className="sucursal-item-edit"
+                title="Editar sucursal"
+                onClick={e => { e.stopPropagation(); setEditando(s) }}
+              >✎</button>
+            </div>
+          ))}
+        </div>
+      )}
     </nav>
   )
 }

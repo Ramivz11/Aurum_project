@@ -3,6 +3,7 @@ import { comprasApi, productosApi, categoriasProductoApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
 import { useToast } from '../../components/Toast'
 import { useSucursal } from '../../context/SucursalContext'
+import { DataCard, FAB, useIsMobile, ConfirmDialog } from '../../components/ui'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -408,7 +409,7 @@ function ModalIA({ sucursales, productos, metodo, sucursalId, onClose, onSaved }
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
               JPG, PNG o PDF · máx. 10MB
             </div>
-            <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" capture="environment" style={{ display: 'none' }}
               onChange={e => setArchivo(e.target.files[0] || null)} />
           </div>
             </>
@@ -646,8 +647,8 @@ export default function Compras() {
 
   useEffect(() => { cargar() }, [])
 
+  const [confirmDel, setConfirmDel] = useState(null)
   const eliminar = async (id) => {
-    if (!confirm('¿Eliminar esta compra? El stock se revertirá.')) return
     try { await comprasApi.eliminar(id); toast('Compra eliminada'); cargar() }
     catch (e) { toast(e.message, 'error') }
   }
@@ -692,9 +693,11 @@ export default function Compras() {
 
       doc.save(`Compras_${Date.now()}.pdf`)
     } catch (e) {
-      alert("Error al generar PDF: " + e.message)
+      toast("Error al generar PDF: " + e.message, 'error')
     }
   }
+
+  const isMobile = useIsMobile()
 
   return (
     <>
@@ -705,37 +708,57 @@ export default function Compras() {
           <button className="btn btn-ghost" onClick={() => setModalIA(true)} style={{ gap: 6 }}>
             ✨ Cargar con IA
           </button>
-          <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar compra</button>
+          {!isMobile && <button className="btn btn-primary" onClick={() => setModal('nuevo')}>+ Registrar compra</button>}
         </div>
       </div>
+      {isMobile && <FAB onClick={() => setModal('nuevo')} title="Registrar compra" />}
 
       <div className="content page-enter">
         <div className="card">
           <div className="card-header"><span className="card-title">Historial de compras</span></div>
-          {loading ? <div className="loading">Cargando...</div> : (
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Fecha</th><th>Proveedor</th><th>Sucursal</th><th>Pago</th><th>Total</th><th></th></tr></thead>
-                <tbody>
-                  {compras.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Sin compras</td></tr>}
-                  {compras.map(c => (
-                    <tr key={c.id}>
-                      <td style={{ color: 'var(--text-muted)' }}>{new Date(c.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                      <td>{c.proveedor || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                      <td>{getNombreSucursal(c.sucursal_id)}</td>
-                      <td><span className={`chip ${CHIP[c.metodo_pago]}`}>{c.metodo_pago}</span></td>
-                      <td><strong>{fmt(c.total)}</strong></td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => setModal(c)}>Editar</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => eliminar(c.id)}>✕</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {loading ? <div className="loading">Cargando...</div> : compras.length === 0 ? (
+            <div className="empty">Sin compras</div>
+          ) : (
+            <>
+              <div className="table-wrap desktop-only">
+                <table>
+                  <thead><tr><th>Fecha</th><th>Proveedor</th><th>Sucursal</th><th>Pago</th><th>Total</th><th></th></tr></thead>
+                  <tbody>
+                    {compras.map(c => (
+                      <tr key={c.id}>
+                        <td style={{ color: 'var(--text-muted)' }}>{new Date(c.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                        <td>{c.proveedor || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                        <td>{getNombreSucursal(c.sucursal_id)}</td>
+                        <td><span className={`chip ${CHIP[c.metodo_pago]}`}>{c.metodo_pago}</span></td>
+                        <td><strong>{fmt(c.total)}</strong></td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setModal(c)}>Editar</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => setConfirmDel(c)}>✕</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-only" style={{ padding: 12 }}>
+                {compras.map(c => (
+                  <DataCard
+                    key={c.id}
+                    title={c.proveedor || 'Sin proveedor'}
+                    subtitle={`${getNombreSucursal(c.sucursal_id)} · ${new Date(c.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}`}
+                    value={fmt(c.total)}
+                    meta={<span className={`chip ${CHIP[c.metodo_pago]}`}>{c.metodo_pago}</span>}
+                    actions={[
+                      { label: 'Editar', onClick: () => setModal(c) },
+                      { label: 'Eliminar', onClick: () => setConfirmDel(c), danger: true },
+                    ]}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -758,6 +781,14 @@ export default function Compras() {
           sucursalId={sucursalIA || sucursales[0]?.id}
           onClose={() => setModalIA(false)}
           onSaved={() => { setModalIA(false); cargar() }}
+        />
+      )}
+
+      {confirmDel && (
+        <ConfirmDialog
+          message="¿Eliminar esta compra? El stock se revertirá."
+          onConfirm={() => { eliminar(confirmDel.id); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
         />
       )}
     </>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { finanzasApi } from '../api'
 import { useToast } from '../components/Toast'
+import { ConfirmDialog } from '../components/ui'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -354,7 +355,7 @@ function ModalAjusteSaldo({ liquidez, onClose, onSaved }) {
           {tab === 'ajuste' && (<>
             <div className="form-group">
               <label className="form-label">Cuenta a ajustar</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div className="cuenta-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                 {CUENTAS_DEF.map(c => <CuentaBtn key={c.key} c={c} selected={cuenta} onSelect={setCuenta} />)}
               </div>
             </div>
@@ -521,12 +522,17 @@ export function Finanzas() {
   const [modalGasto, setModalGasto] = useState(false)
   const [modalAjuste, setModalAjuste] = useState(false)
   const [limpiandoGanancia, setLimpiandoGanancia] = useState(false)
+  const [confirmLimpiar, setConfirmLimpiar] = useState(false)
 
-  const handleLimpiarGanancia = async () => {
+  const handleLimpiarGanancia = () => {
     if (limpiandoGanancia) return
     if (!liquidez || Number(liquidez.ganancia_acumulada) <= 0)
       return toast('No hay ganancia para limpiar', 'error')
-    if (!window.confirm('¿Confirmas separar la ganancia acumulada?')) return
+    setConfirmLimpiar(true)
+  }
+
+  const limpiarGanancia = async () => {
+    setConfirmLimpiar(false)
     setLimpiandoGanancia(true)
     try {
       const res = await finanzasApi.limpiarGanancia(null)
@@ -694,7 +700,7 @@ export function Finanzas() {
       doc.save(`Reporte_Financiero_Aurum_${periodo.replace('/', '_')}.pdf`)
       toast('Reporte PDF generado')
     } catch (e) {
-      alert('Error al generar PDF: ' + e.message)
+      toast('Error al generar PDF: ' + e.message, 'error')
     }
   }
 
@@ -889,6 +895,14 @@ export function Finanzas() {
           liquidez={liquidez}
           onClose={() => setModalAjuste(false)}
           onSaved={() => { setModalAjuste(false); cargar() }}
+        />
+      )}
+
+      {confirmLimpiar && (
+        <ConfirmDialog
+          message="¿Confirmás separar la ganancia acumulada?"
+          onConfirm={limpiarGanancia}
+          onCancel={() => setConfirmLimpiar(false)}
         />
       )}
     </>

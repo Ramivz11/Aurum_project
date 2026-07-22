@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from '../../components/Toast'
 import { ventasApi, clientesApi, stockApi, sucursalesApi, finanzasApi } from '../../api'
 import { useMarca } from '../../context/MarcaContext'
-import { Modal, Loading, EmptyState, Chip, ConfirmDialog, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
+import { Modal, Loading, EmptyState, Chip, ConfirmDialog, FAB, DropdownMenu, useIsMobile, formatARS, formatDateTime, METODO_PAGO_COLOR, METODO_PAGO_LABEL } from '../../components/ui'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -184,19 +184,23 @@ function ModalVenta({ onClose, onSaved, ventaEditar = null }) {
         <div>
           <label className="input-label">Carrito</label>
           {carrito.map((item, i) => (
-            <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{item.nombre}</div>
-                {item.detalle && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.detalle}</div>}
+            <div key={item.key} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{item.nombre}</div>
+                  {item.detalle && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.detalle}</div>}
+                </div>
+                <button className="btn btn-danger btn-xs" onClick={() => setCarrito(c => c.filter((_, idx) => idx !== i))}>✕</button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button className="btn btn-ghost btn-xs" onClick={() => setCarrito(c => c.map((x, idx) => idx === i && x.cantidad > 1 ? { ...x, cantidad: x.cantidad - 1 } : x))}>−</button>
-                <span style={{ width: 24, textAlign: 'center' }}>{item.cantidad}</span>
-                <button className="btn btn-ghost btn-xs" onClick={() => setCarrito(c => c.map((x, idx) => idx === i ? { ...x, cantidad: x.cantidad + 1 } : x))}>+</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button className="btn btn-ghost btn-xs" onClick={() => setCarrito(c => c.map((x, idx) => idx === i && x.cantidad > 1 ? { ...x, cantidad: x.cantidad - 1 } : x))}>−</button>
+                  <span style={{ width: 24, textAlign: 'center' }}>{item.cantidad}</span>
+                  <button className="btn btn-ghost btn-xs" onClick={() => setCarrito(c => c.map((x, idx) => idx === i ? { ...x, cantidad: x.cantidad + 1 } : x))}>+</button>
+                </div>
+                <input type="number" className="input" style={{ width: 110, marginLeft: 'auto' }} value={item.precio_unitario}
+                  onChange={e => setCarrito(c => c.map((x, idx) => idx === i ? { ...x, precio_unitario: Number(e.target.value) } : x))} />
               </div>
-              <input type="number" className="input" style={{ width: 110 }} value={item.precio_unitario}
-                onChange={e => setCarrito(c => c.map((x, idx) => idx === i ? { ...x, precio_unitario: Number(e.target.value) } : x))} />
-              <button className="btn btn-danger btn-xs" onClick={() => setCarrito(c => c.filter((_, idx) => idx !== i))}>✕</button>
             </div>
           ))}
           <div style={{ textAlign: 'right', marginTop: 12, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--gold-light)' }}>
@@ -283,7 +287,7 @@ function VentasFooter({ ventas, resumenDia, loadingResumen }) {
       boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
       overflow: 'hidden',
     }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+      <div className="ventas-footer-grid">
 
         {/* Ingresos del día */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
@@ -379,6 +383,32 @@ function VentaRow({ venta, clienteNombre, sucursalNombre, onConfirmar, onElimina
   const [hovered, setHovered] = useState(false)
   const [expandido, setExpandido] = useState(false)
   const tieneItems = venta.items && venta.items.length > 0
+  const isMobile = useIsMobile()
+
+  const acciones = [
+    { label: 'Editar pedido', onClick: onEditar, hidden: venta.estado !== 'abierta' },
+    { label: 'Confirmar', onClick: onConfirmar, hidden: venta.estado !== 'abierta' },
+    { label: 'Eliminar', onClick: onEliminar, danger: true },
+  ]
+
+  const itemsToggle = (
+    <button
+      onClick={() => tieneItems && setExpandido(e => !e)}
+      style={{
+        background: expandido ? 'rgba(255,152,0,0.12)' : 'rgba(255,255,255,0.05)',
+        border: expandido ? '1px solid rgba(255,152,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 8, padding: '3px 10px', cursor: tieneItems ? 'pointer' : 'default',
+        fontSize: 11, fontWeight: 600,
+        color: expandido ? '#ff9800' : 'rgba(255,255,255,0.45)',
+        transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5,
+      }}
+    >
+      <span>{venta.items?.length || 0} ítem{(venta.items?.length || 0) !== 1 ? 's' : ''}</span>
+      {tieneItems && (
+        <span style={{ fontSize: 9, transition: 'transform 0.2s', display: 'inline-block', transform: expandido ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+      )}
+    </button>
+  )
 
   return (
     <div
@@ -397,95 +427,102 @@ function VentaRow({ venta, clienteNombre, sucursalNombre, onConfirmar, onElimina
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Fila principal */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 160px 120px 120px 140px 110px auto',
-          alignItems: 'center',
-          gap: 12,
-          padding: '16px 20px',
-          cursor: 'default',
-        }}
-      >
-        {/* Cliente + fecha */}
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: '#f1f5f9', marginBottom: 2 }}>
-            {clienteNombre || '— Sin cliente —'}
+      {isMobile ? (
+        /* Fila principal — móvil: acciones siempre alcanzables vía menú ⋮
+           (en desktop dependen de hover, que no existe en touch). */
+        <div style={{ padding: '14px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: '#f1f5f9', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {clienteNombre || '— Sin cliente —'}
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{formatDateTime(venta.fecha)} · {sucursalNombre}</div>
+            </div>
+            <DropdownMenu items={acciones} />
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{formatDateTime(venta.fecha)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            <PagoBadge metodo={venta.metodo_pago} />
+            <EstadoBadge estado={venta.estado} />
+            {itemsToggle}
+          </div>
+          <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 20, fontWeight: 800, color: '#ff9800', marginTop: 10 }}>
+            {formatARS(venta.total)}
+          </div>
         </div>
+      ) : (
+        /* Fila principal — desktop */
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 160px 120px 120px 140px 110px auto',
+            alignItems: 'center',
+            gap: 12,
+            padding: '16px 20px',
+            cursor: 'default',
+          }}
+        >
+          {/* Cliente + fecha */}
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: '#f1f5f9', marginBottom: 2 }}>
+              {clienteNombre || '— Sin cliente —'}
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{formatDateTime(venta.fecha)}</div>
+          </div>
 
-        {/* Sucursal */}
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{sucursalNombre}</div>
+          {/* Sucursal */}
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{sucursalNombre}</div>
 
-        {/* Items — clic para expandir */}
-        <div>
-          <button
-            onClick={() => tieneItems && setExpandido(e => !e)}
-            style={{
-              background: expandido ? 'rgba(255,152,0,0.12)' : 'rgba(255,255,255,0.05)',
-              border: expandido ? '1px solid rgba(255,152,0,0.3)' : '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 8, padding: '3px 10px', cursor: tieneItems ? 'pointer' : 'default',
-              fontSize: 11, fontWeight: 600,
-              color: expandido ? '#ff9800' : 'rgba(255,255,255,0.45)',
-              transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5,
-            }}
-          >
-            <span>{venta.items?.length || 0} ítem{(venta.items?.length || 0) !== 1 ? 's' : ''}</span>
-            {tieneItems && (
-              <span style={{ fontSize: 9, transition: 'transform 0.2s', display: 'inline-block', transform: expandido ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+          {/* Items — clic para expandir */}
+          <div>{itemsToggle}</div>
+
+          {/* Pago */}
+          <div><PagoBadge metodo={venta.metodo_pago} /></div>
+
+          {/* Total */}
+          <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, color: '#ff9800' }}>
+            {formatARS(venta.total)}
+          </div>
+
+          {/* Estado */}
+          <div><EstadoBadge estado={venta.estado} /></div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 6, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+            {venta.estado === 'abierta' && (
+              <button
+                onClick={onEditar}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(91,143,232,0.15)'; e.currentTarget.style.borderColor = 'rgba(91,143,232,0.4)'; e.currentTarget.style.color = '#5b8fe8' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+                style={{
+                  background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+                }}>✎</button>
             )}
-          </button>
-        </div>
-
-        {/* Pago */}
-        <div><PagoBadge metodo={venta.metodo_pago} /></div>
-
-        {/* Total */}
-        <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, color: '#ff9800' }}>
-          {formatARS(venta.total)}
-        </div>
-
-        {/* Estado */}
-        <div><EstadoBadge estado={venta.estado} /></div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 6, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
-          {venta.estado === 'abierta' && (
+            {venta.estado === 'abierta' && (
+              <button
+                onClick={onConfirmar}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'; e.currentTarget.style.color = '#22c55e' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+                style={{
+                  background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+                }}>✓</button>
+            )}
             <button
-              onClick={onEditar}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(91,143,232,0.15)'; e.currentTarget.style.borderColor = 'rgba(91,143,232,0.4)'; e.currentTarget.style.color = '#5b8fe8' }}
+              onClick={onEliminar}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#ef4444' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
               style={{
                 background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
-                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
-              }}>✎</button>
-          )}
-          {venta.estado === 'abierta' && (
-            <button
-              onClick={onConfirmar}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'; e.currentTarget.style.color = '#22c55e' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
-              style={{
-                background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
-                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
-              }}>✓</button>
-          )}
-          <button
-            onClick={onEliminar}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#ef4444' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,22,41,0.9)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
-            style={{
-              background: 'rgba(15,22,41,0.9)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
-            }}>✕</button>
+                borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s',
+              }}>✕</button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Panel expandible con detalle de productos */}
       {expandido && tieneItems && (
@@ -640,7 +677,7 @@ export default function Ventas() {
 
       doc.save(`Ventas_${filtro || 'todas'}_${Date.now()}.pdf`)
     } catch (e) {
-      alert("Error al generar PDF: " + e.message)
+      toast.error("Error al generar PDF: " + e.message)
     }
   }
 
@@ -649,6 +686,8 @@ export default function Ventas() {
     { key: 'abierta', label: 'Pedidos abiertos' },
     { key: 'confirmada', label: 'Confirmadas' },
   ]
+
+  const isMobile = useIsMobile()
 
   return (<>
     <div className="topbar">
@@ -676,9 +715,10 @@ export default function Ventas() {
           )
         })}
         <button className="btn btn-ghost" onClick={handleExportarPDF}>Exportar PDF</button>
-        <button className="btn btn-primary" onClick={() => setModal(true)}>+ Registrar venta</button>
+        {!isMobile && <button className="btn btn-primary" onClick={() => setModal(true)}>+ Registrar venta</button>}
       </div>
     </div>
+    {isMobile && <FAB onClick={() => setModal(true)} title="Registrar venta" />}
 
     <div className="page-content">
       {loading ? <Loading /> : ventas.length === 0 ? <EmptyState icon="↑" text="Sin ventas." /> : (
@@ -724,8 +764,8 @@ export default function Ventas() {
             </div>
           )}
 
-          {/* Column headers */}
-          <div style={{
+          {/* Column headers (solo desktop: en móvil cada VentaRow es una card autocontenida) */}
+          <div className="desktop-only" style={{
             display: 'grid',
             gridTemplateColumns: '1fr 160px 120px 120px 140px 110px auto',
             gap: 12, padding: '0 20px 10px',

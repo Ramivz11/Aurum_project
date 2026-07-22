@@ -1,8 +1,10 @@
+import { useState, useEffect, useRef } from 'react'
 
 export function Modal({ title, onClose, children, footer, size = '' }) {
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${size}`}>
+        <div className="modal-drag-handle" />
         <div className="modal-header">
           <span className="modal-title">{title}</span>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -10,6 +12,82 @@ export function Modal({ title, onClose, children, footer, size = '' }) {
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}
       </div>
+    </div>
+  )
+}
+
+// Hook para ramificar el render cuando el CSS solo no alcanza (p.ej. elegir
+// entre <table> y lista de DataCard). Se mantiene sincronizado con el
+// breakpoint móvil usado en globals.css (768px).
+export function useIsMobile(breakpoint = 768) {
+  const query = `(max-width: ${breakpoint}px)`
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const handler = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [query])
+  return isMobile
+}
+
+// Botón flotante para la acción primaria de una página en móvil (solo se
+// muestra bajo 768px vía CSS; en desktop queda oculto).
+export function FAB({ onClick, icon = '+', title }) {
+  return <button className="fab" onClick={onClick} title={title} aria-label={title}>{icon}</button>
+}
+
+// Menú "⋮" con acciones — reemplaza filas de botones que en touch no caben
+// o que dependían de :hover para mostrarse.
+export function DropdownMenu({ items }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('click', onDoc)
+    return () => document.removeEventListener('click', onDoc)
+  }, [open])
+
+  const visibles = items.filter(it => !it.hidden)
+  if (visibles.length === 0) return null
+
+  return (
+    <div className="dropdown" ref={ref} onClick={e => e.stopPropagation()}>
+      <button className="data-card-menu-btn" onClick={() => setOpen(o => !o)} aria-label="Más acciones">⋮</button>
+      {open && (
+        <div className="dropdown-menu">
+          {visibles.map((it, i) => (
+            <div
+              key={i}
+              className={`dropdown-item${it.danger ? ' danger' : ''}`}
+              onClick={() => { setOpen(false); it.onClick() }}
+            >{it.label}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Fila-card genérica para listas en móvil (reemplazo de <tr>): título +
+// subtítulo, metadatos libres (chips, fechas), un valor destacado a la
+// derecha y un menú de acciones siempre alcanzable en touch.
+export function DataCard({ title, subtitle, value, valueColor, meta, actions, onClick }) {
+  return (
+    <div className="data-card" onClick={onClick} style={onClick ? { cursor: 'pointer' } : undefined}>
+      <div className="data-card-body">
+        <div className="data-card-title">{title}</div>
+        {subtitle && <div className="data-card-subtitle">{subtitle}</div>}
+        {meta && <div className="data-card-meta">{meta}</div>}
+      </div>
+      {value !== undefined && value !== null && (
+        <div className="data-card-value" style={{ color: valueColor }}>{value}</div>
+      )}
+      {actions && <DropdownMenu items={actions} />}
     </div>
   )
 }

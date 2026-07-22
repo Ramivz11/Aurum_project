@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { categoriasProductoApi } from '../api'
 import { useToast } from '../components/Toast'
+import { ConfirmDialog } from '../components/ui'
 
 export function Categorias() {
   const toast = useToast()
@@ -9,6 +10,7 @@ export function Categorias() {
   const [editando, setEditando] = useState(null) // id | 'nueva'
   const [nombre, setNombre] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(null)
 
   const cargar = () => {
     setLoading(true)
@@ -49,7 +51,6 @@ export function Categorias() {
   }
 
   const eliminar = async (id) => {
-    if (!confirm('¿Eliminar esta categoría? No se eliminarán los productos asociados.')) return
     try {
       await categoriasProductoApi.eliminar(id)
       toast('Categoría eliminada')
@@ -128,7 +129,7 @@ export function Categorias() {
                     <div style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{cat.nombre}</div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => iniciarEdicion(cat)}>Editar</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => eliminar(cat.id)}>✕</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => setConfirmDel(cat)}>✕</button>
                     </div>
                   </>
                 )}
@@ -137,6 +138,13 @@ export function Categorias() {
           )}
         </div>
       </div>
+      {confirmDel && (
+        <ConfirmDialog
+          message={`¿Eliminar "${confirmDel.nombre}"? No se eliminarán los productos asociados.`}
+          onConfirm={() => { eliminar(confirmDel.id); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
     </>
   )
 }

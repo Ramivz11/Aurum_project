@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { movimientosApi } from '../api'
+import { DataCard } from '../components/ui'
+import { useToast } from '../components/Toast'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -14,6 +16,7 @@ const TIPO_CHIP = {
 }
 
 export function Movimientos() {
+  const toast = useToast()
   const [ventas, setVentas] = useState([])
   const [compras, setCompras] = useState([])
   const [otros, setOtros] = useState([])
@@ -108,7 +111,7 @@ export function Movimientos() {
 
       doc.save(`Movimientos_${tipo}_${Date.now()}.pdf`)
     } catch (e) {
-      alert("Error al generar PDF: " + e.message)
+      toast("Error al generar PDF: " + e.message, 'error')
     }
   }
 
@@ -151,27 +154,51 @@ export function Movimientos() {
         )}
         <div className="card">
           <div className="card-header"><span className="card-title">Listado de movimientos</span></div>
-          {loading ? <div className="loading">Cargando...</div> : (
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Tipo</th><th>Fecha</th><th>Descripción</th><th>Pago</th><th>Monto</th></tr></thead>
-                <tbody>
-                  {lista.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Sin movimientos</td></tr>}
-                  {lista.map((m, i) => {
-                    const chipInfo = getChipInfo(m._tipo)
-                    return (
-                      <tr key={`${m._tipo}-${m.id}-${i}`}>
-                        <td><span className={`chip ${chipInfo.clase}`}>{chipInfo.label}</span></td>
-                        <td style={{ color: 'var(--text-muted)' }}>{new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                        <td>{getDescripcion(m)}</td>
-                        <td>{m.metodo_pago ? <span className={`chip ${CHIP[m.metodo_pago] || 'chip-gray'}`}>{m.metodo_pago}</span> : <span className="chip chip-gray">—</span>}</td>
-                        <td><strong style={{ color: m._tipo === 'venta' ? 'var(--success, #22c55e)' : 'var(--text)' }}>{fmt(m.total || m.monto)}</strong></td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {loading ? <div className="loading">Cargando...</div> : lista.length === 0 ? (
+            <div className="empty">Sin movimientos</div>
+          ) : (
+            <>
+              {/* Desktop: tabla */}
+              <div className="table-wrap desktop-only">
+                <table>
+                  <thead><tr><th>Tipo</th><th>Fecha</th><th>Descripción</th><th>Pago</th><th>Monto</th></tr></thead>
+                  <tbody>
+                    {lista.map((m, i) => {
+                      const chipInfo = getChipInfo(m._tipo)
+                      return (
+                        <tr key={`${m._tipo}-${m.id}-${i}`}>
+                          <td><span className={`chip ${chipInfo.clase}`}>{chipInfo.label}</span></td>
+                          <td style={{ color: 'var(--text-muted)' }}>{new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                          <td>{getDescripcion(m)}</td>
+                          <td>{m.metodo_pago ? <span className={`chip ${CHIP[m.metodo_pago] || 'chip-gray'}`}>{m.metodo_pago}</span> : <span className="chip chip-gray">—</span>}</td>
+                          <td><strong style={{ color: m._tipo === 'venta' ? 'var(--success, #22c55e)' : 'var(--text)' }}>{fmt(m.total || m.monto)}</strong></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Móvil: cards */}
+              <div className="mobile-only" style={{ padding: 12 }}>
+                {lista.map((m, i) => {
+                  const chipInfo = getChipInfo(m._tipo)
+                  return (
+                    <DataCard
+                      key={`${m._tipo}-${m.id}-${i}`}
+                      title={getDescripcion(m)}
+                      subtitle={new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                      value={fmt(m.total || m.monto)}
+                      valueColor={m._tipo === 'venta' ? 'var(--success, #22c55e)' : undefined}
+                      meta={<>
+                        <span className={`chip ${chipInfo.clase}`}>{chipInfo.label}</span>
+                        {m.metodo_pago && <span className={`chip ${CHIP[m.metodo_pago] || 'chip-gray'}`}>{m.metodo_pago}</span>}
+                      </>}
+                    />
+                  )
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
