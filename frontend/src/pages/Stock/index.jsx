@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { toast } from '../../components/Toast'
 import { productosApi, categoriasProductoApi, stockApi, finanzasApi } from '../../api'
 import { useSucursal } from '../../context/SucursalContext'
@@ -13,7 +13,7 @@ import ProductoSheet from './sheets/Producto'
 import PrecioLote from './sheets/PrecioLote'
 import CategoriasSheet from './sheets/Categorias'
 import {
-  fmtN, totalProducto, variantesActivas,
+  fmtN, totalProducto, variantesActivas, productoAgotado,
 } from './stockUtils'
 import { formatARS } from '../../components/ui'
 import '../../styles/stock.css'
@@ -83,6 +83,20 @@ export default function Stock() {
     return () => document.body.classList.remove('stk-full')
   }, [])
 
+  // Los agotados van al final. Arriba no se les puede vender a nadie y le
+  // corren el lugar a lo que sí hay; abajo siguen alcanzables para reponer.
+  // El orden dentro de cada grupo es el que manda el backend: sort() es
+  // estable, así que ordenar por una clave de 0/1 no lo altera.
+  const sucursalFiltrada = useMemo(
+    () => sucursales.find(s => String(s.id) === String(sucFiltro)) || null,
+    [sucursales, sucFiltro]
+  )
+
+  const ordenados = useMemo(() => {
+    const agotado = p => (productoAgotado(p, sucursalFiltrada?.id ?? null) ? 1 : 0)
+    return [...productos].sort((a, b) => agotado(a) - agotado(b))
+  }, [productos, sucursalFiltrada])
+
   const eliminarProducto = async (id) => {
     try {
       await productosApi.eliminar(id)
@@ -117,7 +131,9 @@ export default function Stock() {
         14, 28
       )
 
-      const cuerpo = productos.map(p => {
+      // El PDF sale en el mismo orden que la pantalla: con los agotados al pie,
+      // que es donde se los busca cuando se arma la lista de reposición.
+      const cuerpo = ordenados.map(p => {
         const vs = variantesActivas(p)
         const precioDesde = vs.length ? Math.min(...vs.map(v => Number(v.precio_venta || 0))) : 0
         return [
@@ -205,7 +221,7 @@ export default function Stock() {
           ) : (
             <>
               <div className="stk-grid">
-                {productos.map(p => (
+                {ordenados.map(p => (
                   <ProductCard
                     key={p.id}
                     producto={p}

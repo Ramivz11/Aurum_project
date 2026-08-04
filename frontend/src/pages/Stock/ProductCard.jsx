@@ -71,7 +71,6 @@ export default function ProductCard({
   const [abierto, setAbierto] = useState(false)
 
   const variantes = variantesActivas(producto)
-  const agotado = productoAgotado(producto)
   const marca = producto.marca ? getStyles(producto.marca) : null
 
   // Con una sucursal elegida en el filtro, el número grande pasa a ser el de
@@ -79,6 +78,10 @@ export default function ProductCard({
   const filtrada = sucursalFiltradaId
     ? sucursales.find(s => String(s.id) === String(sucursalFiltradaId))
     : null
+
+  // Se apaga contra la misma pregunta que ordena la lista, así la tarjeta
+  // apagada es siempre una de las de abajo y no hay dos criterios en pantalla.
+  const agotado = productoAgotado(producto, filtrada?.id ?? null)
   const unidades = filtrada
     ? variantes.reduce((a, v) => a + cantidadEn(v, filtrada.id), 0)
     : totalProducto(producto)

@@ -61,7 +61,14 @@ export function productoBajoMinimo(producto, sucursales) {
   )
 }
 
-export const productoAgotado = (producto) => {
+// Un producto está agotado cuando ninguna de sus variantes tiene unidades.
+// Con una sucursal elegida la pregunta es otra —"¿hay acá?"— y se responde
+// contra esa sucursal: es lo que hace que la tarjeta apagada y el orden de la
+// lista digan lo mismo que el número grande de la tarjeta.
+export const productoAgotado = (producto, sucursalId = null) => {
   const vs = variantesActivas(producto)
-  return vs.length > 0 && vs.every(v => totalVariante(v) <= 0)
+  if (vs.length === 0) return false
+  return sucursalId == null
+    ? vs.every(v => totalVariante(v) <= 0)
+    : vs.every(v => cantidadEn(v, sucursalId) <= 0)
 }
