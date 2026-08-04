@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, distinct
+from sqlalchemy import or_, and_, distinct
 from typing import Optional, List
 
 from app.database import get_db
@@ -33,19 +33,24 @@ def _sumar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, canti
 
 
 def _get_variante_con_stock(variante: Variante) -> VarianteConStockResponse:
-    """Construye el response de variante con desglose de stock por sucursal."""
+    """Construye el response de variante con desglose de stock por sucursal.
+
+    Se devuelven todas las sucursales activas con registro, incluidas las que
+    están en cero o en negativo. Filtrarlas obligaba al cliente a deducir el
+    cero por ausencia y hacía invisible el stock negativo, que es justamente el
+    caso que hay que mirar: significa que el inventario quedó descuadrado.
+    """
     stock_sucursales = []
     stock_total = 0
 
     for ss in variante.stocks_sucursal:
         if ss.sucursal and ss.sucursal.activa:
             stock_total += ss.cantidad
-            if ss.cantidad > 0:
-                stock_sucursales.append(StockSucursalResponse(
-                    sucursal_id=ss.sucursal_id,
-                    sucursal_nombre=ss.sucursal.nombre,
-                    cantidad=ss.cantidad,
-                ))
+            stock_sucursales.append(StockSucursalResponse(
+                sucursal_id=ss.sucursal_id,
+                sucursal_nombre=ss.sucursal.nombre,
+                cantidad=ss.cantidad,
+            ))
 
     return VarianteConStockResponse(
         id=variante.id,
@@ -93,8 +98,22 @@ def listar_stock(
     if marca:
         query = query.filter(Producto.marca.ilike(f"%{marca}%"))
     if busqueda:
+        # Los clientes preguntan por sabor ("¿tenés whey de chocolate?"), así que
+        # la búsqueda también mira sabor y tamaño de las variantes. Se usa any()
+        # en vez de un join para no duplicar el producto cuando coincide más de
+        # una de sus variantes.
+        patron = f"%{busqueda}%"
         query = query.filter(
-            or_(Producto.nombre.ilike(f"%{busqueda}%"), Producto.marca.ilike(f"%{busqueda}%"))
+            or_(
+                Producto.nombre.ilike(patron),
+                Producto.marca.ilike(patron),
+                Producto.variantes.any(
+                    and_(
+                        Variante.activa == True,
+                        or_(Variante.sabor.ilike(patron), Variante.tamanio.ilike(patron)),
+                    )
+                ),
+            )
         )
 
     productos = query.order_by(Producto.nombre).all()

@@ -105,16 +105,16 @@ function Recordatorios() {
         <div style={{ margin: '0 20px 12px', padding: 14, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border)' }}>
           <input className="form-input" style={{ marginBottom: 8 }} placeholder="Título del recordatorio..." value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} onKeyDown={e => e.key === 'Enter' && crear()} autoFocus />
           <input className="form-input" style={{ marginBottom: 10 }} placeholder="Descripción (opcional)" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {['alta', 'media', 'baja'].map(p => (
               <button key={p} onClick={() => setForm(f => ({ ...f, prioridad: p }))} style={{
-                flex: 1, padding: '6px 0', borderRadius: 6, border: '1px solid', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                flex: '1 1 70px', padding: '8px 0', borderRadius: 6, border: '1px solid', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 borderColor: form.prioridad === p ? PRIORIDAD_CONFIG[p].color : 'var(--border)',
                 background: form.prioridad === p ? PRIORIDAD_CONFIG[p].bg : 'transparent',
                 color: form.prioridad === p ? PRIORIDAD_CONFIG[p].color : 'var(--text-muted)',
               }}>{PRIORIDAD_CONFIG[p].dot} {PRIORIDAD_CONFIG[p].label}</button>
             ))}
-            <button className="btn btn-primary btn-sm" onClick={crear} disabled={saving} style={{ marginLeft: 4 }}>{saving ? '...' : 'Agregar'}</button>
+            <button className="btn btn-primary btn-sm" onClick={crear} disabled={saving} style={{ flex: '1 0 auto', justifyContent: 'center' }}>{saving ? '...' : 'Agregar'}</button>
           </div>
         </div>
       )}
@@ -203,6 +203,7 @@ export default function Dashboard() {
   })
   const navigate = useNavigate()
   const { getStyles } = useMarca()
+  const toast = useToast()
 
   useEffect(() => {
     setLoading(true)
@@ -220,7 +221,10 @@ export default function Dashboard() {
       setAnalisis(a.data); setLiquidez(l.data); setTopProducts(p.data)
       setPedidos(pd.data); setResumenDia(rd.data); setGastos(g.data)
       setDeudas(de.data); setAlertasRecompra(alrt.data || [])
-    }).catch(console.error).finally(() => setLoading(false))
+    }).catch(e => {
+      console.error(e)
+      toast('No se pudo cargar el dashboard: ' + (e.message || 'sin conexión'), 'error')
+    }).finally(() => setLoading(false))
   }, [selectedMonth])
 
   const [selYear, selMonth] = selectedMonth.split('-').map(Number)

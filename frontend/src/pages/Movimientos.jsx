@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { movimientosApi } from '../api'
 import { DataCard } from '../components/ui'
 import { useToast } from '../components/Toast'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { loadPdf } from '../utils/pdf'
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
 const CHIP = { efectivo: 'chip-green', transferencia: 'chip-blue', tarjeta: 'chip-gray' }
@@ -75,8 +74,9 @@ export function Movimientos() {
     return TIPO_CHIP[tipoMov] || { clase: 'chip-gray', label: tipoMov || '—' }
   }
 
-  const handleExportarPDF = () => {
+  const handleExportarPDF = async () => {
     try {
+      const { jsPDF, autoTable } = await loadPdf()
       const doc = new jsPDF()
       doc.setFontSize(18)
       doc.setFont("helvetica", "bold")

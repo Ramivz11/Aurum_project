@@ -72,6 +72,8 @@ export function Clientes() {
       clientesApi.alertasRecompra().catch(() => ({ data: [] }))
     ])
       .then(([c, t, a]) => { setClientes(c.data); setTop(t.data); setAlertas(a.data || []) })
+      // Sin esto, un request fallido dejaba la pantalla vacía y sin aviso
+      .catch(e => toast('No se pudo cargar clientes: ' + (e.message || 'sin conexión'), 'error'))
       .finally(() => setLoading(false))
   }
   useEffect(() => { cargar() }, [busqueda])

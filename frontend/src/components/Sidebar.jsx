@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { ventasApi, sucursalesApi } from '../api'
 import { useSucursal } from '../context/SucursalContext'
 import { useToast } from './Toast'
+import { useScrollLock } from './ui'
 
 const NAV = [
   { label: 'Principal', items: [
@@ -150,12 +151,16 @@ export default function Sidebar() {
   const { sucursales, sucursalActual, setSucursalActual, cargarSucursales } = useSucursal()
   const location = useLocation()
 
+  // Se refresca en cada cambio de ruta para que el badge no quede viejo
+  // después de confirmar/crear pedidos en Ventas.
   useEffect(() => {
     ventasApi.pedidosAbiertos().then(d => setPedidosAbiertos(d.data.length)).catch(() => {})
-  }, [])
+  }, [location.pathname])
 
   // Cerrar drawer al cambiar de ruta
   useEffect(() => { setDrawerOpen(false) }, [location.pathname])
+
+  useScrollLock(drawerOpen)
 
   const navProps = {
     pedidosAbiertos, sucursalesOpen, setSucursalesOpen,

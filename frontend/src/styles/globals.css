@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
+/* Las fuentes se cargan desde index.html (link preconnect + stylesheet):
+   un @import acá bloquea el primer render, sobre todo en redes móviles. */
 :root {
   --gold: #ff9800;
   --gold-light: #ffb74d;
@@ -38,10 +38,56 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ── Escala del rediseño mobile-first ──────────────────────────────────────
+     Se agrega en paralelo a los tokens de arriba en vez de redefinirlos: cada
+     sección migra en su propia pasada y mientras tanto el resto de la app
+     sigue viéndose igual. Cuando no quede nada usando los viejos, se borran.
+
+     Los grises de texto suben de contraste: --text-muted (#64748b) da 4.3:1
+     sobre el fondo, justo en el límite de AA y por debajo en texto chico.
+     Verde y rojo también se aclaran por el mismo motivo. */
+  --s-bg: #0A0F1E;
+  --s-surface: #131A2E;
+  --s-raised: #1C2438;
+  --s-line: rgba(255, 255, 255, 0.09);
+  --s-line-strong: rgba(255, 255, 255, 0.16);
+
+  --s-gold: #FFA31A;
+  --s-gold-soft: rgba(255, 163, 26, 0.13);
+  --s-gold-line: rgba(255, 163, 26, 0.34);
+
+  --s-ok: #34D399;
+  --s-low: #FBBF24;
+  --s-out: #F87171;
+  --s-ok-soft: rgba(52, 211, 153, 0.12);
+  --s-low-soft: rgba(251, 191, 36, 0.13);
+  --s-out-soft: rgba(248, 113, 113, 0.12);
+
+  --s-text: #F1F5F9;
+  --s-text-2: #A9B4C8;
+  --s-text-3: #6E7B92;
+
+  /* Escala tipográfica fija. Piso para texto de datos: --s-13.
+     El 9px y el 10px del diseño anterior desaparecen. */
+  --s-11: 11px;
+  --s-13: 13px;
+  --s-15: 15px;
+  --s-17: 17px;
+  --s-22: 22px;
+  --s-30: 30px;
+
+  /* Mínimo cómodo para el pulgar */
+  --s-touch: 44px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html { -webkit-tap-highlight-color: transparent; }
+html {
+  -webkit-tap-highlight-color: transparent;
+  /* iOS agranda el texto en landscape si no se fija esto */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
@@ -50,7 +96,12 @@ body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  /* Sin rebote/pull-to-refresh accidental al scrollear listas (feel nativo) */
+  overscroll-behavior-y: none;
 }
+
+/* Elimina el retraso de doble-tap-zoom en todos los controles */
+button, a, input, select, textarea, label { touch-action: manipulation; }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -256,6 +307,10 @@ body::before {
 .product-price { min-width: 120px; }
 .product-actions { display: flex; align-items: center; gap: 6px; }
 
+/* La sangría izquierda alinea la variante bajo el nombre del producto en
+   desktop; en móvil se quitaría demasiado ancho útil. */
+.variante-row { padding: 9px 14px 9px 54px; }
+
 .main-area {
   flex: 1;
   display: flex;
@@ -297,6 +352,18 @@ body::before {
   overflow-y: auto;
   padding: 24px 28px;
   padding-bottom: 32px;
+}
+
+/* ─── OFFLINE BANNER ──────────────────────────────── */
+.offline-banner {
+  flex-shrink: 0;
+  background: rgba(251,191,36,0.12);
+  border-bottom: 1px solid rgba(251,191,36,0.25);
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 16px;
 }
 
 /* ─── MOBILE HEADER ───────────────────────────────── */
@@ -384,6 +451,10 @@ body::before {
   height: 100%;
   align-items: center;
   justify-content: space-around;
+  /* .bottom-nav es flex en móvil, así que este wrapper es un flex item: sin
+     width:100% se encoge al ancho de su contenido y la navegación queda
+     apiñada a la izquierda en vez de repartirse toda la barra. */
+  width: 100%;
 }
 
 .bottom-nav-item {
@@ -489,6 +560,10 @@ body::before {
 .btn-xs { padding: 3px 8px; font-size: 11px; }
 
 /* ─── GRIDS ───────────────────────────────────────── */
+/* Campos numéricos de una variante (modal de Stock): 4 en línea + botón
+   eliminar en desktop. En móvil no entran — pasan a 2 columnas y el botón
+   ocupa su propia fila. */
+.var-fields-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; }
 .ventas-footer-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
 .stats-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
@@ -694,6 +769,16 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 }
 .modal-lg { max-width: 740px; }
 .modal-drag-handle { display: none; }
+
+/* Sin esto, al llegar al final del scroll del modal el gesto sigue en el
+   contenido de atrás (scroll chaining) — se siente a web, no a app. */
+.modal, .modal-overlay { overscroll-behavior: contain; }
+
+/* El fondo no debe moverse mientras hay un modal o el drawer abierto. El
+   scroll real vive en el contenedor de la página, no en <body>. */
+body.scroll-locked .content,
+body.scroll-locked .page-content,
+body.scroll-locked .stk-scroll { overflow: hidden; }
 .modal-header {
   padding: 18px 22px;
   border-bottom: 1px solid var(--border);
@@ -862,7 +947,10 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 .dropdown-menu {
   position: absolute; top: calc(100% + 6px); right: 0;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); min-width: 160px; z-index: 100;
+  border-radius: var(--radius-sm); min-width: 160px;
+  /* Por encima del FAB (190): con z-index 100 el botón flotante tapaba las
+     últimas opciones del menú, entre ellas la de eliminar. */
+  z-index: 195;
   box-shadow: 0 12px 40px rgba(0,0,0,0.55); animation: fadeIn 0.15s ease;
 }
 .dropdown-item { padding: 10px 16px; font-size: 13px; cursor: pointer; transition: background 0.1s; color: var(--text-muted); }
@@ -977,6 +1065,17 @@ tbody td { padding: 12px 16px; font-size: 13px; }
   .dash-2col { grid-template-columns: 1fr !important; }
   .dash-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
 
+  .variante-row { padding: 10px 0 10px 8px; margin-top: 8px; border-radius: 10px; }
+
+  /* Los 4 inputs numéricos de variante no entran en línea a 360px */
+  .var-fields-grid { grid-template-columns: 1fr 1fr; }
+  .var-fields-grid > .btn-danger { grid-column: 1 / -1; justify-content: center; }
+
+  /* A 2 columnas la tarjeta queda angosta: menos padding para que importes
+     de 7 cifras no desborden. */
+  .stat-card { padding: 14px 14px; }
+  .stat-value { overflow-wrap: anywhere; }
+
   /* Carrito (Ventas/Compras): a 320-360px de ancho, nombre + qty + precio +
      subtotal + quitar no entran en una sola fila — el nombre pasa a ocupar
      su propia línea y el resto de controles se reacomoda debajo. */
@@ -987,11 +1086,15 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 
   /* Objetivos táctiles: 16px evita el auto-zoom de iOS en foco;
      44px de alto es el mínimo recomendado para tocar con el pulgar. */
-  .form-input, .form-select, .form-textarea, .input, .select,
-  .search-input, .carrito-qty, .carrito-precio {
-    font-size: 16px;
-  }
-  .btn:not(.btn-xs):not(.btn-sm) { min-height: 44px; }
+  /* iOS hace zoom automático al enfocar un campo de menos de 16px y no
+     vuelve solo. El !important es deliberado: varios inputs traen fontSize
+     inline (que de otro modo gana), y basta uno para que Safari haga zoom. */
+  input, select, textarea { font-size: 16px !important; }
+  .form-input, .form-select, .input, .select, .search-input { min-height: 44px; }
+  .btn:not(.btn-xs):not(.btn-sm) { min-height: 44px; min-width: 44px; justify-content: center; }
+  /* Los btn-sm quedaban en 27px de alto: por debajo del mínimo cómodo para el pulgar */
+  .btn-sm { min-height: 36px; }
+  .btn-xs { min-height: 32px; }
   .modal-close, .mobile-menu-btn { min-width: 40px; min-height: 40px; }
 
   .modal-drag-handle {
@@ -1048,6 +1151,30 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 @media (max-width: 768px) {
   .desktop-only { display: none !important; }
   .mobile-only { display: block !important; }
+}
+
+/* ── FEEL NATIVO EN TOUCH ───────────────────────────────────────────────── */
+/* En pantallas táctiles no existe hover: el estado :hover queda "pegado"
+   después de tocar. Se neutralizan los efectos de hover y se reemplazan
+   por feedback :active inmediato, como en una app nativa. */
+@media (hover: none) {
+  .stat-card:hover { transform: none; box-shadow: none; border-color: var(--border); }
+  .stat-card:hover::after { opacity: 0; }
+  .suc-card:hover { transform: none; box-shadow: none; border-color: var(--border); }
+  .btn-primary:hover { transform: none; box-shadow: 0 2px 14px rgba(255,152,0,0.3); }
+
+  .btn:active { transform: scale(0.97); }
+  .nav-item:active, .bottom-nav-item:active,
+  .sucursal-item:active, .dropdown-item:active { background: rgba(255,152,0,0.1); }
+  .data-card:active, .pedido-card:active { background: var(--surface2); }
+
+  /* Sin menú contextual de iOS al mantener presionado un control de navegación */
+  .nav-item, .bottom-nav-item, .btn, .fab { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
+
+/* Accesibilidad: respeta la preferencia de reducir movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
 /* EmptyState component */
