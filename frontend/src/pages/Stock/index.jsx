@@ -13,36 +13,10 @@ import ProductoSheet from './sheets/Producto'
 import PrecioLote from './sheets/PrecioLote'
 import CategoriasSheet from './sheets/Categorias'
 import {
-  fmtN, totalProducto, variantesActivas, productoBajoMinimo,
+  fmtN, totalProducto, variantesActivas,
 } from './stockUtils'
 import { formatARS } from '../../components/ui'
 import '../../styles/stock.css'
-
-// Aviso de reposición. Es información, no una acción: se puede cerrar y no
-// vuelve a molestar hasta que se recarga la pantalla.
-function AvisoReposicion({ productos, sucursales }) {
-  const [cerrado, setCerrado] = useState(false)
-  const bajos = productos.filter(p => productoBajoMinimo(p, sucursales))
-  if (cerrado || bajos.length === 0) return null
-
-  const nombres = bajos.slice(0, 3).map(p => p.nombre).join(', ')
-  const resto = bajos.length - 3
-
-  return (
-    <div className="stk-alert" role="status">
-      <span aria-hidden="true">⚠</span>
-      <div className="stk-alert-body">
-        <div className="stk-alert-title">
-          {bajos.length} producto{bajos.length === 1 ? '' : 's'} para reponer
-        </div>
-        <div className="stk-alert-names">
-          {nombres}{resto > 0 && ` y ${resto} más`}
-        </div>
-      </div>
-      <button className="stk-alert-close" onClick={() => setCerrado(true)} aria-label="Cerrar aviso">✕</button>
-    </div>
-  )
-}
 
 export default function Stock() {
   // Las sucursales salen del contexto compartido: así la que se elige en el
@@ -196,8 +170,6 @@ export default function Stock() {
           loadingResumen={cargandoResumen}
         />
 
-        <AvisoReposicion productos={productos} sucursales={sucursales} />
-
         <div className="stk-list">
           {primeraCarga ? (
             <Loading />
@@ -215,7 +187,6 @@ export default function Stock() {
             />
           ) : (
             <>
-              <p className="stk-hint">Tocá una cantidad para ajustarla.</p>
               {productos.map(p => (
                 <ProductCard
                   key={p.id}
@@ -233,6 +204,10 @@ export default function Stock() {
                   })}
                 />
               ))}
+
+              {/* Al pie y no al tope: la edición por toque hay que descubrirla una
+                  vez, y arriba le robaba una línea a la lista en cada visita. */}
+              <p className="stk-hint">Tocá una cantidad para ajustarla.</p>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                 <button className="btn btn-ghost" onClick={exportarPdf}>Exportar PDF</button>

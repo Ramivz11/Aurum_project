@@ -36,7 +36,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px 10px;
+  padding: 10px 16px 8px;
 }
 
 .stk-head-title {
@@ -61,7 +61,7 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  padding: 8px 16px 10px;
+  padding: 6px 12px 8px;
   background: var(--s-bg);
   border-bottom: 1px solid var(--s-line);
 }
@@ -211,7 +211,7 @@
    Reemplaza las cinco tarjetas de estadísticas, que empujaban la lista fuera
    de la primera pantalla. Una línea; el detalle se despliega si se pide. */
 
-.stk-summary { padding: 10px 16px 0; }
+.stk-summary { padding: 8px 12px 0; }
 
 .stk-summary-bar {
   width: 100%;
@@ -270,48 +270,21 @@
 .stk-summary-value.is-out { color: var(--s-out); }
 .stk-summary-sub { font-size: var(--s-13); color: var(--s-text-2); margin-top: 5px; }
 
-/* ─── AVISO DE STOCK BAJO ─────────────────────────────────────────────────── */
-
-.stk-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 10px 16px 0;
-  padding: 12px 14px;
-  background: var(--s-low-soft);
-  border: 1px solid rgba(251, 191, 36, 0.28);
-  border-radius: 12px;
-}
-.stk-alert-body { flex: 1; min-width: 0; }
-.stk-alert-title { font-size: var(--s-13); font-weight: 700; color: var(--s-low); }
-.stk-alert-names { font-size: var(--s-13); color: var(--s-text-2); margin-top: 3px; }
-.stk-alert-close {
-  flex-shrink: 0;
-  width: var(--s-touch);
-  height: var(--s-touch);
-  margin: -10px -8px -10px 0;
-  background: none;
-  border: none;
-  color: var(--s-text-2);
-  font-size: var(--s-15);
-  cursor: pointer;
-}
-
 /* ─── LISTA ───────────────────────────────────────────────────────────────── */
 
 /* El relleno inferior deja pasar la barra de navegación y el home indicator:
    sin esto la última tarjeta queda tapada. */
 .stk-list {
-  padding: 12px 16px calc(var(--mobile-nav-h) + var(--safe-bottom) + 24px);
+  padding: 10px 12px calc(var(--mobile-nav-h) + var(--safe-bottom) + 24px);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .stk-hint {
   font-size: var(--s-13);
   color: var(--s-text-3);
-  padding: 0 2px 2px;
+  padding: 4px 2px 0;
 }
 
 /* ─── CARD DE PRODUCTO ────────────────────────────────────────────────────── */
@@ -319,7 +292,7 @@
 .stk-card {
   background: var(--s-surface);
   border: 1px solid var(--s-line);
-  border-radius: 16px;
+  border-radius: 14px;
   overflow: hidden;
 }
 
@@ -336,23 +309,18 @@
 .stk-card-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 12px 12px 14px;
+  gap: 8px;
+  padding: 6px 6px 6px 11px;
 }
 
 .stk-thumb {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
   background: var(--s-raised);
   border: 1px solid var(--s-line);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--s-text-3);
-  font-size: var(--s-17);
 }
 .stk-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -361,21 +329,53 @@
   font-size: var(--s-15);
   font-weight: 700;
   color: var(--s-text);
-  line-height: 1.3;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
+/* Marca, categoría y costo van en la misma línea, debajo del nombre: eran un
+   renglón extra cada uno y no es información que se lea seguido. */
 .stk-card-meta {
   display: flex;
-  align-items: center;
-  gap: 7px;
+  align-items: baseline;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-top: 5px;
-  font-size: var(--s-13);
+  margin-top: 1px;
+  font-size: var(--s-11);
+  /* A 11px el gris más apagado queda en 4:1 contra el fondo: se lee de cerca y
+     se pierde a distancia de mostrador. La jerarquía la sostienen el tamaño y
+     el peso, no el gris. */
   color: var(--s-text-2);
 }
+/* Vacía cuando el producto no tiene marca, categoría ni costo: sin esto queda
+   un renglón fantasma de 6px bajo cada nombre. */
+.stk-card-meta:empty { display: none; }
+
+/* Cuando todas las variantes valen lo mismo — el caso normal — el precio vive
+   acá arriba, una sola vez, y no repetido en cada fila de sucursales. */
+.stk-card-price {
+  font-size: var(--s-17);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--s-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* El costo es dato de referencia, no de mostrador: va con su palabra al lado
+   para no confundirse con el precio, en chico y apagado. */
+.stk-costo {
+  font-size: var(--s-11);
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text-2);
+  white-space: nowrap;
+}
+/* La cifra pesa más que la palabra: sin esto "Gaseosas costo $1.200" se lee
+   como una sola frase corrida junto a la categoría. */
+.stk-costo-val { font-weight: 700; }
 
 .stk-card-empty-note {
-  padding: 0 14px 14px;
+  padding: 0 12px 10px;
   font-size: var(--s-13);
   color: var(--s-text-2);
 }
@@ -383,24 +383,41 @@
 /* ─── FILA DE VARIANTE ────────────────────────────────────────────────────── */
 
 .stk-var {
-  padding: 10px 14px 12px;
+  padding: 5px 11px 7px;
   border-top: 1px solid var(--s-line);
 }
 
-.stk-var-head {
+/* Producto de una sola variante sin sabor ni tamaño y con el precio ya resuelto
+   arriba: no queda nada que rotular, así que la fila es sólo la grilla y se
+   pega a la cabecera. */
+.stk-var.is-solo { padding-top: 2px; border-top: none; }
+
+.stk-var-label {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
+/* El nombre de la variante baja de peso: acompaña al precio, no compite. */
 .stk-var-name {
   font-size: var(--s-13);
-  font-weight: 600;
-  color: var(--s-text);
+  font-weight: 500;
+  color: var(--s-text-2);
+  flex: 1 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* Costo y precio de la variante, juntos y a la derecha. Sólo aparecen cuando
+   las variantes no valen todas lo mismo; si valen igual están en la cabecera. */
+.stk-importes {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* Al buscar, la parte del texto que coincide se resalta: el ojo salta directo
@@ -419,27 +436,22 @@
    confunden y el signo $ sale como un glifo extraño. Syne queda para el título
    de la pantalla, que es donde aporta personalidad sin costar legibilidad.
    tabular-nums alinea las cifras en columna entre filas. */
+/* El precio es lo que más se mira en el día a día, así que es el elemento con
+   más peso de la fila: por encima del nombre de la variante y del stock. */
 .stk-var-price {
   font-size: var(--s-15);
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   color: var(--s-text);
   white-space: nowrap;
   flex-shrink: 0;
 }
-.stk-var-margin {
-  font-size: var(--s-13);
-  font-weight: 700;
-  margin-left: 6px;
-}
-.stk-var-margin.is-ok { color: var(--s-ok); }
-.stk-var-margin.is-low { color: var(--s-low); }
-.stk-var-margin.is-out { color: var(--s-out); }
 
 .stk-var-more {
   width: 100%;
-  min-height: var(--s-touch);
-  padding: 12px;
+  min-height: 38px;
+  padding: 9px 12px;
   background: none;
   border: none;
   border-top: 1px solid var(--s-line);
@@ -461,21 +473,22 @@
 .stk-grid {
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
 }
 
+/* El stock es dato de apoyo, no el protagonista: la celda se mantiene legible
+   pero deja de competir con el precio y ocupa poco más de un tercio de lo que
+   ocupaba, que era lo que hacía entrar un solo producto por pantalla. */
 .stk-cell {
-  position: relative;
-  min-height: 62px;
-  padding: 7px 4px 6px;
-  border-radius: 12px;
+  min-height: 32px;
+  padding: 3px 4px 4px;
+  border-radius: 8px;
   border: 1px solid var(--s-line);
   background: var(--s-raised);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
   cursor: pointer;
   font-family: 'Inter', sans-serif;
   transition: border-color 0.15s, background 0.15s;
@@ -484,8 +497,9 @@
 .stk-cell-name {
   font-size: var(--s-11);
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  line-height: 1;
   color: var(--s-text-2);
   max-width: 100%;
   overflow: hidden;
@@ -493,27 +507,25 @@
   white-space: nowrap;
 }
 
+/* El número baja de 17 a 15: el stock se sigue leyendo de un vistazo pero deja
+   de pesar más que el precio, que es el dato que de verdad se consulta. */
 .stk-cell-qty {
-  font-size: 24px;
+  font-size: var(--s-15);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
   color: var(--s-text);
 }
 
-.stk-cell-mark { font-size: var(--s-13); line-height: 1; }
+/* La marca de estado va pegada al número, en la misma línea: en el diseño
+   anterior ocupaba un renglón propio en cada celda de cada fila. */
+.stk-cell-mark { font-size: var(--s-11); line-height: 1; margin-left: 3px; }
 
-/* El lápiz deja visible que la celda es editable. Sin esto, el número parece
-   un dato de sólo lectura — que es exactamente el problema del diseño anterior. */
-.stk-cell-edit {
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  font-size: var(--s-13);
-  color: var(--s-text-2);
-  line-height: 1;
-}
+/* El lápiz por celda desaparece: a esta altura no entra, y repetirlo tres o
+   cuatro veces por fila era ruido. La condición de editable se sostiene con el
+   aspecto de control (borde y fondo elevado) más una línea de aviso al pie de
+   la lista, que cuesta una sola vez en vez de una por celda. */
 
 .stk-cell.is-ok { background: var(--s-ok-soft); border-color: rgba(52, 211, 153, 0.26); }
 .stk-cell.is-ok .stk-cell-qty, .stk-cell.is-ok .stk-cell-mark { color: var(--s-ok); }
@@ -589,6 +601,17 @@ select.stk-input option { background: var(--s-raised); }
 
 .stk-help { font-size: var(--s-13); color: var(--s-text-2); margin-top: 6px; }
 .stk-help.is-out { color: var(--s-out); }
+
+/* El margen se calcula al cargar costo y precio, dentro de la hoja de edición.
+   En la lista no aparece: ahí van los dos importes y el margen se deduce. */
+.stk-var-margin {
+  font-size: var(--s-13);
+  font-weight: 700;
+  margin-left: 6px;
+}
+.stk-var-margin.is-ok { color: var(--s-ok); }
+.stk-var-margin.is-low { color: var(--s-low); }
+.stk-var-margin.is-out { color: var(--s-out); }
 
 /* Selección de sucursal con objetivos táctiles reales, en lugar de un <select>
    nativo que oculta el stock disponible de cada una. */
@@ -786,7 +809,13 @@ select.stk-input option { background: var(--s-raised); }
     align-items: center;
     gap: 20px;
   }
-  .stk-var-head { flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 0; }
+  /* Sin rótulo la grilla queda sola: se la manda a la derecha para que caiga en
+     la misma columna que en el resto de las tarjetas de la lista. */
+  .stk-var.is-solo {
+    grid-template-columns: minmax(0, calc(var(--cols) * 96px));
+    justify-content: end;
+  }
+  .stk-var-label { justify-content: flex-start; gap: 12px; margin-bottom: 0; }
   .stk-var-name { font-size: var(--s-15); }
 
   .stk-suc-opt { flex: 1 1 calc(33.333% - 6px); }

@@ -28,10 +28,11 @@ export default function SucursalGrid({ variante, sucursales, sucursalActualId, o
             onClick={() => onAjustar(variante, suc)}
             aria-label={`${suc.nombre}: ${fmtN(qty)} unidades, ${ETIQUETA_ESTADO[estado]}. Tocar para ajustar.`}
           >
-            <span className="stk-cell-edit" aria-hidden="true">✎</span>
             <span className="stk-cell-name">{suc.nombre}</span>
-            <span className="stk-cell-qty">{fmtN(qty)}</span>
-            <span className="stk-cell-mark" aria-hidden="true">{MARCA_ESTADO[estado]}</span>
+            <span className="stk-cell-qty">
+              {fmtN(qty)}
+              <span className="stk-cell-mark" aria-hidden="true">{MARCA_ESTADO[estado]}</span>
+            </span>
           </button>
         )
       })}
