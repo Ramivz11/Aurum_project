@@ -28,50 +28,44 @@
   overscroll-behavior-y: contain;
 }
 
-/* ─── CABECERA ────────────────────────────────────────────────────────────────
-   Un bloque propio con las esquinas de abajo redondeadas, apoyado sobre el
-   fondo de la pantalla. Contiene el título y la búsqueda, que es la herramienta
-   de la tarea principal: responder "¿hay?". */
+/* ─── PANTALLA COMPLETA ───────────────────────────────────────────────────────
+   Stock esconde la barra de navegación de abajo mientras está montada: son 64px
+   que en una pantalla que es toda scroll valen más como lista que como pestañas.
+   El acceso al resto de las secciones queda en el ☰ de la cabecera de la app.
+
+   La clase la pone y la saca el componente, así el resto de las pantallas no se
+   entera. */
+
+body.stk-full .bottom-nav { display: none; }
+
+/* Sin barra abajo, lo que se apoyaba sobre ella baja hasta el borde. */
+body.stk-full .fab { bottom: calc(var(--safe-bottom) + 16px); }
+body.stk-full .toast-wrap { bottom: calc(var(--safe-bottom) + 12px); }
+
+/* ─── BÚSQUEDA ───────────────────────────────────────────────────────────────
+   Es la herramienta de la tarea principal —responder "¿hay?"— y vive en una
+   barra propia arriba de todo, fuera del área que scrollea.
+
+   No hay título de pantalla: "Stock" lo dice el menú por el que se entró, y
+   acá costaba dos renglones fijos en cada visita. */
 
 .stk-head {
   background: var(--s-surface);
   border-bottom: 1px solid var(--s-line);
-  border-radius: 0 0 24px 24px;
-  padding: 12px 20px 16px;
+  border-radius: 0 0 18px 18px;
+  padding: 8px 12px 10px;
   flex: none;
   position: relative;
   z-index: 20;
 }
 
-.stk-head-eyebrow {
-  font-size: var(--s-11);
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--s-gold);
-}
-
-.stk-head-title {
-  font-family: 'Syne', sans-serif;
-  font-size: var(--s-22);
-  font-weight: 800;
-  color: var(--s-text);
-  letter-spacing: 0.01em;
-  margin-top: 5px;
-}
-
-/* ─── BÚSQUEDA ───────────────────────────────────────────────────────────────
-   Vive dentro de la cabecera, sobre el fondo elevado: es parte de la identidad
-   de la pantalla y no una barra flotante más. */
-
 .stk-search {
   position: relative;
   display: flex;
   align-items: center;
-  margin-top: 14px;
   background: var(--s-raised);
   border: 1px solid var(--s-line);
-  border-radius: 12px;
+  border-radius: 11px;
 }
 
 .stk-search-icon {
@@ -86,11 +80,11 @@
 .stk-search-input {
   flex: 1;
   min-width: 0;
-  height: var(--s-touch);
-  padding: 0 40px 0 38px;
+  height: 40px;
+  padding: 0 38px 0 36px;
   background: none;
   border: none;
-  border-radius: 12px;
+  border-radius: 11px;
   color: var(--s-text);
   font-family: 'Inter', sans-serif;
   /* 16px o más: menos que eso y iOS hace zoom al enfocar el campo. */
@@ -124,7 +118,7 @@
 
 .stk-chips-wrap {
   position: relative;
-  padding: 12px 16px 4px;
+  padding: 8px 12px 2px;
   flex: none;
   z-index: 15;
 }
@@ -140,12 +134,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 5px;
-  min-height: 40px;
-  padding: 7px 11px;
+  gap: 4px;
+  min-height: 36px;
+  padding: 5px 10px;
   background: var(--s-surface);
   border: 1px solid var(--s-line);
-  border-radius: 20px;
+  border-radius: 18px;
   cursor: pointer;
   font-family: 'Inter', sans-serif;
   text-align: left;
@@ -197,9 +191,9 @@
 
 .stk-drop {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  top: 58px;
+  left: 12px;
+  right: 12px;
+  top: 50px;
   z-index: 30;
   padding: 6px;
   background: var(--s-raised);
@@ -240,7 +234,7 @@
    Reemplaza las cinco tarjetas de estadísticas, que empujaban la lista fuera
    de la primera pantalla. Una línea; el detalle se despliega si se pide. */
 
-.stk-summary { padding: 10px 16px 0; }
+.stk-summary { padding: 8px 12px 0; }
 
 .stk-summary-bar {
   width: 100%;
@@ -304,14 +298,16 @@
    entran ocho productos por pantalla, contra el producto y medio que entraba
    cuando cada fila mostraba todas las sucursales abiertas. */
 
+/* Sin barra de navegación abajo el relleno inferior sólo tiene que dejar pasar
+   el home indicator y el botón flotante. */
 .stk-list {
-  padding: 8px 16px calc(var(--mobile-nav-h) + var(--safe-bottom) + 24px);
+  padding: 6px 12px calc(var(--safe-bottom) + 84px);
 }
 
 .stk-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 11px;
+  gap: 9px;
   /* Cada card conserva su alto: al desplegar una no se estira la de al lado. */
   align-items: start;
 }
@@ -366,7 +362,7 @@
 
 .stk-strip {
   position: relative;
-  height: 74px;
+  height: 58px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -388,13 +384,13 @@
    cualquiera el texto suelto no se lee. */
 .stk-strip-qty {
   position: absolute;
-  right: 7px;
-  bottom: 7px;
+  right: 6px;
+  bottom: 6px;
   display: flex;
   align-items: baseline;
   gap: 3px;
-  padding: 3px 8px;
-  border-radius: 9px;
+  padding: 2px 7px;
+  border-radius: 8px;
   background: rgba(10, 15, 30, 0.85);
   border: 1px solid var(--s-line-strong);
   font-size: var(--s-15);
@@ -427,7 +423,7 @@
 
 /* ─── CUERPO DE LA CARD ───────────────────────────────────────────────────── */
 
-.stk-card-body { padding: 11px 12px 12px; }
+.stk-card-body { padding: 9px 10px 10px; }
 
 .stk-card-name {
   font-size: var(--s-13);
@@ -455,7 +451,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 7px;
+  margin-top: 6px;
 }
 
 .stk-tag {
@@ -475,8 +471,8 @@
 .stk-money {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--s-line);
 }
 
@@ -499,7 +495,7 @@
 
 .stk-money-value {
   display: block;
-  margin-top: 5px;
+  margin-top: 4px;
   font-size: var(--s-13);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -540,7 +536,7 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  margin-top: 11px;
+  margin-top: 8px;
   font-size: var(--s-11);
   font-weight: 700;
   color: var(--s-gold);
@@ -558,7 +554,7 @@
    dependa de distinguir verde de ámbar. */
 
 .stk-branches {
-  padding: 0 12px 10px;
+  padding: 0 10px 8px;
   border-top: 1px solid var(--s-line);
 }
 
@@ -568,7 +564,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--s-text-2);
-  margin: 11px 0 8px;
+  margin: 9px 0 7px;
 }
 
 .stk-branch-group + .stk-branch-group { margin-top: 10px; }
@@ -588,8 +584,8 @@
   align-items: center;
   gap: 7px;
   width: 100%;
-  min-height: 32px;
-  padding: 4px 3px;
+  min-height: 28px;
+  padding: 3px 3px;
   background: none;
   border: none;
   border-radius: 8px;
@@ -892,14 +888,13 @@ select.stk-input option { background: var(--s-raised); }
 /* ─── ESCRITORIO ─────────────────────────────────────────────────────────────
    El celular manda; acá sólo se aprovecha el ancho extra. La grilla suma
    columnas en vez de estirar las cards: una card de 400px de ancho con una
-   franja de 74px es una foto deformada y un nombre perdido en el blanco. */
+   franja de 58px es una foto deformada y un nombre perdido en el blanco. */
 
 @media (min-width: 769px) {
-  .stk-head { padding: 22px 28px 18px; border-radius: 0 0 28px 28px; }
-  .stk-chips-wrap { padding: 14px 28px 4px; }
+  .stk-head { padding: 12px 28px 14px; border-radius: 0 0 22px 22px; }
+  .stk-chips-wrap { padding: 12px 28px 4px; }
   .stk-summary { padding: 12px 28px 0; }
   .stk-list { padding: 10px 28px 32px; }
-  .stk-head-title { font-size: var(--s-30); }
 
   .stk-search { max-width: 460px; }
   .stk-chips { max-width: 560px; }
@@ -911,7 +906,7 @@ select.stk-input option { background: var(--s-raised); }
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 14px;
   }
-  .stk-strip { height: 96px; }
+  .stk-strip { height: 84px; }
   .stk-card-name { font-size: var(--s-15); min-height: 38px; }
 
   .stk-suc-opt { flex: 1 1 calc(33.333% - 6px); }

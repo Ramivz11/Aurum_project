@@ -75,6 +75,14 @@ export default function Stock() {
 
   useEffect(() => { cargar() }, [cargar])
 
+  // Stock corre a pantalla completa: se esconde la barra de navegación de abajo
+  // mientras esta pantalla está montada. Son 64px más de lista en cada scroll,
+  // y el acceso al resto de las secciones sigue estando en el ☰ de arriba.
+  useEffect(() => {
+    document.body.classList.add('stk-full')
+    return () => document.body.classList.remove('stk-full')
+  }, [])
+
   const eliminarProducto = async (id) => {
     try {
       await productosApi.eliminar(id)
@@ -141,13 +149,13 @@ export default function Stock() {
 
   return (
     <div className="stk">
-      {/* Cabecera y filtros quedan fuera del área que scrollea: son las dos
+      {/* Búsqueda y filtros quedan fuera del área que scrollea: son las dos
           herramientas de la tarea principal —buscar y acotar— y tienen que estar
-          siempre bajo el pulgar, no a un scroll hasta arriba de distancia. */}
-      <header className="stk-head">
-        <p className="stk-head-eyebrow">Inventario</p>
-        <h1 className="stk-head-title">Stock por sucursal</h1>
+          siempre bajo el pulgar, no a un scroll hasta arriba de distancia.
 
+          Sin título ni bajada: "Stock" ya lo dice el menú por el que se entró y
+          el ☰ de arriba, y acá costaba dos renglones fijos en cada visita. */}
+      <header className="stk-head">
         <div className="stk-search">
           <span className="stk-search-icon" aria-hidden="true">⌕</span>
           <input
