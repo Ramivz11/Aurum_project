@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from '../../components/Toast'
 import { productosApi, categoriasProductoApi, stockApi, finanzasApi } from '../../api'
 import { useSucursal } from '../../context/SucursalContext'
@@ -139,30 +139,39 @@ export default function Stock() {
     }
   }
 
-  // La grilla se dimensiona con la cantidad real de sucursales, para que las
-  // columnas queden alineadas entre todas las filas de la lista.
-  const estilo = useMemo(
-    () => ({ '--cols': Math.max(1, sucursales.length) }),
-    [sucursales.length]
-  )
-
   return (
-    <div className="stk" style={estilo}>
+    <div className="stk">
+      {/* Cabecera y filtros quedan fuera del área que scrollea: son las dos
+          herramientas de la tarea principal —buscar y acotar— y tienen que estar
+          siempre bajo el pulgar, no a un scroll hasta arriba de distancia. */}
+      <header className="stk-head">
+        <p className="stk-head-eyebrow">Inventario</p>
+        <h1 className="stk-head-title">Stock por sucursal</h1>
+
+        <div className="stk-search">
+          <span className="stk-search-icon" aria-hidden="true">⌕</span>
+          <input
+            className="stk-search-input"
+            type="search"
+            inputMode="search"
+            placeholder="Buscar producto, marca o sabor"
+            aria-label="Buscar producto, marca o sabor"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+          {busqueda && (
+            <button className="stk-search-clear" onClick={() => setBusqueda('')} aria-label="Borrar búsqueda">✕</button>
+          )}
+        </div>
+      </header>
+
+      <StockFilters
+        categorias={categorias} catFiltro={catFiltro} setCatFiltro={setCatFiltro}
+        marcas={marcas} marcaFiltro={marcaFiltro} setMarcaFiltro={setMarcaFiltro}
+        sucursales={sucursales} sucFiltro={sucFiltro} setSucFiltro={setSucFiltro}
+      />
+
       <div className="stk-scroll">
-        <header className="stk-head">
-          <h1 className="stk-head-title">Inventario</h1>
-          <span className="stk-head-count">
-            {fmtN(productos.length)} producto{productos.length === 1 ? '' : 's'}
-          </span>
-        </header>
-
-        <StockFilters
-          busqueda={busqueda} setBusqueda={setBusqueda}
-          categorias={categorias} catFiltro={catFiltro} setCatFiltro={setCatFiltro}
-          marcas={marcas} marcaFiltro={marcaFiltro} setMarcaFiltro={setMarcaFiltro}
-          sucursales={sucursales} sucFiltro={sucFiltro} setSucFiltro={setSucFiltro}
-        />
-
         <StockSummary
           productos={productos}
           sucursales={sucursales}
@@ -187,27 +196,30 @@ export default function Stock() {
             />
           ) : (
             <>
-              {productos.map(p => (
-                <ProductCard
-                  key={p.id}
-                  producto={p}
-                  sucursales={sucursales}
-                  sucursalActualId={sucursalActual?.id}
-                  termino={busquedaDebounced}
-                  onAjustar={(variante, sucursal) => setHojaAjuste({ producto: p, variante, sucursal })}
-                  onEditar={() => setHojaProducto(p)}
-                  onPrecios={() => setHojaPrecios(p)}
-                  onTransferir={() => setHojaTransferencia(p)}
-                  onEliminar={() => setConfirmar({
-                    mensaje: `¿Eliminar "${p.nombre}" del inventario?`,
-                    fn: () => eliminarProducto(p.id),
-                  })}
-                />
-              ))}
+              <div className="stk-grid">
+                {productos.map(p => (
+                  <ProductCard
+                    key={p.id}
+                    producto={p}
+                    sucursales={sucursales}
+                    sucursalActualId={sucursalActual?.id}
+                    sucursalFiltradaId={sucFiltro}
+                    termino={busquedaDebounced}
+                    onAjustar={(variante, sucursal) => setHojaAjuste({ producto: p, variante, sucursal })}
+                    onEditar={() => setHojaProducto(p)}
+                    onPrecios={() => setHojaPrecios(p)}
+                    onTransferir={() => setHojaTransferencia(p)}
+                    onEliminar={() => setConfirmar({
+                      mensaje: `¿Eliminar "${p.nombre}" del inventario?`,
+                      fn: () => eliminarProducto(p.id),
+                    })}
+                  />
+                ))}
+              </div>
 
               {/* Al pie y no al tope: la edición por toque hay que descubrirla una
                   vez, y arriba le robaba una línea a la lista en cada visita. */}
-              <p className="stk-hint">Tocá una cantidad para ajustarla.</p>
+              <p className="stk-hint">Tocá una sucursal para ajustar su stock.</p>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                 <button className="btn btn-ghost" onClick={exportarPdf}>Exportar PDF</button>

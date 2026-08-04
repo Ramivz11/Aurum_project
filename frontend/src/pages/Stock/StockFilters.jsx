@@ -1,123 +1,111 @@
-import { useState } from 'react'
-import { Modal } from '../../components/ui'
+import { useEffect, useRef, useState } from 'react'
 
 /**
- * Búsqueda fija arriba + categorías en scroll horizontal + hoja de filtros.
+ * Tres chips —sucursal, marca, categoría— que muestran el valor elegido y
+ * abren su lista al tocarlos.
  *
- * La búsqueda es la herramienta de la tarea principal, así que queda pegada al
- * borde superior y no se va al scrollear. Marca y sucursal salen de la fila
- * (eran dos <select> nativos sueltos, visualmente ajenos a las categorías) y
- * pasan a una hoja con un contador de filtros activos.
+ * Antes eran categorías en scroll horizontal más una hoja con el resto: había
+ * que abrir la hoja para saber si quedaba algún filtro puesto. Acá el estado se
+ * lee sin tocar nada, que es lo que evita la confusión de "no aparece el
+ * producto" cuando en realidad había un filtro viejo activo.
  */
 export default function StockFilters({
-  busqueda, setBusqueda,
   categorias, catFiltro, setCatFiltro,
   marcas, marcaFiltro, setMarcaFiltro,
   sucursales, sucFiltro, setSucFiltro,
 }) {
-  const [hoja, setHoja] = useState(false)
+  const [abierto, setAbierto] = useState(null)
+  const ref = useRef(null)
 
-  const activos = [marcaFiltro, sucFiltro].filter(Boolean).length
-  const limpiar = () => { setMarcaFiltro(''); setSucFiltro('') }
+  // Tocar fuera cierra la lista. Sin esto queda abierta tapando la primera fila
+  // de productos y hay que volver al chip para sacarla del medio.
+  useEffect(() => {
+    if (!abierto) return
+    const fuera = (e) => { if (ref.current && !ref.current.contains(e.target)) setAbierto(null) }
+    const esc = (e) => { if (e.key === 'Escape') setAbierto(null) }
+    document.addEventListener('mousedown', fuera)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', fuera)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [abierto])
+
+  const opcion = (valor, nombre) => ({ valor, nombre })
+
+  const defs = [
+    sucursales.length > 1 && {
+      key: 'sucursal',
+      label: 'Sucursal',
+      valor: sucFiltro,
+      set: setSucFiltro,
+      nombre: sucursales.find(s => String(s.id) === String(sucFiltro))?.nombre || 'Todas',
+      opciones: [opcion('', 'Todas'), ...sucursales.map(s => opcion(String(s.id), s.nombre))],
+    },
+    marcas.length > 0 && {
+      key: 'marca',
+      label: 'Marca',
+      valor: marcaFiltro,
+      set: setMarcaFiltro,
+      nombre: marcaFiltro || 'Todas',
+      opciones: [opcion('', 'Todas'), ...marcas.map(m => opcion(m, m))],
+    },
+    {
+      key: 'categoria',
+      label: 'Categoría',
+      valor: catFiltro,
+      set: setCatFiltro,
+      nombre: catFiltro || 'Todas',
+      opciones: [opcion('', 'Todas'), ...categorias.map(c => opcion(c.nombre, c.nombre))],
+    },
+  ].filter(Boolean)
+
+  const activo = defs.find(d => d.key === abierto)
 
   return (
-    <>
-      <div className="stk-searchbar">
-        <div className="stk-search">
-          <span className="stk-search-icon" aria-hidden="true">⌕</span>
-          <input
-            className="stk-search-input"
-            type="search"
-            inputMode="search"
-            placeholder="Buscar producto, marca o sabor"
-            aria-label="Buscar producto, marca o sabor"
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-          />
-          {busqueda && (
-            <button className="stk-search-clear" onClick={() => setBusqueda('')} aria-label="Borrar búsqueda">✕</button>
-          )}
-        </div>
-
-        <div className="stk-filters">
-          <div className="stk-pills" role="group" aria-label="Filtrar por categoría">
-            {[{ id: '__all', nombre: 'Todo' }, ...categorias].map(cat => {
-              const esTodo = cat.id === '__all'
-              const activo = esTodo ? !catFiltro : catFiltro === cat.nombre
-              return (
-                <button
-                  key={cat.id}
-                  className={`stk-pill${activo ? ' is-active' : ''}`}
-                  aria-pressed={activo}
-                  onClick={() => setCatFiltro(esTodo ? '' : cat.nombre)}
-                >{cat.nombre}</button>
-              )
-            })}
-          </div>
-
-          {(marcas.length > 0 || sucursales.length > 1) && (
-            <button
-              className={`stk-filter-btn${activos ? ' is-active' : ''}`}
-              onClick={() => setHoja(true)}
-            >
-              Filtros
-              {activos > 0 && <span className="stk-filter-count">{activos}</span>}
-            </button>
-          )}
-        </div>
+    <div className="stk-chips-wrap" ref={ref}>
+      <div className="stk-chips">
+        {defs.map(d => (
+          <button
+            key={d.key}
+            type="button"
+            className={[
+              'stk-chip',
+              d.valor ? 'is-set' : '',
+              abierto === d.key ? 'is-open' : '',
+            ].filter(Boolean).join(' ')}
+            aria-expanded={abierto === d.key}
+            onClick={() => setAbierto(a => (a === d.key ? null : d.key))}
+          >
+            <span className="stk-chip-text">
+              <span className="stk-chip-label">{d.label}</span>
+              <span className="stk-chip-value">{d.nombre}</span>
+            </span>
+            <span className="stk-chip-chev" aria-hidden="true">⌄</span>
+          </button>
+        ))}
       </div>
 
-      {hoja && (
-        <Modal
-          title="Filtros"
-          onClose={() => setHoja(false)}
-          footer={
-            <>
-              <button className="btn btn-ghost" onClick={limpiar} disabled={!activos}>Limpiar</button>
-              <button className="btn btn-primary" onClick={() => setHoja(false)}>Ver resultados</button>
-            </>
-          }
-        >
-          {marcas.length > 0 && (
-            <div className="stk-field">
-              <label className="stk-label" htmlFor="stk-marca">Marca</label>
-              <select
-                id="stk-marca"
-                className="stk-input"
-                value={marcaFiltro}
-                onChange={e => setMarcaFiltro(e.target.value)}
+      {activo && (
+        <div className="stk-drop" role="listbox" aria-label={activo.label}>
+          {activo.opciones.map(o => {
+            const seleccionada = String(activo.valor || '') === o.valor
+            return (
+              <button
+                key={o.valor || '__todas'}
+                type="button"
+                role="option"
+                aria-selected={seleccionada}
+                className={`stk-drop-opt${seleccionada ? ' is-active' : ''}`}
+                onClick={() => { activo.set(o.valor); setAbierto(null) }}
               >
-                <option value="">Todas las marcas</option>
-                {marcas.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-          )}
-
-          {sucursales.length > 1 && (
-            <div className="stk-field">
-              <span className="stk-label">Sucursal</span>
-              <div className="stk-suc-picker">
-                <button
-                  className={`stk-suc-opt${!sucFiltro ? ' is-active' : ''}`}
-                  onClick={() => setSucFiltro('')}
-                >
-                  <div className="stk-suc-opt-name">Todas</div>
-                </button>
-                {sucursales.map(s => (
-                  <button
-                    key={s.id}
-                    className={`stk-suc-opt${String(sucFiltro) === String(s.id) ? ' is-active' : ''}`}
-                    onClick={() => setSucFiltro(String(s.id))}
-                  >
-                    <div className="stk-suc-opt-name">{s.nombre}</div>
-                  </button>
-                ))}
-              </div>
-              <p className="stk-help">Muestra sólo los productos con stock en esa sucursal.</p>
-            </div>
-          )}
-        </Modal>
+                <span>{o.nombre}</span>
+                {seleccionada && <span className="stk-drop-check" aria-hidden="true">✓</span>}
+              </button>
+            )
+          })}
+        </div>
       )}
-    </>
+    </div>
   )
 }

@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { DropdownMenu, formatARS } from '../../components/ui'
 import { useMarca } from '../../context/MarcaContext'
-import SucursalGrid from './SucursalGrid'
-import { variantesActivas, etiquetaVariante, productoAgotado } from './stockUtils'
+import SucursalBarras from './SucursalBarras'
+import {
+  variantesActivas, etiquetaVariante, productoAgotado, totalProducto,
+  cantidadEn, estadoStock, fmtN,
+} from './stockUtils'
 
-const VARIANTES_VISIBLES = 3
+const num = (v) => Number(v || 0)
 
 // Resalta el tramo del texto que coincide con la búsqueda, para que el ojo
 // salte directo al sabor que preguntó el cliente.
@@ -22,84 +25,65 @@ function Resaltado({ texto, termino }) {
   )
 }
 
-const num = (v) => Number(v || 0)
-
-// El costo va escrito con su palabra al lado. Dos importes pelados uno junto al
-// otro se confunden entre sí, y confundir costo con precio de venta es el peor
-// error posible en esta pantalla.
-function Costo({ valor }) {
-  if (num(valor) <= 0) return null
-  return (
-    <span className="stk-costo">
-      costo <span className="stk-costo-val">{formatARS(valor)}</span>
-    </span>
-  )
-}
+// Dos letras del nombre: es lo que sostiene la franja cuando el producto no
+// tiene foto cargada, que en un inventario real es la mayoría.
+const iniciales = (nombre) =>
+  (nombre || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
 /**
- * Una variante ocupa una línea de rótulo más su grilla de sucursales. Cuando no
- * hay nada que rotular — producto de una sola variante sin sabor ni tamaño, y
- * con el precio ya resuelto en la cabecera — la línea directamente no se dibuja:
- * era un renglón en blanco por producto en la mitad del inventario.
+ * Un importe de la card. Con varias variantes que no valen lo mismo no hay un
+ * número único que mostrar, así que se muestra el menor con un "desde": es la
+ * cifra con la que arranca cualquier conversación de mostrador.
  */
-function FilaVariante({ variante, sucursales, sucursalActualId, onAjustar, termino, mostrarNombre, mostrarImportes }) {
+function Importe({ label, valores, destacado }) {
+  const nums = valores.filter(n => n > 0)
+  const min = nums.length ? Math.min(...nums) : null
+  const desde = nums.length > 1 && nums.some(n => n !== min)
+
   return (
-    <div className={`stk-var${!mostrarNombre && !mostrarImportes ? ' is-solo' : ''}`}>
-      {(mostrarNombre || mostrarImportes) && (
-        <div className="stk-var-label">
-          {mostrarNombre && (
-            <span className="stk-var-name">
-              <Resaltado texto={etiquetaVariante(variante)} termino={termino} />
-            </span>
-          )}
-          {mostrarImportes && (
-            <span className="stk-importes">
-              <Costo valor={variante.costo} />
-              <span className="stk-var-price">{formatARS(variante.precio_venta)}</span>
-            </span>
-          )}
-        </div>
-      )}
-      <SucursalGrid
-        variante={variante}
-        sucursales={sucursales}
-        sucursalActualId={sucursalActualId}
-        onAjustar={onAjustar}
-      />
+    <div className="stk-money-item">
+      <span className="stk-money-label">{label}</span>
+      {/* El "desde" se dice con un "+" pegado a la cifra: en una columna de 69px
+          ni "COSTO DESDE" ni "desde $1.400" entran sin cortarse. Para quien usa
+          lector de pantalla va la palabra completa, que el "+" no se lee. */}
+      <span className={`stk-money-value${destacado ? ' is-venta' : ''}`}>
+        {desde && <span className="stk-sr">desde </span>}
+        {min === null ? '—' : formatARS(min)}
+        {desde && <span className="stk-money-mas" aria-hidden="true">+</span>}
+      </span>
     </div>
   )
 }
 
 /**
- * Card de producto. Las variantes se muestran como filas propias en vez de
- * quedar escondidas tras un desplegable: cuando alguien pregunta por un sabor,
- * la respuesta tiene que estar a la vista, no a un toque de distancia.
+ * Card de producto en la grilla de dos columnas.
+ *
+ * Arriba la franja con la foto, que es lo que hace reconocible al producto sin
+ * leer; abajo nombre, marca, costo y venta. El stock por sucursal vive plegado:
+ * son cuatro renglones por producto y mostrarlos siempre dejaba entrar un
+ * producto y medio por pantalla. El total sí queda a la vista, sobre la franja.
  */
 export default function ProductCard({
-  producto, sucursales, sucursalActualId, termino,
+  producto, sucursales, sucursalActualId, sucursalFiltradaId, termino,
   onAjustar, onEditar, onPrecios, onTransferir, onEliminar,
 }) {
   const { getStyles } = useMarca()
+  const [abierto, setAbierto] = useState(false)
+
   const variantes = variantesActivas(producto)
   const agotado = productoAgotado(producto)
+  const marca = producto.marca ? getStyles(producto.marca) : null
 
-  // Casi todos los productos valen lo mismo en todas sus variantes. Cuando pasa,
-  // costo y precio viven una sola vez arriba y cada variante se queda con lo
-  // suyo: el stock. Repetir el mismo importe en cada fila era la mitad del alto
-  // de la tarjeta gastada en decir tres veces lo mismo.
-  const base = variantes[0]
-  const uniforme = variantes.length > 0 && variantes.every(v =>
-    num(v.precio_venta) === num(base.precio_venta) && num(v.costo) === num(base.costo)
-  )
-
-  // El agotado arranca plegado: ocupa menos lugar en el scroll y sus filas de
-  // ceros no aportan nada hasta que alguien va a reponer.
-  const [expandido, setExpandido] = useState(false)
-  const mostrarTodas = expandido || variantes.length <= VARIANTES_VISIBLES
-  const visibles = agotado && !expandido
-    ? []
-    : mostrarTodas ? variantes : variantes.slice(0, VARIANTES_VISIBLES)
-  const restantes = variantes.length - visibles.length
+  // Con una sucursal elegida en el filtro, el número grande pasa a ser el de
+  // esa sucursal: es la pregunta que se está haciendo quien filtró.
+  const filtrada = sucursalFiltradaId
+    ? sucursales.find(s => String(s.id) === String(sucursalFiltradaId))
+    : null
+  const unidades = filtrada
+    ? variantes.reduce((a, v) => a + cantidadEn(v, filtrada.id), 0)
+    : totalProducto(producto)
+  const minimo = variantes.reduce((a, v) => a + num(v.stock_minimo), 0)
+  const estado = filtrada ? estadoStock(unidades, minimo) : null
 
   const acciones = [
     { label: 'Transferir entre sucursales', onClick: onTransferir, hidden: sucursales.length < 2 },
@@ -108,70 +92,95 @@ export default function ProductCard({
     { label: 'Eliminar producto', onClick: onEliminar, danger: true },
   ]
 
-  const marca = producto.marca ? getStyles(producto.marca) : null
+  // La franja toma el color de la marca cuando no hay foto, así el producto
+  // sigue siendo reconocible por color en la grilla.
+  const franja = marca
+    ? { background: marca.background, color: marca.color }
+    : undefined
 
   return (
-    <article className={`stk-card${agotado ? ' is-empty' : ''}`}>
-      <div className="stk-card-head">
-        {/* Sin imagen no se dibuja un recuadro vacío: el marcador de posición no
-            decía nada y le comía ancho al nombre en cada producto. */}
-        {producto.imagen_url && (
-          <div className="stk-thumb">
-            <img src={producto.imagen_url} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />
-          </div>
-        )}
+    <article className={`stk-card${agotado ? ' is-empty' : ''}${abierto ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="stk-card-main"
+        onClick={() => setAbierto(a => !a)}
+        aria-expanded={abierto}
+      >
+        <div className="stk-strip" style={franja}>
+          {producto.imagen_url
+            ? <img src={producto.imagen_url} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />
+            : <span className="stk-strip-ini" aria-hidden="true">{iniciales(producto.nombre)}</span>}
 
-        <div className="stk-card-info">
+          <span
+            className={`stk-strip-qty${estado ? ` is-${estado}` : ''}`}
+            aria-label={filtrada
+              ? `${fmtN(unidades)} unidades en ${filtrada.nombre}`
+              : `${fmtN(unidades)} unidades en total`}
+          >
+            {fmtN(unidades)}<span className="stk-strip-u" aria-hidden="true">u.</span>
+          </span>
+        </div>
+
+        <div className="stk-card-body">
           <h3 className="stk-card-name">
             <Resaltado texto={producto.nombre} termino={termino} />
           </h3>
-          {/* Marca, categoría y costo comparten renglón: son los tres datos de
-              apoyo del producto y ninguno merece una línea propia. */}
-          <div className="stk-card-meta">
+
+          {/* Sólo marca y categoría: el tercer chip saltaba a un segundo renglón
+              y dejaba los importes de las dos cards de la fila a distinta altura.
+              La cuenta de variantes se dice abajo, donde además anticipa qué se
+              va a abrir. */}
+          <div className="stk-tags">
             {marca && (
               <span
                 className="brand-badge"
                 style={{ '--brand-color': marca.color, '--brand-bg': marca.background, '--brand-border': marca.border }}
               >{producto.marca}</span>
             )}
-            {producto.categoria && <span>{producto.categoria}</span>}
-            {uniforme && <Costo valor={base.costo} />}
-            {variantes.length > 1 && <span>{variantes.length} variantes</span>}
+            {producto.categoria && <span className="stk-tag">{producto.categoria}</span>}
           </div>
+
+          <div className="stk-money">
+            <Importe label="Costo" valores={variantes.map(v => num(v.costo))} />
+            <Importe label="Venta" valores={variantes.map(v => num(v.precio_venta))} destacado />
+          </div>
+
+          <span className="stk-expand">
+            {abierto
+              ? 'Ocultar'
+              : variantes.length > 1
+                ? `Sucursales · ${variantes.length} var.`
+                : 'Sucursales'}
+            <span className="stk-expand-chev" aria-hidden="true">⌄</span>
+          </span>
         </div>
+      </button>
 
-        {uniforme && <span className="stk-card-price">{formatARS(base.precio_venta)}</span>}
-
+      {/* Fuera del botón que despliega: un botón no puede contener otro, y las
+          acciones tienen que seguir alcanzables sin abrir la card. */}
+      <div className="stk-card-menu">
         <DropdownMenu items={acciones} />
       </div>
 
-      {agotado && !expandido && (
-        <div className="stk-card-empty-note">Sin stock en ninguna sucursal</div>
-      )}
-
-      {visibles.map(v => (
-        <FilaVariante
-          key={v.id}
-          variante={v}
-          sucursales={sucursales}
-          sucursalActualId={sucursalActualId}
-          onAjustar={onAjustar}
-          termino={termino}
-          mostrarNombre={variantes.length > 1 || etiquetaVariante(v) !== 'Única'}
-          mostrarImportes={!uniforme}
-        />
-      ))}
-
-      {restantes > 0 && (
-        <button className="stk-var-more" onClick={() => setExpandido(true)}>
-          {agotado
-            ? `Ver ${restantes === 1 ? 'la variante' : `las ${restantes} variantes`}`
-            : `Ver ${restantes === 1 ? 'la restante' : `las ${restantes} restantes`}`}
-        </button>
-      )}
-
-      {expandido && variantes.length > VARIANTES_VISIBLES && (
-        <button className="stk-var-more" onClick={() => setExpandido(false)}>Ver menos</button>
+      {abierto && (
+        <div className="stk-branches">
+          <div className="stk-branches-title">Por sucursal</div>
+          {variantes.map(v => (
+            <div className="stk-branch-group" key={v.id}>
+              {(variantes.length > 1 || etiquetaVariante(v) !== 'Única') && (
+                <div className="stk-branch-var">
+                  <Resaltado texto={etiquetaVariante(v)} termino={termino} />
+                </div>
+              )}
+              <SucursalBarras
+                variante={v}
+                sucursales={sucursales}
+                sucursalActualId={sucursalActualId}
+                onAjustar={onAjustar}
+              />
+            </div>
+          ))}
+        </div>
       )}
     </article>
   )
