@@ -1,0 +1,819 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   STOCK — rediseño mobile-first.
+
+   Las reglas base son las del celular; el escritorio se agrega después con
+   @media (min-width: 769px). Es al revés que el resto de globals.css, que
+   parte del escritorio y va recortando: acá el celular es el caso real y el
+   escritorio el que se adapta.
+
+   Todo el color y el tamaño sale de los tokens --s-* de globals.css. No hay
+   hex sueltos ni rgba(255,255,255,.2x) para texto.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* .main-area no scrollea (overflow: hidden), así que el scroll vive acá dentro.
+   Es además lo que permite que la búsqueda quede sticky. */
+.stk {
+  --cols: 3; /* lo pisa el JS con la cantidad real de sucursales */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--s-bg);
+}
+
+.stk-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* ─── CABECERA ────────────────────────────────────────────────────────────── */
+
+.stk-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+}
+
+.stk-head-title {
+  font-family: 'Syne', sans-serif;
+  font-size: var(--s-22);
+  font-weight: 800;
+  color: var(--s-text);
+  letter-spacing: 0.01em;
+}
+
+.stk-head-count {
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+  white-space: nowrap;
+}
+
+/* ─── BÚSQUEDA FIJA ───────────────────────────────────────────────────────────
+   Es la herramienta de la tarea principal (responder "¿hay?"), así que no se
+   va al scrollear: queda pegada arriba y siempre alcanzable con el pulgar. */
+
+.stk-searchbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 8px 16px 10px;
+  background: var(--s-bg);
+  border-bottom: 1px solid var(--s-line);
+}
+
+.stk-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.stk-search-icon {
+  position: absolute;
+  left: 14px;
+  font-size: var(--s-17);
+  color: var(--s-text-3);
+  pointer-events: none;
+}
+
+.stk-search-input {
+  width: 100%;
+  min-height: var(--s-touch);
+  padding: 11px 48px;
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-15);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.stk-search-input::placeholder { color: var(--s-text-3); }
+/* El botón de borrar nativo de type="search" duplicaría al nuestro, que además
+   llega al mínimo táctil. */
+.stk-search-input::-webkit-search-cancel-button,
+.stk-search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.stk-search-input:focus {
+  border-color: var(--s-gold-line);
+  box-shadow: 0 0 0 3px var(--s-gold-soft);
+}
+
+.stk-search-clear {
+  position: absolute;
+  right: 2px;
+  width: var(--s-touch);
+  height: var(--s-touch);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--s-text-2);
+  font-size: var(--s-15);
+  cursor: pointer;
+  border-radius: 12px;
+}
+
+/* ─── FILTROS ─────────────────────────────────────────────────────────────── */
+
+.stk-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Las categorías se desplazan en horizontal en vez de envolverse en varias
+   filas: mantiene la altura de la cabecera constante al scrollear. */
+.stk-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+  /* El desvanecido del borde derecho avisa que hay más categorías: sin él, la
+     última pill queda cortada y parece un error de maquetado. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+}
+.stk-pills::-webkit-scrollbar { display: none; }
+
+.stk-pill {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  min-height: 36px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--s-line);
+  background: var(--s-surface);
+  color: var(--s-text-2);
+  font-size: var(--s-13);
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.stk-pill.is-active {
+  background: var(--s-gold-soft);
+  border-color: var(--s-gold-line);
+  color: var(--s-gold);
+  font-weight: 600;
+}
+
+.stk-filter-btn {
+  flex-shrink: 0;
+  position: relative;
+  min-width: var(--s-touch);
+  min-height: 36px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--s-line);
+  background: var(--s-surface);
+  color: var(--s-text-2);
+  font-size: var(--s-13);
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stk-filter-btn.is-active {
+  border-color: var(--s-gold-line);
+  color: var(--s-gold);
+  background: var(--s-gold-soft);
+}
+
+.stk-filter-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--s-gold);
+  color: #0A0F1E;
+  font-size: var(--s-11);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── RESUMEN ─────────────────────────────────────────────────────────────────
+   Reemplaza las cinco tarjetas de estadísticas, que empujaban la lista fuera
+   de la primera pantalla. Una línea; el detalle se despliega si se pide. */
+
+.stk-summary { padding: 10px 16px 0; }
+
+.stk-summary-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  min-height: var(--s-touch);
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  color: var(--s-text-2);
+  font-size: var(--s-13);
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stk-summary-main { flex: 1; min-width: 0; }
+.stk-summary-strong { color: var(--s-text); font-weight: 600; }
+.stk-summary-warn { color: var(--s-low); font-weight: 600; }
+.stk-summary-chevron { color: var(--s-text-3); transition: transform 0.2s; flex-shrink: 0; }
+.stk-summary-bar[aria-expanded='true'] .stk-summary-chevron { transform: rotate(180deg); }
+
+.stk-summary-detail {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.stk-summary-item {
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.stk-summary-label {
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  margin-bottom: 6px;
+}
+.stk-summary-value {
+  font-size: var(--s-22);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--s-text);
+  overflow-wrap: anywhere;
+}
+.stk-summary-value.is-ok { color: var(--s-ok); }
+.stk-summary-value.is-low { color: var(--s-low); }
+.stk-summary-value.is-out { color: var(--s-out); }
+.stk-summary-sub { font-size: var(--s-13); color: var(--s-text-2); margin-top: 5px; }
+
+/* ─── AVISO DE STOCK BAJO ─────────────────────────────────────────────────── */
+
+.stk-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 16px 0;
+  padding: 12px 14px;
+  background: var(--s-low-soft);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 12px;
+}
+.stk-alert-body { flex: 1; min-width: 0; }
+.stk-alert-title { font-size: var(--s-13); font-weight: 700; color: var(--s-low); }
+.stk-alert-names { font-size: var(--s-13); color: var(--s-text-2); margin-top: 3px; }
+.stk-alert-close {
+  flex-shrink: 0;
+  width: var(--s-touch);
+  height: var(--s-touch);
+  margin: -10px -8px -10px 0;
+  background: none;
+  border: none;
+  color: var(--s-text-2);
+  font-size: var(--s-15);
+  cursor: pointer;
+}
+
+/* ─── LISTA ───────────────────────────────────────────────────────────────── */
+
+/* El relleno inferior deja pasar la barra de navegación y el home indicator:
+   sin esto la última tarjeta queda tapada. */
+.stk-list {
+  padding: 12px 16px calc(var(--mobile-nav-h) + var(--safe-bottom) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stk-hint {
+  font-size: var(--s-13);
+  color: var(--s-text-3);
+  padding: 0 2px 2px;
+}
+
+/* ─── CARD DE PRODUCTO ────────────────────────────────────────────────────── */
+
+.stk-card {
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* Sin stock en ninguna sucursal: la tarjeta se dibuja vacía — contorno
+   punteado y sin relleno. La falta de stock se percibe al scrollear, sin
+   necesidad de leer un número. */
+.stk-card.is-empty {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--s-line-strong);
+}
+.stk-card.is-empty .stk-card-name { color: var(--s-text-2); }
+
+.stk-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+}
+
+.stk-thumb {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--s-text-3);
+  font-size: var(--s-17);
+}
+.stk-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.stk-card-info { flex: 1; min-width: 0; }
+.stk-card-name {
+  font-size: var(--s-15);
+  font-weight: 700;
+  color: var(--s-text);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.stk-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+
+.stk-card-empty-note {
+  padding: 0 14px 14px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+
+/* ─── FILA DE VARIANTE ────────────────────────────────────────────────────── */
+
+.stk-var {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--s-line);
+}
+
+.stk-var-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.stk-var-name {
+  font-size: var(--s-13);
+  font-weight: 600;
+  color: var(--s-text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Al buscar, la parte del texto que coincide se resalta: el ojo salta directo
+   al sabor que preguntó el cliente. Aplica al nombre del producto y al de la
+   variante; sin esto el navegador pinta <mark> con su amarillo por defecto. */
+.stk-card-name mark,
+.stk-var-name mark {
+  background: var(--s-gold-soft);
+  color: var(--s-gold);
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+/* Los datos van en Inter, no en Syne. Syne tiene carácter pero sus formas
+   geométricas cuestan de leer justo donde hay que leer rápido: el 3 y el 2 se
+   confunden y el signo $ sale como un glifo extraño. Syne queda para el título
+   de la pantalla, que es donde aporta personalidad sin costar legibilidad.
+   tabular-nums alinea las cifras en columna entre filas. */
+.stk-var-price {
+  font-size: var(--s-15);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.stk-var-margin {
+  font-size: var(--s-13);
+  font-weight: 700;
+  margin-left: 6px;
+}
+.stk-var-margin.is-ok { color: var(--s-ok); }
+.stk-var-margin.is-low { color: var(--s-low); }
+.stk-var-margin.is-out { color: var(--s-out); }
+
+.stk-var-more {
+  width: 100%;
+  min-height: var(--s-touch);
+  padding: 12px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--s-line);
+  color: var(--s-gold);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ─── GRILLA DE SUCURSALES ────────────────────────────────────────────────────
+   El elemento distintivo de la pantalla: una celda por sucursal, siempre en el
+   mismo orden y la misma posición en todas las filas. Eso permite leer la
+   lista en columna — la segunda celda es siempre la misma sucursal.
+
+   El estado se codifica por color y también por forma (● ◐ ○ ✕), para que no
+   dependa de distinguir verde de ámbar. */
+
+.stk-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 6px;
+}
+
+.stk-cell {
+  position: relative;
+  min-height: 62px;
+  padding: 7px 4px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.stk-cell-name {
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stk-cell-qty {
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--s-text);
+}
+
+.stk-cell-mark { font-size: var(--s-13); line-height: 1; }
+
+/* El lápiz deja visible que la celda es editable. Sin esto, el número parece
+   un dato de sólo lectura — que es exactamente el problema del diseño anterior. */
+.stk-cell-edit {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+  line-height: 1;
+}
+
+.stk-cell.is-ok { background: var(--s-ok-soft); border-color: rgba(52, 211, 153, 0.26); }
+.stk-cell.is-ok .stk-cell-qty, .stk-cell.is-ok .stk-cell-mark { color: var(--s-ok); }
+
+.stk-cell.is-low { background: var(--s-low-soft); border-color: rgba(251, 191, 36, 0.3); }
+.stk-cell.is-low .stk-cell-qty, .stk-cell.is-low .stk-cell-mark { color: var(--s-low); }
+
+.stk-cell.is-out { background: transparent; border-style: dashed; }
+.stk-cell.is-out .stk-cell-qty, .stk-cell.is-out .stk-cell-mark { color: var(--s-text-3); }
+
+.stk-cell.is-neg { background: var(--s-out-soft); border-color: rgba(248, 113, 113, 0.34); }
+.stk-cell.is-neg .stk-cell-qty, .stk-cell.is-neg .stk-cell-mark { color: var(--s-out); }
+
+/* La sucursal seleccionada en el menú lateral queda marcada, para no tener que
+   buscar cuál columna corresponde al local en el que se está parado. */
+.stk-cell.is-current { box-shadow: inset 0 0 0 2px var(--s-gold-line); }
+
+.stk-cell.is-saving { opacity: 0.55; }
+
+/* ─── HOJAS (bottom sheets) ───────────────────────────────────────────────────
+   Reutilizan el componente Modal, que en móvil ya se comporta como hoja
+   inferior (bloqueo de scroll, botón atrás, Escape, drag handle). */
+
+.stk-sheet-ctx {
+  padding: 12px 14px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  margin-bottom: 18px;
+}
+.stk-sheet-ctx-title { font-size: var(--s-15); font-weight: 700; color: var(--s-text); }
+.stk-sheet-ctx-sub { font-size: var(--s-13); color: var(--s-text-2); margin-top: 3px; }
+
+.stk-label {
+  display: block;
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  margin-bottom: 7px;
+}
+
+.stk-field { margin-bottom: 18px; }
+
+.stk-input {
+  width: 100%;
+  min-height: var(--s-touch);
+  padding: 11px 14px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-15);
+  outline: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.stk-input::placeholder { color: var(--s-text-3); }
+.stk-input:focus {
+  border-color: var(--s-gold-line);
+  box-shadow: 0 0 0 3px var(--s-gold-soft);
+}
+select.stk-input { cursor: pointer; }
+select.stk-input option { background: var(--s-raised); }
+
+/* Las flechitas de los campos numéricos no se pueden acertar con el pulgar y
+   se comen ancho útil; en el celular el teclado numérico ya cumple esa función. */
+.stk-input[type='number']::-webkit-outer-spin-button,
+.stk-input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stk-input[type='number'] { -moz-appearance: textfield; }
+
+.stk-help { font-size: var(--s-13); color: var(--s-text-2); margin-top: 6px; }
+.stk-help.is-out { color: var(--s-out); }
+
+/* Selección de sucursal con objetivos táctiles reales, en lugar de un <select>
+   nativo que oculta el stock disponible de cada una. */
+.stk-suc-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.stk-suc-opt {
+  flex: 1 1 calc(50% - 4px);
+  min-height: var(--s-touch);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.stk-suc-opt-name { font-size: var(--s-13); font-weight: 600; color: var(--s-text); }
+.stk-suc-opt-qty { font-size: var(--s-13); color: var(--s-text-2); margin-top: 2px; }
+.stk-suc-opt.is-active {
+  background: var(--s-gold-soft);
+  border-color: var(--s-gold-line);
+}
+.stk-suc-opt.is-active .stk-suc-opt-name { color: var(--s-gold); }
+.stk-suc-opt:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ─── STEPPER ─────────────────────────────────────────────────────────────── */
+
+.stk-stepper { display: flex; align-items: center; gap: 10px; }
+
+.stk-step-btn {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  border: 1px solid var(--s-line-strong);
+  background: var(--s-raised);
+  color: var(--s-text);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stk-step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.stk-step-input {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  text-align: center;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-30);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  -webkit-appearance: none;
+}
+.stk-step-input:focus {
+  border-color: var(--s-gold-line);
+  box-shadow: 0 0 0 3px var(--s-gold-soft);
+}
+/* Las flechitas del number input no aportan nada al lado de un stepper de 52px */
+.stk-step-input::-webkit-outer-spin-button,
+.stk-step-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stk-step-input { -moz-appearance: textfield; }
+
+.stk-step-max {
+  background: none;
+  border: none;
+  color: var(--s-gold);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 700;
+  cursor: pointer;
+  min-height: var(--s-touch);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+/* ─── PREVISUALIZACIÓN ────────────────────────────────────────────────────────
+   Muestra el resultado antes de confirmar, en la transferencia y en el ajuste
+   de precios por lote (que hasta ahora se aplicaba a ciegas). */
+
+.stk-preview {
+  padding: 13px 15px;
+  background: var(--s-gold-soft);
+  border: 1px solid var(--s-gold-line);
+  border-radius: 12px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+.stk-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+}
+.stk-preview-strong { color: var(--s-text); font-weight: 700; }
+.stk-preview-gold {
+  color: var(--s-gold);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--s-15);
+}
+.stk-preview-old { color: var(--s-text-3); text-decoration: line-through; }
+.stk-preview-arrow { color: var(--s-text-3); }
+
+/* ─── PASOS (hoja de producto) ────────────────────────────────────────────── */
+
+.stk-steps {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.stk-steps-item {
+  flex: 1;
+  min-height: var(--s-touch);
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+.stk-steps-item.is-active {
+  background: var(--s-gold-soft);
+  border-color: var(--s-gold-line);
+  color: var(--s-gold);
+}
+
+.stk-varcard {
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.stk-varcard.is-removed { opacity: 0.55; border-color: rgba(248, 113, 113, 0.34); }
+.stk-varcard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.stk-varcard-title { font-size: var(--s-13); font-weight: 700; color: var(--s-text); }
+
+/* Dos columnas incluso en el celular: son pares naturales (sabor/tamaño,
+   costo/precio) y a 390px entran cómodos. */
+.stk-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.stk-row-list { display: flex; flex-direction: column; }
+.stk-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--s-line);
+  min-height: var(--s-touch);
+}
+.stk-row:last-child { border-bottom: none; }
+.stk-row-name { flex: 1; min-width: 0; font-size: var(--s-15); color: var(--s-text); }
+
+/* ─── ESCRITORIO ─────────────────────────────────────────────────────────────
+   El celular manda; acá sólo se aprovecha el ancho extra. La fila de variante
+   pasa a una sola línea y la grilla toma un ancho fijo a la derecha. */
+
+@media (min-width: 769px) {
+  .stk-head { padding: 20px 28px 12px; }
+  .stk-searchbar { padding: 10px 28px 12px; }
+  .stk-summary { padding: 12px 28px 0; }
+  .stk-alert { margin: 12px 28px 0; }
+  .stk-list { padding: 14px 28px 32px; }
+  .stk-head-title { font-size: var(--s-30); }
+
+  .stk-search-input { max-width: 460px; }
+  .stk-search-clear { right: auto; left: 412px; }
+
+  .stk-summary-detail { grid-template-columns: repeat(5, 1fr); }
+
+  .stk-var {
+    display: grid;
+    grid-template-columns: 1fr minmax(0, calc(var(--cols) * 96px));
+    align-items: center;
+    gap: 20px;
+  }
+  .stk-var-head { flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 0; }
+  .stk-var-name { font-size: var(--s-15); }
+
+  .stk-suc-opt { flex: 1 1 calc(33.333% - 6px); }
+  .stk-pair { gap: 14px; }
+}
+
+/* En pantallas táctiles el :hover queda pegado después de tocar; se reemplaza
+   por respuesta inmediata al presionar, como en una app nativa. */
+@media (hover: hover) {
+  .stk-cell:hover { border-color: var(--s-gold-line); }
+  .stk-pill:hover { color: var(--s-text); }
+  .stk-suc-opt:hover:not(:disabled) { border-color: var(--s-gold-line); }
+  .stk-step-btn:hover:not(:disabled) { border-color: var(--s-gold-line); }
+}
+@media (hover: none) {
+  .stk-cell:active, .stk-suc-opt:active, .stk-step-btn:active { transform: scale(0.97); }
+}
+
+/* El foco de teclado tiene que verse: es la única guía para quien no usa mouse. */
+.stk-cell:focus-visible,
+.stk-pill:focus-visible,
+.stk-filter-btn:focus-visible,
+.stk-suc-opt:focus-visible,
+.stk-step-btn:focus-visible,
+.stk-summary-bar:focus-visible,
+.stk-var-more:focus-visible,
+.stk-steps-item:focus-visible {
+  outline: 2px solid var(--s-gold);
+  outline-offset: 2px;
+}

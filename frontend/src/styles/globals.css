@@ -38,6 +38,47 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ── Escala del rediseño mobile-first ──────────────────────────────────────
+     Se agrega en paralelo a los tokens de arriba en vez de redefinirlos: cada
+     sección migra en su propia pasada y mientras tanto el resto de la app
+     sigue viéndose igual. Cuando no quede nada usando los viejos, se borran.
+
+     Los grises de texto suben de contraste: --text-muted (#64748b) da 4.3:1
+     sobre el fondo, justo en el límite de AA y por debajo en texto chico.
+     Verde y rojo también se aclaran por el mismo motivo. */
+  --s-bg: #0A0F1E;
+  --s-surface: #131A2E;
+  --s-raised: #1C2438;
+  --s-line: rgba(255, 255, 255, 0.09);
+  --s-line-strong: rgba(255, 255, 255, 0.16);
+
+  --s-gold: #FFA31A;
+  --s-gold-soft: rgba(255, 163, 26, 0.13);
+  --s-gold-line: rgba(255, 163, 26, 0.34);
+
+  --s-ok: #34D399;
+  --s-low: #FBBF24;
+  --s-out: #F87171;
+  --s-ok-soft: rgba(52, 211, 153, 0.12);
+  --s-low-soft: rgba(251, 191, 36, 0.13);
+  --s-out-soft: rgba(248, 113, 113, 0.12);
+
+  --s-text: #F1F5F9;
+  --s-text-2: #A9B4C8;
+  --s-text-3: #6E7B92;
+
+  /* Escala tipográfica fija. Piso para texto de datos: --s-13.
+     El 9px y el 10px del diseño anterior desaparecen. */
+  --s-11: 11px;
+  --s-13: 13px;
+  --s-15: 15px;
+  --s-17: 17px;
+  --s-22: 22px;
+  --s-30: 30px;
+
+  /* Mínimo cómodo para el pulgar */
+  --s-touch: 44px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -734,9 +775,10 @@ tbody td { padding: 12px 16px; font-size: 13px; }
 .modal, .modal-overlay { overscroll-behavior: contain; }
 
 /* El fondo no debe moverse mientras hay un modal o el drawer abierto. El
-   scroll real vive en .content/.page-content, no en <body>. */
+   scroll real vive en el contenedor de la página, no en <body>. */
 body.scroll-locked .content,
-body.scroll-locked .page-content { overflow: hidden; }
+body.scroll-locked .page-content,
+body.scroll-locked .stk-scroll { overflow: hidden; }
 .modal-header {
   padding: 18px 22px;
   border-bottom: 1px solid var(--border);
@@ -905,7 +947,10 @@ body.scroll-locked .page-content { overflow: hidden; }
 .dropdown-menu {
   position: absolute; top: calc(100% + 6px); right: 0;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); min-width: 160px; z-index: 100;
+  border-radius: var(--radius-sm); min-width: 160px;
+  /* Por encima del FAB (190): con z-index 100 el botón flotante tapaba las
+     últimas opciones del menú, entre ellas la de eliminar. */
+  z-index: 195;
   box-shadow: 0 12px 40px rgba(0,0,0,0.55); animation: fadeIn 0.15s ease;
 }
 .dropdown-item { padding: 10px 16px; font-size: 13px; cursor: pointer; transition: background 0.1s; color: var(--text-muted); }
