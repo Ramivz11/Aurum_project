@@ -1,5 +1,8 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from decimal import Decimal
 
@@ -9,6 +12,66 @@ from app.schemas import CompraCreate, CompraCreateConDistribucion, CompraRespons
 from app.services.ia_facturas import procesar_factura_con_ia
 
 router = APIRouter(prefix="/compras", tags=["Compras"])
+
+# Las compras viejas no tienen compra_id en la transferencia y se identifican por
+# el texto de la nota, igual que en _revertir_items.
+_NOTA_COMPRA = re.compile(r"compra #(\d+)")
+
+
+def _query_compras_completo(db: Session):
+    """Query base con eager loading: sin esto, serializar N compras dispara una
+    consulta por item y otra por variante."""
+    return db.query(Compra).options(
+        joinedload(Compra.items).joinedload(CompraItem.variante).joinedload(Variante.producto),
+    )
+
+
+def _distribuciones(db: Session, compras: List[Compra]) -> dict:
+    """{(compra_id, variante_id): {sucursal_id: cantidad}} según cómo se repartió
+    cada compra.
+
+    El CompraItem guarda cuánto se compró, no dónde quedó: el reparto vive en las
+    transferencias de ingreso. Sin esto, editar una compra distribuida la
+    reescribía mandando todo a la sucursal de la compra.
+    """
+    ids = [c.id for c in compras]
+    if not ids:
+        return {}
+
+    notas = [t for i in ids for t in (
+        f"Ingreso por compra #{i}",
+        f"Distribución de compra #{i}",
+        f"Ingreso al depósito central — compra #{i}",
+    )]
+    filas = db.query(Transferencia).filter(
+        or_(Transferencia.compra_id.in_(ids), Transferencia.notas.in_(notas))
+    ).all()
+
+    reparto: dict = {}
+    for t in filas:
+        compra_id = t.compra_id
+        if compra_id is None:
+            m = _NOTA_COMPRA.search(t.notas or "")
+            compra_id = int(m.group(1)) if m else None
+        if compra_id is None or t.sucursal_destino_id is None:
+            continue
+        por_sucursal = reparto.setdefault((compra_id, t.variante_id), {})
+        por_sucursal[t.sucursal_destino_id] = por_sucursal.get(t.sucursal_destino_id, 0) + t.cantidad
+    return reparto
+
+
+def _compra_a_response(compra: Compra, reparto: dict) -> dict:
+    """Agrega a cada item el nombre del producto y cómo quedó distribuido."""
+    data = CompraResponse.model_validate(compra).model_dump()
+    for i, item in enumerate(compra.items):
+        if item.variante and item.variante.producto:
+            data["items"][i]["producto_nombre"] = item.variante.producto.nombre
+            data["items"][i]["producto_marca"] = item.variante.producto.marca
+        data["items"][i]["distribucion"] = [
+            {"sucursal_id": s, "cantidad": c}
+            for s, c in sorted(reparto.get((compra.id, item.variante_id), {}).items())
+        ]
+    return data
 
 
 def _sumar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cantidad: int):
@@ -40,18 +103,20 @@ def _restar_stock_sucursal(db: Session, variante_id: int, sucursal_id: int, cant
         db.flush()
 
 
-@router.get("", response_model=List[CompraResponse])
+@router.get("")
 def listar_compras(
     sucursal_id: Optional[int] = Query(None),
     proveedor: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    query = db.query(Compra)
+    query = _query_compras_completo(db)
     if sucursal_id:
         query = query.filter(Compra.sucursal_id == sucursal_id)
     if proveedor:
         query = query.filter(Compra.proveedor.ilike(f"%{proveedor}%"))
-    return query.order_by(Compra.fecha.desc()).all()
+    compras = query.order_by(Compra.fecha.desc()).all()
+    reparto = _distribuciones(db, compras)
+    return [_compra_a_response(c, reparto) for c in compras]
 
 
 # IMPORTANTE: esta ruta va ANTES de /{compra_id}
@@ -70,12 +135,12 @@ async def analizar_factura_con_ia(
     return resultado
 
 
-@router.get("/{compra_id}", response_model=CompraResponse)
+@router.get("/{compra_id}")
 def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
-    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    compra = _query_compras_completo(db).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
-    return compra
+    return _compra_a_response(compra, _distribuciones(db, [compra]))
 
 
 def _registrar_items(db: Session, compra: Compra, items_data: list) -> Decimal:
@@ -174,8 +239,8 @@ def registrar_compra(data: CompraCreateConDistribucion, db: Session = Depends(ge
     db.flush()
     compra.total = _registrar_items(db, compra, data.items)
     db.commit()
-    db.refresh(compra)
-    return compra
+    compra = _query_compras_completo(db).filter(Compra.id == compra.id).first()
+    return _compra_a_response(compra, _distribuciones(db, [compra]))
 
 
 @router.put("/{compra_id}", response_model=CompraResponse)
@@ -196,8 +261,8 @@ def actualizar_compra(compra_id: int, data: CompraCreateConDistribucion, db: Ses
 
     compra.total = _registrar_items(db, compra, data.items)
     db.commit()
-    db.refresh(compra)
-    return compra
+    compra = _query_compras_completo(db).filter(Compra.id == compra.id).first()
+    return _compra_a_response(compra, _distribuciones(db, [compra]))
 
 
 @router.delete("/{compra_id}", status_code=204)

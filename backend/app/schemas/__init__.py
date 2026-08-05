@@ -205,6 +205,10 @@ class CompraItemCreate(BaseModel):
     cantidad: int = Field(..., gt=0)
     costo_unitario: Decimal = Field(..., gt=0)
 
+class DistribucionSucursal(BaseModel):
+    sucursal_id: int
+    cantidad: int = Field(..., ge=0)
+
 class CompraItemResponse(BaseModel):
     id: int
     variante_id: int
@@ -212,6 +216,13 @@ class CompraItemResponse(BaseModel):
     costo_unitario: Decimal
     subtotal: Decimal
     variante: Optional[VarianteResponse] = None
+    # Desnormalizados para el frontend, como en VentaItemResponse
+    producto_nombre: Optional[str] = None
+    producto_marca: Optional[str] = None
+    # Cómo quedó repartida la cantidad entre sucursales. El router lo reconstruye
+    # desde las transferencias de ingreso; sin esto, editar una compra distribuida
+    # mandaba todo a la sucursal de la compra.
+    distribucion: List[DistribucionSucursal] = []
 
     class Config:
         from_attributes = True
@@ -439,10 +450,7 @@ class ProductoConStockResponse(BaseModel):
 
 
 # ─── DISTRIBUCIÓN EN COMPRA ──────────────────────────────────────────────────
-
-class DistribucionSucursal(BaseModel):
-    sucursal_id: int
-    cantidad: int = Field(..., ge=0)
+# DistribucionSucursal se define arriba, junto a CompraItemResponse, que la usa.
 
 class CompraItemConDistribucion(BaseModel):
     variante_id: int
