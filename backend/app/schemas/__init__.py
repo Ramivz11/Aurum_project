@@ -174,6 +174,9 @@ class VentaCreate(BaseModel):
 
 class VentaUpdate(BaseModel):
     cliente_id: Optional[int] = None
+    # La sucursal se puede corregir al editar: si la venta se cargó en la
+    # equivocada, el router mueve el stock de una a la otra.
+    sucursal_id: Optional[int] = None
     metodo_pago: Optional[MetodoPago] = None
     estado: Optional[EstadoVenta] = None
     notas: Optional[str] = None

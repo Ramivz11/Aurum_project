@@ -77,7 +77,14 @@ def _restaurar_stock(db: Session, variante_id: int, sucursal_id: int, cantidad: 
         db.flush()  # materializa la fila para que un UPDATE posterior de la misma clave la encuentre
 
 
-def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):
+def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list, costos_previos: dict | None = None):
+    """Reescribe los items de la venta y recalcula el total.
+
+    `costos_previos` mapea variante_id → costo con el que ya figuraba ese
+    producto en la venta. Al editar, el costo original manda: recalcularlo con
+    el costo de hoy cambiaría el margen histórico de una venta vieja sólo
+    porque se corrigió el cliente o el método de pago.
+    """
     total = Decimal("0")
     for item_data in items_data:
         variante = db.query(Variante).filter(Variante.id == item_data.variante_id).first()
@@ -87,12 +94,16 @@ def _calcular_y_guardar_venta(db: Session, venta: Venta, items_data: list):
         subtotal = item_data.precio_unitario * item_data.cantidad
         total += subtotal
 
+        costo = (costos_previos or {}).get(item_data.variante_id)
+        if costo is None:
+            costo = variante.costo
+
         item = VentaItem(
             venta_id=venta.id,
             variante_id=item_data.variante_id,
             cantidad=item_data.cantidad,
             precio_unitario=item_data.precio_unitario,
-            costo_unitario=variante.costo,
+            costo_unitario=costo,
             subtotal=subtotal,
         )
         db.add(item)
@@ -181,13 +192,27 @@ def confirmar_pedido(venta_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{venta_id}")
 def actualizar_venta(venta_id: int, data: VentaUpdate, db: Session = Depends(get_db)):
+    """Edita cualquier venta, incluidas las confirmadas.
+
+    Una venta confirmada ya movió el stock, así que editarla es deshacer ese
+    movimiento y volver a aplicarlo con los datos nuevos. Es la única forma de
+    que corregir una cantidad —o la sucursal— deje el inventario como si la
+    venta se hubiera cargado bien desde el principio. Antes esto se prohibía y
+    la única salida era borrar la venta y volver a cargarla entera.
+    """
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    if venta.estado == EstadoVentaEnum.confirmada:
-        raise HTTPException(status_code=400, detail="No se puede editar una venta confirmada.")
+    if data.items is not None and len(data.items) == 0:
+        raise HTTPException(status_code=400, detail="La venta tiene que tener al menos un producto")
 
-    estado_anterior = venta.estado
+    # Se devuelve lo descontado ANTES de tocar estado, sucursal o items: hay
+    # que revertir contra la sucursal y las cantidades viejas, no las nuevas.
+    if venta.estado == EstadoVentaEnum.confirmada:
+        for item in venta.items:
+            _restaurar_stock(db, item.variante_id, venta.sucursal_id, item.cantidad)
+
+    costos_previos = {item.variante_id: item.costo_unitario for item in venta.items}
 
     for campo, valor in data.model_dump(exclude_unset=True, exclude={"items"}).items():
         setattr(venta, campo, valor)
@@ -198,10 +223,10 @@ def actualizar_venta(venta_id: int, data: VentaUpdate, db: Session = Depends(get
         for item in venta.items:
             db.delete(item)
         db.flush()
-        _calcular_y_guardar_venta(db, venta, data.items)
-    elif estado_anterior != EstadoVentaEnum.confirmada and venta.estado == EstadoVentaEnum.confirmada:
-        # Transición abierta→confirmada sin reenviar items: descontar stock
-        # de los items existentes (equivalente a usar /confirmar).
+        _calcular_y_guardar_venta(db, venta, data.items, costos_previos)
+    elif venta.estado == EstadoVentaEnum.confirmada:
+        # Mismos items, pero el estado o la sucursal pueden haber cambiado:
+        # se vuelve a descontar sobre los valores nuevos.
         for item in venta.items:
             _descontar_stock(db, item.variante_id, venta.sucursal_id, item.cantidad)
 
