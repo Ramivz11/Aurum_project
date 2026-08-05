@@ -1,0 +1,847 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPRAS — rediseño mobile-first, con las mismas reglas que stock.css y
+   ventas.css: las reglas base son las del celular y el escritorio se agrega
+   después con @media (min-width: 769px).
+
+   La lista sigue la misma forma que Ventas —filas de dos renglones agrupadas
+   por día— porque son la misma tarea leída al revés: plata que entra, plata
+   que sale. Lo propio de Compras es el reparto entre sucursales, que acá deja
+   de ser una fila de campos numéricos y pasa a verse en la fila y en la hoja.
+
+   Todo el color y el tamaño sale de los tokens --s-* de globals.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cmp {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--s-bg);
+}
+
+.cmp-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Pantalla completa, como Stock y Ventas: la barra de navegación de abajo se
+   esconde mientras la sección está montada y el acceso al resto queda en el ☰. */
+body.cmp-full .bottom-nav { display: none; }
+body.cmp-full .fab { bottom: calc(var(--safe-bottom) + 16px); }
+body.cmp-full .toast-wrap { bottom: calc(var(--safe-bottom) + 12px); }
+
+/* ─── CABECERA ────────────────────────────────────────────────────────────── */
+
+.cmp-head {
+  background: var(--s-surface);
+  border-bottom: 1px solid var(--s-line);
+  border-radius: 0 0 18px 18px;
+  padding: 8px 12px 10px;
+  flex: none;
+  position: relative;
+  z-index: 20;
+}
+
+.cmp-head-row { display: flex; align-items: center; gap: 8px; }
+
+.cmp-search {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 11px;
+}
+
+.cmp-search-icon {
+  position: absolute;
+  left: 13px;
+  font-size: var(--s-17);
+  color: var(--s-gold);
+  pointer-events: none;
+  line-height: 1;
+}
+
+.cmp-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 38px 0 36px;
+  background: none;
+  border: none;
+  border-radius: 11px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  /* 16px o más: menos que eso y iOS hace zoom al enfocar. */
+  font-size: 16px;
+  outline: none;
+}
+.cmp-search-input::placeholder { color: var(--s-text-3); }
+.cmp-search-input::-webkit-search-cancel-button,
+.cmp-search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.cmp-search:focus-within { border-color: var(--s-gold-line); }
+
+.cmp-search-clear {
+  position: absolute;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--s-text-3);
+  font-size: var(--s-15);
+  cursor: pointer;
+}
+
+/* Las dos formas de cargar una compra, a la misma altura: la factura con IA
+   dejó de ser un botón secundario perdido en la barra de acciones. */
+.cmp-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cmp-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cmp-action.is-ia { background: var(--s-gold-soft); border-color: var(--s-gold-line); color: var(--s-gold); }
+
+/* En el celular la acción primaria es el botón flotante y las dos formas de
+   cargar viven en .cmp-actions, debajo del buscador. Los botones de la fila de
+   arriba son sólo para escritorio, donde no hay FAB ni fila aparte. */
+.cmp-new { display: none; }
+.cmp-head-row .cmp-action { display: none; }
+
+/* ─── BARRA DE RESUMEN ────────────────────────────────────────────────────── */
+
+.cmp-panels { padding: 8px 12px 0; }
+
+.cmp-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  min-height: var(--s-touch);
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  cursor: pointer;
+  text-align: left;
+}
+.cmp-bar-main { flex: 1; min-width: 0; }
+.cmp-bar-strong { color: var(--s-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.cmp-bar-gold { color: var(--s-gold); font-weight: 700; }
+.cmp-bar-chevron { color: var(--s-text-3); flex-shrink: 0; transition: transform 0.2s; }
+.cmp-bar[aria-expanded='true'] .cmp-bar-chevron { transform: rotate(180deg); }
+
+.cmp-detail {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cmp-detail-item {
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.cmp-detail-label {
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  margin-bottom: 6px;
+}
+.cmp-detail-value {
+  font-size: var(--s-22);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--s-text);
+  overflow-wrap: anywhere;
+}
+.cmp-detail-value.is-gold { color: var(--s-gold); }
+.cmp-detail-sub { font-size: var(--s-13); color: var(--s-text-2); margin-top: 5px; }
+
+/* Reparto acumulado por sucursal: cuánto de lo comprado en pantalla fue a cada
+   una. Es la pregunta que dispara la siguiente compra. */
+.cmp-detail-item.is-wide { grid-column: 1 / -1; }
+
+.cmp-split { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.cmp-split-row { display: flex; align-items: center; gap: 8px; }
+.cmp-split-name {
+  width: 74px;
+  flex: none;
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-split-track {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border-radius: 6px;
+  background: var(--s-raised);
+  overflow: hidden;
+}
+.cmp-split-fill { display: block; height: 100%; border-radius: 6px; background: var(--s-gold); }
+.cmp-split-qty {
+  width: 46px;
+  flex: none;
+  text-align: right;
+  font-size: var(--s-13);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+}
+
+/* ─── LISTA ───────────────────────────────────────────────────────────────── */
+
+.cmp-list { padding: 8px 12px calc(var(--safe-bottom) + 84px); }
+
+.cmp-group {
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+  margin-bottom: 10px;
+}
+
+.cmp-day {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  background: var(--s-raised);
+  border-bottom: 1px solid var(--s-line);
+  border-radius: 13px 13px 0 0;
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+}
+.cmp-day-total {
+  font-size: var(--s-13);
+  font-weight: 800;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+  text-transform: none;
+}
+
+/* La compra suma stock, así que el borde va en el verde de "entró": es el
+   espejo de Ventas, donde el mismo lugar marca el estado de lo que salió. */
+.cmp-row {
+  border-left: 3px solid var(--s-ok);
+  border-bottom: 1px solid var(--s-line);
+}
+.cmp-row:last-child { border-bottom: none; border-radius: 0 0 13px 13px; }
+.cmp-row.is-open { background: var(--s-gold-soft); }
+
+.cmp-row-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px 9px 11px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  color: inherit;
+}
+
+.cmp-row-l { flex: 1; min-width: 0; }
+
+.cmp-row-name {
+  display: block;
+  font-size: var(--s-15);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--s-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-row-name.is-anon { color: var(--s-text-2); font-weight: 500; }
+
+.cmp-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.cmp-row-sep { color: var(--s-text-3); }
+
+/* "Repartida": la compra no quedó entera en una sucursal. Es lo que distingue
+   dos compras que en la lista se ven igual. */
+.cmp-row-tag {
+  font-size: var(--s-11);
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 7px;
+  background: var(--s-gold-soft);
+  color: var(--s-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cmp-row-r { flex: none; text-align: right; }
+.cmp-row-total {
+  display: block;
+  font-size: var(--s-17);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--s-text);
+  white-space: nowrap;
+}
+.cmp-row-pago {
+  display: block;
+  font-size: var(--s-11);
+  font-weight: 600;
+  color: var(--s-text-2);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.cmp-row-chev {
+  flex: none;
+  align-self: center;
+  font-size: var(--s-11);
+  color: var(--s-text-3);
+  transition: transform 0.2s;
+}
+.cmp-row.is-open .cmp-row-chev { transform: rotate(180deg); }
+
+/* ─── DETALLE DESPLEGADO ──────────────────────────────────────────────────── */
+
+.cmp-items {
+  padding: 4px 12px 12px 14px;
+  background: var(--s-gold-soft);
+  border-top: 1px solid var(--s-gold-line);
+}
+
+.cmp-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--s-line);
+}
+.cmp-item:last-child { border-bottom: none; }
+
+.cmp-item-qty {
+  flex: none;
+  min-width: 30px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-gold-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--s-13);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-gold);
+}
+
+.cmp-item-main { flex: 1; min-width: 0; }
+.cmp-item-name { display: block; font-size: var(--s-13); font-weight: 600; color: var(--s-text); overflow-wrap: anywhere; }
+.cmp-item-sub { display: block; font-size: var(--s-11); color: var(--s-text-2); margin-top: 1px; }
+
+/* A dónde fue cada producto. Es el dato que la lista vieja no mostraba en
+   ningún lado: había que abrir la compra para editarla y deducirlo. */
+.cmp-item-dest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.cmp-dest-chip {
+  font-size: var(--s-11);
+  font-weight: 600;
+  color: var(--s-text-2);
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  padding: 2px 7px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.cmp-dest-chip b { color: var(--s-text); font-variant-numeric: tabular-nums; }
+
+.cmp-item-money { flex: none; text-align: right; }
+.cmp-item-total { display: block; font-size: var(--s-13); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--s-text); }
+.cmp-item-unit { display: block; font-size: var(--s-11); color: var(--s-text-2); font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+.cmp-note { margin-top: 8px; font-size: var(--s-13); color: var(--s-text-2); overflow-wrap: anywhere; }
+
+.cmp-item-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+.cmp-act {
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--s-line-strong);
+  background: var(--s-raised);
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cmp-act.is-primary { background: var(--s-gold-soft); border-color: var(--s-gold-line); color: var(--s-gold); }
+.cmp-act.is-danger { color: var(--s-out); border-color: rgba(248, 113, 113, 0.3); }
+
+.cmp-hint { font-size: var(--s-13); color: var(--s-text-3); padding: 10px 2px 0; }
+.cmp-foot-actions { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+
+/* ─── HOJA DE COMPRA ──────────────────────────────────────────────────────── */
+
+.cmp-sheet-ctx {
+  padding: 11px 14px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+.cmp-sheet-ctx.is-warn { background: var(--s-low-soft); border-color: rgba(251, 191, 36, 0.3); }
+.cmp-sheet-ctx-title { font-size: var(--s-15); font-weight: 700; color: var(--s-text); margin-bottom: 3px; }
+
+.cmp-field { margin-bottom: 16px; }
+
+.cmp-label {
+  display: block;
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  margin-bottom: 7px;
+}
+
+.cmp-input {
+  width: 100%;
+  min-height: var(--s-touch);
+  padding: 11px 14px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  outline: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cmp-input::placeholder { color: var(--s-text-3); }
+.cmp-input:focus { border-color: var(--s-gold-line); box-shadow: 0 0 0 3px var(--s-gold-soft); }
+textarea.cmp-input { min-height: 70px; resize: vertical; }
+select.cmp-input { cursor: pointer; }
+select.cmp-input option { background: var(--s-raised); }
+.cmp-input[type='number']::-webkit-outer-spin-button,
+.cmp-input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cmp-input[type='number'] { -moz-appearance: textfield; }
+
+.cmp-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.cmp-opt {
+  flex: 1 1 calc(50% - 4px);
+  min-height: var(--s-touch);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.cmp-opt.is-active { background: var(--s-gold-soft); border-color: var(--s-gold-line); color: var(--s-gold); }
+
+/* ─── PASOS ───────────────────────────────────────────────────────────────── */
+
+.cmp-steps { display: flex; gap: 6px; margin-bottom: 16px; }
+.cmp-steps-item {
+  flex: 1;
+  min-height: var(--s-touch);
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cmp-steps-item.is-active { background: var(--s-gold-soft); border-color: var(--s-gold-line); color: var(--s-gold); }
+.cmp-steps-item:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ─── BUSCADOR DE PRODUCTOS ───────────────────────────────────────────────── */
+
+.cmp-results {
+  margin-top: 6px;
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--s-raised);
+}
+
+.cmp-result {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: var(--s-touch);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--s-line);
+  color: inherit;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+.cmp-result:last-child { border-bottom: none; }
+.cmp-result-main { flex: 1; min-width: 0; }
+.cmp-result-name { display: block; font-size: var(--s-13); font-weight: 600; color: var(--s-text); overflow-wrap: anywhere; }
+.cmp-result-sub { display: block; font-size: var(--s-11); color: var(--s-text-2); margin-top: 2px; }
+.cmp-result-price { flex: none; font-size: var(--s-13); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--s-text); }
+
+/* ─── CARRITO ─────────────────────────────────────────────────────────────── */
+
+.cmp-cart-line { padding: 10px 0; border-bottom: 1px solid var(--s-line); }
+.cmp-cart-line:last-of-type { border-bottom: none; }
+
+.cmp-cart-head { display: flex; align-items: flex-start; gap: 8px; }
+.cmp-cart-name { flex: 1; min-width: 0; font-size: var(--s-13); font-weight: 600; color: var(--s-text); overflow-wrap: anywhere; }
+.cmp-cart-sub { font-size: var(--s-11); color: var(--s-text-2); margin-top: 1px; }
+.cmp-cart-subtotal { font-size: var(--s-13); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--s-text); }
+
+.cmp-cart-controls { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+
+.cmp-step { display: flex; align-items: center; gap: 2px; background: var(--s-raised); border: 1px solid var(--s-line); border-radius: 11px; padding: 2px; }
+.cmp-step-btn {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--s-text);
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cmp-step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.cmp-step-qty { min-width: 30px; text-align: center; font-size: var(--s-15); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--s-text); }
+
+/* La cantidad del reparto se puede tipear: con veinte unidades el stepper solo
+   son veinte toques. */
+.cmp-step-input {
+  width: 48px;
+  background: none;
+  border: none;
+  outline: none;
+  text-align: center;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: none;
+}
+.cmp-step-input::-webkit-outer-spin-button,
+.cmp-step-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cmp-step-input { -moz-appearance: textfield; }
+
+/* El costo unitario lleva rótulo propio: en una compra es el dato que se está
+   cargando, no un valor que ya se sabe. */
+.cmp-cart-cost { flex: 1; min-width: 0; position: relative; }
+.cmp-cart-cost-label {
+  position: absolute;
+  left: 12px;
+  top: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--s-text-3);
+  pointer-events: none;
+}
+.cmp-cart-cost input {
+  width: 100%;
+  min-height: 42px;
+  padding: 15px 12px 4px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 11px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+  -webkit-appearance: none;
+}
+.cmp-cart-cost input:focus { border-color: var(--s-gold-line); }
+.cmp-cart-cost input::-webkit-outer-spin-button,
+.cmp-cart-cost input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cmp-cart-cost input { -moz-appearance: textfield; }
+
+.cmp-cart-del {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-out);
+  font-size: var(--s-13);
+  cursor: pointer;
+}
+
+/* Aviso de cambio de costo: comprar más caro que la última vez repercute en el
+   margen de todo lo que se venda después, y hasta ahora pasaba sin decir nada. */
+.cmp-cart-delta { font-size: var(--s-11); font-weight: 600; margin-top: 6px; }
+.cmp-cart-delta.is-up { color: var(--s-out); }
+.cmp-cart-delta.is-down { color: var(--s-ok); }
+
+.cmp-cart-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--s-line-strong);
+}
+.cmp-cart-total-label { font-size: var(--s-11); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--s-text-2); }
+.cmp-cart-total-value { font-size: var(--s-22); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--s-gold); }
+
+.cmp-empty-cart {
+  padding: 18px 14px;
+  border: 1px dashed var(--s-line-strong);
+  border-radius: 12px;
+  text-align: center;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+
+/* ─── REPARTO ENTRE SUCURSALES ────────────────────────────────────────────────
+   Antes eran campos numéricos de 50px de ancho en una fila que se envolvía sola
+   en el celular, sin decir cuánto faltaba repartir hasta pasarse. Ahora cada
+   sucursal es una fila con stepper, y lo que queda sin repartir se muestra
+   arriba, en el mismo lugar donde está el botón que lo reparte solo. */
+
+.cmp-dist { background: var(--s-raised); border: 1px solid var(--s-line); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+
+.cmp-dist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.cmp-dist-name { font-size: var(--s-13); font-weight: 700; color: var(--s-text); overflow-wrap: anywhere; }
+.cmp-dist-qty { font-size: var(--s-13); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--s-text-2); white-space: nowrap; }
+
+.cmp-dist-rest {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  border-radius: 10px;
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+.cmp-dist-rest.is-over { border-color: var(--s-out); color: var(--s-out); }
+.cmp-dist-rest b { color: var(--s-text); font-variant-numeric: tabular-nums; }
+.cmp-dist-rest.is-over b { color: var(--s-out); }
+
+.cmp-dist-auto {
+  background: none;
+  border: none;
+  color: var(--s-gold);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 4px 2px;
+}
+
+.cmp-dist-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.cmp-dist-suc { flex: 1; min-width: 0; font-size: var(--s-13); color: var(--s-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-dist-suc.is-base { color: var(--s-gold); font-weight: 600; }
+
+/* ─── FACTURA CON IA ──────────────────────────────────────────────────────── */
+
+.cmp-drop {
+  border: 2px dashed var(--s-line-strong);
+  border-radius: 14px;
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  background: none;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+  color: var(--s-text);
+  transition: border-color 0.15s, background 0.15s;
+}
+.cmp-drop.is-set { background: var(--s-gold-soft); border-color: var(--s-gold-line); border-style: solid; }
+.cmp-drop-icon { font-size: 30px; display: block; margin-bottom: 8px; }
+.cmp-drop-text { display: block; font-size: var(--s-15); font-weight: 600; overflow-wrap: anywhere; }
+.cmp-drop-hint { display: block; font-size: var(--s-13); color: var(--s-text-2); margin-top: 4px; }
+
+.cmp-ia-state { text-align: center; padding: 32px 16px; }
+.cmp-ia-state-icon { font-size: 34px; display: block; margin-bottom: 12px; }
+.cmp-ia-state-title { font-family: 'Syne', sans-serif; font-size: var(--s-17); font-weight: 700; color: var(--s-gold); margin-bottom: 6px; }
+.cmp-ia-state-sub { font-size: var(--s-13); color: var(--s-text-2); }
+
+.cmp-ia-error {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--s-out-soft);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  margin-bottom: 12px;
+}
+.cmp-ia-error-title { font-size: var(--s-15); font-weight: 700; color: var(--s-out); margin-bottom: 6px; }
+.cmp-ia-error-msg { font-size: var(--s-13); color: var(--s-text-2); overflow-wrap: anywhere; }
+
+/* Cada ítem que leyó la IA, con lo que dice la factura arriba y la variante del
+   sistema abajo. El borde rojo marca lo que todavía no tiene variante: es el
+   único paso que la IA no puede resolver sola. */
+.cmp-ia-item {
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.cmp-ia-item.is-pending { border-color: var(--s-out); }
+.cmp-ia-item-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+.cmp-ia-item-quote { flex: 1; min-width: 0; font-size: var(--s-13); color: var(--s-gold); font-style: italic; overflow-wrap: anywhere; }
+.cmp-ia-item-match { font-size: var(--s-11); color: var(--s-ok); font-weight: 600; margin-top: 3px; font-style: normal; }
+.cmp-ia-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+
+/* ─── ESCRITORIO ──────────────────────────────────────────────────────────── */
+
+@media (min-width: 769px) {
+  .cmp-head { padding: 12px 28px 14px; border-radius: 0 0 22px 22px; }
+  .cmp-head-row { max-width: 900px; }
+  .cmp-search { max-width: 460px; }
+  .cmp-actions { display: none; }
+  .cmp-panels { padding: 12px 28px 0; }
+  .cmp-list { padding: 12px 28px 32px; }
+
+  .cmp-new {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: 40px;
+    padding: 0 18px;
+    border-radius: 11px;
+    border: none;
+    background: linear-gradient(135deg, #ffb74d 0%, #ff9800 100%);
+    color: #020617;
+    font-family: 'Inter', sans-serif;
+    font-size: var(--s-13);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  /* En escritorio las dos formas de cargar conviven en la cabecera. */
+  .cmp-head-row .cmp-action { display: inline-flex; flex: none; }
+
+  .cmp-detail { grid-template-columns: repeat(4, 1fr); }
+  .cmp-detail-item.is-wide { grid-column: span 2; }
+
+  .cmp-row-main { padding: 10px 14px; gap: 16px; }
+  .cmp-opt { flex: 1 1 calc(33.333% - 6px); }
+  .cmp-act { flex: 0 0 auto; }
+}
+
+@media (hover: hover) {
+  .cmp-row:hover { background: var(--s-raised); }
+  .cmp-result:hover { background: var(--s-surface); }
+  .cmp-opt:hover { border-color: var(--s-gold-line); }
+  .cmp-act:hover, .cmp-action:hover { border-color: var(--s-gold-line); }
+  .cmp-step-btn:hover:not(:disabled) { background: var(--s-surface); }
+  .cmp-drop:hover { border-color: var(--s-gold-line); }
+}
+@media (hover: none) {
+  .cmp-row-main:active { opacity: 0.75; }
+  .cmp-opt:active, .cmp-step-btn:active, .cmp-act:active { transform: scale(0.97); }
+}
+
+.cmp-row-main:focus-visible,
+.cmp-bar:focus-visible,
+.cmp-result:focus-visible,
+.cmp-opt:focus-visible,
+.cmp-act:focus-visible,
+.cmp-action:focus-visible,
+.cmp-step-btn:focus-visible,
+.cmp-steps-item:focus-visible,
+.cmp-drop:focus-visible {
+  outline: 2px solid var(--s-gold);
+  outline-offset: -2px;
+}
