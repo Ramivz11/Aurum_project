@@ -1,0 +1,812 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   VENTAS — rediseño mobile-first, con las mismas reglas que stock.css.
+
+   Las reglas base son las del celular; el escritorio se agrega después con
+   @media (min-width: 769px).
+
+   El objetivo de esta pasada es que entren muchas más ventas por pantalla. La
+   lista pasa de tarjetas separadas de ~130px a filas de ~54px pegadas entre
+   sí, y todo lo que antes vivía fijo alrededor de la lista —el panel de
+   ingresos del día, las alertas de recompra, la cabecera de columnas— se
+   pliega en una barra de una línea que se abre si se pide.
+
+   Todo el color y el tamaño sale de los tokens --s-* de globals.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.vta {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--s-bg);
+}
+
+.vta-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Pantalla completa: se esconde la barra de navegación de abajo mientras
+   Ventas está montada, igual que en Stock. Son 64px que en una pantalla que es
+   toda lista valen más como ventas visibles que como pestañas; el resto de las
+   secciones sigue estando en el ☰ de la cabecera. */
+body.vta-full .bottom-nav { display: none; }
+body.vta-full .fab { bottom: calc(var(--safe-bottom) + 16px); }
+body.vta-full .toast-wrap { bottom: calc(var(--safe-bottom) + 12px); }
+
+/* ─── CABECERA ────────────────────────────────────────────────────────────────
+   Buscador y filtro de estado, fuera del área que scrollea. Sin título: a
+   Ventas se entra por el menú, que ya lo dice, y acá costaba dos renglones
+   fijos en cada visita (el "N registros" pasó a la barra de resumen). */
+
+.vta-head {
+  background: var(--s-surface);
+  border-bottom: 1px solid var(--s-line);
+  border-radius: 0 0 18px 18px;
+  padding: 8px 12px 10px;
+  flex: none;
+  position: relative;
+  z-index: 20;
+}
+
+.vta-head-row { display: flex; align-items: center; gap: 8px; }
+
+/* En el celular la acción primaria es el botón flotante; acá sólo aparece
+   cuando hay ancho de sobra (el FAB está oculto arriba de 768px). */
+.vta-new { display: none; }
+
+.vta-search {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 11px;
+}
+
+.vta-search-icon {
+  position: absolute;
+  left: 13px;
+  font-size: var(--s-17);
+  color: var(--s-gold);
+  pointer-events: none;
+  line-height: 1;
+}
+
+.vta-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 38px 0 36px;
+  background: none;
+  border: none;
+  border-radius: 11px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  /* 16px o más: menos que eso y iOS hace zoom al enfocar el campo. */
+  font-size: 16px;
+  outline: none;
+}
+.vta-search-input::placeholder { color: var(--s-text-3); }
+.vta-search-input::-webkit-search-cancel-button,
+.vta-search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.vta-search:focus-within { border-color: var(--s-gold-line); }
+
+.vta-search-clear {
+  position: absolute;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--s-text-3);
+  font-size: var(--s-15);
+  cursor: pointer;
+}
+
+/* Filtro de estado: tres pestañas parejas en vez de píldoras que envolvían a
+   dos renglones en el celular. El contador de pedidos abiertos va en la
+   pestaña, que es donde se lo busca. */
+.vta-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.vta-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 6px 8px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 18px;
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.vta-tab.is-active {
+  background: var(--s-gold-soft);
+  border-color: var(--s-gold-line);
+  color: var(--s-gold);
+}
+
+.vta-tab-count {
+  font-size: var(--s-11);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--s-low-soft);
+  color: var(--s-low);
+}
+
+/* ─── BARRAS PLEGABLES (resumen y alertas) ────────────────────────────────────
+   Mismo componente visual para las dos: una línea que responde la pregunta y
+   se abre sólo si se quiere el detalle. Reemplazan al bloque de ingresos del
+   día (que estaba al pie y ocupaba 130px) y al panel de recompra (que empujaba
+   la lista fuera de la primera pantalla). */
+
+.vta-panels { padding: 8px 12px 0; display: flex; flex-direction: column; gap: 8px; }
+
+.vta-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  min-height: var(--s-touch);
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  cursor: pointer;
+  text-align: left;
+}
+
+.vta-bar.is-alert {
+  background: var(--s-gold-soft);
+  border-color: var(--s-gold-line);
+}
+
+.vta-bar-main { flex: 1; min-width: 0; }
+.vta-bar-strong { color: var(--s-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.vta-bar-gold { color: var(--s-gold); font-weight: 700; }
+.vta-bar-warn { color: var(--s-low); font-weight: 600; }
+.vta-bar-chevron { color: var(--s-text-3); flex-shrink: 0; transition: transform 0.2s; }
+.vta-bar[aria-expanded='true'] .vta-bar-chevron { transform: rotate(180deg); }
+
+.vta-detail {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vta-detail-item {
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.vta-detail-label {
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  margin-bottom: 6px;
+}
+.vta-detail-value {
+  font-size: var(--s-22);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--s-text);
+  overflow-wrap: anywhere;
+}
+.vta-detail-value.is-gold { color: var(--s-gold); }
+.vta-detail-value.is-low { color: var(--s-low); }
+.vta-detail-sub { font-size: var(--s-13); color: var(--s-text-2); margin-top: 5px; }
+.vta-detail-sub.is-up { color: var(--s-ok); }
+.vta-detail-sub.is-down { color: var(--s-out); }
+
+/* La tendencia del mes ocupa el ancho completo debajo de los números. */
+.vta-detail-item.is-wide { grid-column: 1 / -1; }
+.vta-spark { width: 100%; height: 38px; display: block; overflow: visible; margin-top: 4px; }
+
+/* ─── ALERTAS DE RECOMPRA ─────────────────────────────────────────────────── */
+
+.vta-alert-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+.vta-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+}
+.vta-alert-main { flex: 1; min-width: 0; }
+.vta-alert-name { font-size: var(--s-15); font-weight: 600; color: var(--s-text); }
+.vta-alert-sub { font-size: var(--s-13); color: var(--s-text-2); margin-top: 2px; overflow-wrap: anywhere; }
+.vta-alert-when {
+  flex: none;
+  text-align: right;
+  font-size: var(--s-13);
+  font-weight: 700;
+  color: var(--s-low);
+}
+.vta-alert-when.is-due { color: var(--s-out); }
+.vta-alert-tel {
+  display: block;
+  font-size: var(--s-13);
+  color: var(--s-gold);
+  text-decoration: none;
+  margin-top: 4px;
+}
+
+/* ─── LISTA ───────────────────────────────────────────────────────────────────
+   Las filas van pegadas y separadas por una línea, no por 8px de aire con
+   sombra: el aire entre tarjetas era medio renglón de datos cada vez. */
+
+.vta-list { padding: 8px 12px calc(var(--safe-bottom) + 84px); }
+
+/* Sin overflow:hidden: un ancestro con overflow oculto se vuelve el contenedor
+   de scroll de la cabecera sticky y la deja clavada en su lugar. El redondeo
+   se hace entonces pieza por pieza (cabecera arriba, última fila abajo). */
+.vta-group {
+  background: var(--s-surface);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+  margin-bottom: 10px;
+}
+
+/* Cabecera de día pegajosa: al scrollear una lista larga siempre se sabe qué
+   día se está mirando, y el total del día evita tener que sumarlo de memoria. */
+.vta-day {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  background: var(--s-raised);
+  border-bottom: 1px solid var(--s-line);
+  border-radius: 13px 13px 0 0;
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+}
+.vta-day-total {
+  font-size: var(--s-13);
+  font-weight: 800;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+  text-transform: none;
+}
+
+/* ─── FILA DE VENTA ───────────────────────────────────────────────────────────
+   Dos renglones: quién y cuánto arriba, el contexto abajo. El estado se
+   codifica en el borde de color y además en palabra (Pedido / Cancelada), para
+   que no dependa de distinguir ámbar de verde. */
+
+.vta-row {
+  border-left: 3px solid var(--s-ok);
+  border-bottom: 1px solid var(--s-line);
+}
+.vta-row:last-child { border-bottom: none; border-radius: 0 0 13px 13px; }
+.vta-row.is-abierta { border-left-color: var(--s-low); }
+.vta-row.is-cancelada { border-left-color: var(--s-out); }
+.vta-row.is-open { background: var(--s-gold-soft); }
+
+/* Toda la fila abre el detalle: el objetivo grande es lo que hace que no se
+   falle el toque, y antes había que acertarle a una pastilla de 11px. */
+.vta-row-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px 9px 11px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  color: inherit;
+}
+
+.vta-row-l { flex: 1; min-width: 0; }
+
+/* Los hijos de la fila son <span>: dentro de un <button> no puede haber
+   <div>. Se les da display en bloque acá. */
+.vta-row-name {
+  display: block;
+  font-size: var(--s-15);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--s-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vta-row-name.is-anon { color: var(--s-text-2); font-weight: 500; }
+
+.vta-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.vta-row-sep { color: var(--s-text-3); }
+
+.vta-row-tag {
+  font-size: var(--s-11);
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 7px;
+  background: var(--s-low-soft);
+  color: var(--s-low);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.vta-row-tag.is-cancelada { background: var(--s-out-soft); color: var(--s-out); }
+
+.vta-row-r { flex: none; text-align: right; }
+
+/* El importe en Inter y no en Syne: Syne hace ilegible el $ y confunde el 3
+   con el 2, y acá el número es el dato que se lee de reojo. */
+.vta-row-total {
+  display: block;
+  font-size: var(--s-17);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--s-text);
+  white-space: nowrap;
+}
+.vta-row-total.is-cancelada { color: var(--s-text-3); text-decoration: line-through; }
+
+.vta-row-pago {
+  display: block;
+  font-size: var(--s-11);
+  font-weight: 600;
+  color: var(--s-text-2);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.vta-row-chev {
+  flex: none;
+  align-self: center;
+  font-size: var(--s-11);
+  color: var(--s-text-3);
+  transition: transform 0.2s;
+}
+.vta-row.is-open .vta-row-chev { transform: rotate(180deg); }
+
+/* ─── DETALLE DESPLEGADO ──────────────────────────────────────────────────── */
+
+.vta-items {
+  padding: 4px 12px 12px 14px;
+  background: var(--s-gold-soft);
+  border-top: 1px solid var(--s-gold-line);
+}
+
+.vta-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--s-line);
+}
+.vta-item:last-child { border-bottom: none; }
+
+.vta-item-qty {
+  flex: none;
+  min-width: 30px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-gold-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--s-13);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-gold);
+}
+
+.vta-item-main { flex: 1; min-width: 0; }
+.vta-item-name { display: block; font-size: var(--s-13); font-weight: 600; color: var(--s-text); overflow-wrap: anywhere; }
+.vta-item-sub { display: block; font-size: var(--s-11); color: var(--s-text-2); margin-top: 1px; }
+
+.vta-item-money { flex: none; text-align: right; }
+.vta-item-total {
+  display: block;
+  font-size: var(--s-13);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+}
+.vta-item-unit { display: block; font-size: var(--s-11); color: var(--s-text-2); font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+.vta-note {
+  margin-top: 8px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+  overflow-wrap: anywhere;
+}
+
+/* Acciones dentro del detalle: en el celular el menú ⋮ existe, pero editar es
+   ahora la acción principal de la sección y merece un botón con nombre. */
+.vta-item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.vta-act {
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--s-line-strong);
+  background: var(--s-raised);
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vta-act.is-primary { background: var(--s-gold-soft); border-color: var(--s-gold-line); color: var(--s-gold); }
+.vta-act.is-ok { color: var(--s-ok); border-color: rgba(52, 211, 153, 0.3); }
+.vta-act.is-danger { color: var(--s-out); border-color: rgba(248, 113, 113, 0.3); }
+
+.vta-hint { font-size: var(--s-13); color: var(--s-text-3); padding: 10px 2px 0; }
+.vta-foot-actions { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+
+/* ─── HOJA DE VENTA (alta y edición) ──────────────────────────────────────────
+   Reutiliza el componente Modal, que en móvil ya se comporta como hoja
+   inferior (bloqueo de scroll, botón atrás, Escape). */
+
+.vta-sheet-ctx {
+  padding: 11px 14px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+.vta-sheet-ctx.is-warn { background: var(--s-low-soft); border-color: rgba(251, 191, 36, 0.3); }
+.vta-sheet-ctx-title { font-size: var(--s-15); font-weight: 700; color: var(--s-text); margin-bottom: 3px; }
+
+.vta-field { margin-bottom: 16px; }
+
+.vta-label {
+  display: block;
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+  margin-bottom: 7px;
+}
+
+.vta-input {
+  width: 100%;
+  min-height: var(--s-touch);
+  padding: 11px 14px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  /* 16px: por debajo de eso iOS hace zoom al enfocar. */
+  font-size: 16px;
+  outline: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.vta-input::placeholder { color: var(--s-text-3); }
+.vta-input:focus { border-color: var(--s-gold-line); box-shadow: 0 0 0 3px var(--s-gold-soft); }
+select.vta-input { cursor: pointer; }
+select.vta-input option { background: var(--s-raised); }
+.vta-input[type='number']::-webkit-outer-spin-button,
+.vta-input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.vta-input[type='number'] { -moz-appearance: textfield; }
+
+.vta-row-inline { display: flex; gap: 8px; align-items: center; }
+
+/* Elegir con botones y no con un <select>: la sucursal decide de dónde sale el
+   stock y el método de pago decide a qué cuenta entra la plata. Los dos se
+   tocan en cada venta y merecen objetivo táctil propio. */
+.vta-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.vta-opt {
+  flex: 1 1 calc(50% - 4px);
+  min-height: var(--s-touch);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-13);
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.vta-opt.is-active {
+  background: var(--s-gold-soft);
+  border-color: var(--s-gold-line);
+  color: var(--s-gold);
+}
+
+/* ─── BUSCADOR DE PRODUCTOS DENTRO DE LA HOJA ─────────────────────────────── */
+
+.vta-results {
+  margin-top: 6px;
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--s-raised);
+}
+
+.vta-result {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: var(--s-touch);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--s-line);
+  color: inherit;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+.vta-result:last-child { border-bottom: none; }
+.vta-result-main { flex: 1; min-width: 0; }
+.vta-result-name { display: block; font-size: var(--s-13); font-weight: 600; color: var(--s-text); overflow-wrap: anywhere; }
+.vta-result-sub { display: block; font-size: var(--s-11); color: var(--s-text-2); margin-top: 2px; }
+.vta-result-stock { font-weight: 700; color: var(--s-ok); }
+.vta-result-stock.is-out { color: var(--s-out); }
+.vta-result-price {
+  flex: none;
+  font-size: var(--s-13);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+}
+
+/* ─── CARRITO ─────────────────────────────────────────────────────────────── */
+
+.vta-cart-line {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--s-line);
+}
+.vta-cart-line:last-of-type { border-bottom: none; }
+
+.vta-cart-head { display: flex; align-items: flex-start; gap: 8px; }
+.vta-cart-name { flex: 1; min-width: 0; font-size: var(--s-13); font-weight: 600; color: var(--s-text); overflow-wrap: anywhere; }
+.vta-cart-sub { font-size: var(--s-11); color: var(--s-text-2); margin-top: 1px; }
+
+.vta-cart-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vta-step {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 11px;
+  padding: 2px;
+}
+
+.vta-step-btn {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--s-text);
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vta-step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.vta-step-qty {
+  min-width: 30px;
+  text-align: center;
+  font-size: var(--s-15);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+}
+
+.vta-cart-price {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 12px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-line);
+  border-radius: 11px;
+  color: var(--s-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+  -webkit-appearance: none;
+}
+.vta-cart-price:focus { border-color: var(--s-gold-line); }
+.vta-cart-price::-webkit-outer-spin-button,
+.vta-cart-price::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.vta-cart-price { -moz-appearance: textfield; }
+
+.vta-cart-del {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-out);
+  font-size: var(--s-13);
+  cursor: pointer;
+}
+
+.vta-cart-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--s-line-strong);
+}
+.vta-cart-total-label {
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+}
+.vta-cart-total-value {
+  font-size: var(--s-22);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-gold);
+}
+
+.vta-empty-cart {
+  padding: 18px 14px;
+  border: 1px dashed var(--s-line-strong);
+  border-radius: 12px;
+  text-align: center;
+  font-size: var(--s-13);
+  color: var(--s-text-2);
+}
+
+/* ─── ESCRITORIO ─────────────────────────────────────────────────────────────
+   El celular manda; acá sólo se aprovecha el ancho extra. La fila sigue siendo
+   una fila: con más lugar los datos se separan en columnas fijas en vez de
+   estirarse, así el ojo baja por columnas al comparar. */
+
+@media (min-width: 769px) {
+  .vta-head { padding: 12px 28px 14px; border-radius: 0 0 22px 22px; }
+  .vta-head-row { max-width: 760px; }
+  .vta-search { max-width: 460px; }
+
+  .vta-new {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: 40px;
+    padding: 0 18px;
+    border-radius: 11px;
+    border: none;
+    background: linear-gradient(135deg, #ffb74d 0%, #ff9800 100%);
+    color: #020617;
+    font-family: 'Inter', sans-serif;
+    font-size: var(--s-13);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .vta-tabs { max-width: 560px; }
+  .vta-panels { padding: 12px 28px 0; }
+  .vta-list { padding: 12px 28px 32px; }
+
+  .vta-detail { grid-template-columns: repeat(4, 1fr); }
+  .vta-detail-item.is-wide { grid-column: span 2; }
+
+  .vta-alert-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+
+  .vta-row-main { padding: 10px 14px; gap: 16px; }
+  .vta-row-name { font-size: var(--s-15); }
+  .vta-row-total { font-size: var(--s-17); }
+
+  .vta-opt { flex: 1 1 calc(33.333% - 6px); }
+
+  /* En el celular los botones del detalle ocupan el ancho completo porque el
+     objetivo táctil manda; con 1400px estirados quedaban ridículos. */
+  .vta-act { flex: 0 0 auto; }
+}
+
+@media (hover: hover) {
+  .vta-row:hover { background: var(--s-raised); }
+  .vta-tab:hover { border-color: var(--s-line-strong); }
+  .vta-result:hover { background: var(--s-surface); }
+  .vta-opt:hover { border-color: var(--s-gold-line); }
+  .vta-act:hover { border-color: var(--s-gold-line); }
+  .vta-step-btn:hover:not(:disabled) { background: var(--s-surface); }
+}
+@media (hover: none) {
+  .vta-row-main:active { opacity: 0.75; }
+  .vta-opt:active, .vta-step-btn:active, .vta-act:active { transform: scale(0.97); }
+}
+
+.vta-row-main:focus-visible,
+.vta-tab:focus-visible,
+.vta-bar:focus-visible,
+.vta-result:focus-visible,
+.vta-opt:focus-visible,
+.vta-act:focus-visible,
+.vta-step-btn:focus-visible {
+  outline: 2px solid var(--s-gold);
+  outline-offset: -2px;
+}
