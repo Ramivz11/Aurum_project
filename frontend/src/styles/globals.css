@@ -39,6 +39,12 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
+  /* Alto que el teclado virtual le tapa al viewport. Lo publica
+     useKeyboardInset() (components/ui) leyendo visualViewport; vale 0px
+     mientras no haya teclado abierto o mientras el navegador reflowee la
+     página por su cuenta. */
+  --kb: 0px;
+
   /* ── Escala del rediseño mobile-first ──────────────────────────────────────
      Se agrega en paralelo a los tokens de arriba en vez de redefinirlos: cada
      sección migra en su propia pasada y mientras tanto el resto de la app
@@ -768,7 +774,20 @@ tbody td { padding: 12px 16px; font-size: 13px; }
   box-shadow: 0 24px 80px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.04);
 }
 .modal-lg { max-width: 740px; }
+/* La confirmación es una sola pregunta: no debe estirarse al ancho de una hoja
+   de carga ni, en el celular, ocupar toda la pantalla como si fuera una. */
+.modal-confirm { max-width: 360px; }
 .modal-drag-handle { display: none; }
+
+/* La cabecera arrastrable queda pegada arriba mientras el cuerpo scrollea: es
+   el ancla del gesto de cerrar y donde se lee de qué es la hoja. */
+.modal-grab {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
 
 /* Sin esto, al llegar al final del scroll del modal el gesto sigue en el
    contenido de atrás (scroll chaining) — se siente a web, no a app. */
@@ -1028,7 +1047,7 @@ body.scroll-locked .stk-scroll { overflow: hidden; }
   .topbar-actions .search-input { width: 100%; font-size: 16px; }
   .topbar-actions .search-input:focus { width: 100%; }
 
-  .toast-wrap { bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 12px); right: 12px; left: 12px; }
+  .toast-wrap { bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + var(--kb) + 12px); right: 12px; left: 12px; }
   .toast { min-width: unset; }
 
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -1045,14 +1064,27 @@ body.scroll-locked .stk-scroll { overflow: hidden; }
 
   /* El modal se comporta como bottom-sheet: ancho completo, esquinas
      redondeadas arriba, anclado abajo y respetando el home-indicator. */
-  .modal-overlay { padding: 0; align-items: flex-end; }
+  /* El padding de abajo es lo que levanta la hoja por encima del teclado: sin
+     esto, en iOS el footer con el botón de guardar queda debajo de las teclas
+     y no hay forma de terminar la carga sin bajar el teclado a mano. */
+  .modal-overlay { padding: 0; align-items: flex-end; padding-bottom: var(--kb); }
   .modal {
     border-radius: 20px 20px 0 0;
-    max-height: calc(92dvh - var(--safe-top));
+    max-height: calc(92dvh - var(--safe-top) - var(--kb));
     width: 100%;
     max-width: 100%;
   }
-  .modal-footer { flex-direction: column-reverse; padding-bottom: calc(14px + var(--safe-bottom)); }
+  /* El arrastre para cerrar necesita quedarse con el gesto vertical; si el
+     navegador lo toma como scroll, la hoja no se mueve. */
+  .modal-grab { border-radius: 20px 20px 0 0; touch-action: none; }
+  /* 22px de margen a cada lado en una pantalla de 360 son 44px que le faltan a
+     los controles de adentro (cantidad + precio + quitar, en una fila). */
+  .modal-body { padding: 16px; }
+  .modal-header { padding: 14px 16px; }
+  .modal-footer { padding-left: 16px; padding-right: 16px; }
+  /* Con la hoja levantada por --kb el footer ya no toca el borde de la
+     pantalla: el hueco del home-indicator sobra y se come una fila. */
+  .modal-footer { flex-direction: column-reverse; padding-bottom: calc(14px + max(var(--safe-bottom) - var(--kb), 0px)); }
   .modal-footer .btn { width: 100%; justify-content: center; }
 
   .ia-banner { flex-direction: column; gap: 12px; text-align: center; }
@@ -1117,7 +1149,7 @@ body.scroll-locked .stk-scroll { overflow: hidden; }
     justify-content: center;
     position: fixed;
     right: 18px;
-    bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 16px);
+    bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + var(--kb) + 16px);
     width: 56px;
     height: 56px;
     border-radius: 50%;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import { useKeyboardInset } from './ui'
 
 // En el celular la conexión se corta seguido. Sin este aviso, las acciones
 // fallan con un toast genérico y no queda claro que el problema es la red.
@@ -23,6 +24,11 @@ function OfflineBanner() {
 }
 
 export default function Layout() {
+  // El alto del teclado se mide para toda la app y no sólo dentro de los
+  // modales: el botón flotante y los toast también viven anclados abajo y sin
+  // esto quedan tapados mientras se escribe en un buscador.
+  useKeyboardInset()
+
   return (
     <div className="app-layout">
       <Sidebar />

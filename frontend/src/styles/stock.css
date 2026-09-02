@@ -39,8 +39,8 @@
 body.stk-full .bottom-nav { display: none; }
 
 /* Sin barra abajo, lo que se apoyaba sobre ella baja hasta el borde. */
-body.stk-full .fab { bottom: calc(var(--safe-bottom) + 16px); }
-body.stk-full .toast-wrap { bottom: calc(var(--safe-bottom) + 12px); }
+body.stk-full .fab { bottom: calc(var(--safe-bottom) + var(--kb) + 16px); }
+body.stk-full .toast-wrap { bottom: calc(var(--safe-bottom) + var(--kb) + 12px); }
 
 /* ─── BÚSQUEDA ───────────────────────────────────────────────────────────────
    Es la herramienta de la tarea principal —responder "¿hay?"— y vive en una
@@ -783,6 +783,29 @@ select.stk-input option { background: var(--s-raised); }
 .stk-step-input::-webkit-outer-spin-button,
 .stk-step-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .stk-step-input { -moz-appearance: textfield; }
+
+/* Saltos de reposición. Cuatro objetivos parejos debajo del stepper: se llega
+   a "+24" con dos toques en vez de veinticuatro. */
+.stk-quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.stk-quick-btn {
+  min-height: var(--s-touch);
+  border-radius: 12px;
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: var(--s-15);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.stk-quick-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .stk-step-max {
   background: none;

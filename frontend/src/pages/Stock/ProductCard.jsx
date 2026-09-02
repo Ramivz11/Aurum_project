@@ -88,7 +88,18 @@ export default function ProductCard({
   const minimo = variantes.reduce((a, v) => a + num(v.stock_minimo), 0)
   const estado = filtrada ? estadoStock(unidades, minimo) : null
 
+  // Con una sola variante y una sola sucursal en juego, desplegar la card para
+  // tocar la barra son dos toques de trámite antes de la acción más frecuente
+  // de la pantalla. Cuando el destino es inequívoco, va directo en el menú.
+  const sucDestino = filtrada || (sucursales.length === 1 ? sucursales[0] : null)
+  const ajusteDirecto = variantes.length === 1 && sucDestino
+
   const acciones = [
+    {
+      label: sucursales.length > 1 ? `Ajustar stock en ${sucDestino?.nombre}` : 'Ajustar stock',
+      onClick: () => onAjustar(variantes[0], sucDestino),
+      hidden: !ajusteDirecto,
+    },
     { label: 'Transferir entre sucursales', onClick: onTransferir, hidden: sucursales.length < 2 },
     { label: 'Ajustar precios', onClick: onPrecios },
     { label: 'Editar producto', onClick: onEditar },

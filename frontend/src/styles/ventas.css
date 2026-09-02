@@ -34,8 +34,8 @@
    toda lista valen más como ventas visibles que como pestañas; el resto de las
    secciones sigue estando en el ☰ de la cabecera. */
 body.vta-full .bottom-nav { display: none; }
-body.vta-full .fab { bottom: calc(var(--safe-bottom) + 16px); }
-body.vta-full .toast-wrap { bottom: calc(var(--safe-bottom) + 12px); }
+body.vta-full .fab { bottom: calc(var(--safe-bottom) + var(--kb) + 16px); }
+body.vta-full .toast-wrap { bottom: calc(var(--safe-bottom) + var(--kb) + 12px); }
 
 /* ─── CABECERA ────────────────────────────────────────────────────────────────
    Buscador y filtro de estado, fuera del área que scrollea. Sin título: a
@@ -581,6 +581,28 @@ select.vta-input option { background: var(--s-raised); }
 
 /* ─── BUSCADOR DE PRODUCTOS DENTRO DE LA HOJA ─────────────────────────────── */
 
+.vta-search-wrap { position: relative; display: flex; align-items: center; }
+.vta-search-wrap .vta-input { padding-right: 44px; }
+.vta-search-wrap .vta-input::-webkit-search-cancel-button,
+.vta-search-wrap .vta-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+
+/* El botón de borrar propio y no el nativo de type=search: el nativo es un
+   objetivo de 12px que con el pulgar no se acierta. */
+.vta-search-x {
+  position: absolute;
+  right: 3px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--s-text-3);
+  font-size: var(--s-15);
+  cursor: pointer;
+}
+
 .vta-results {
   margin-top: 6px;
   border: 1px solid var(--s-line);
@@ -618,6 +640,31 @@ select.vta-input option { background: var(--s-raised); }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--s-text);
+}
+
+/* Marca de "ya está en la venta" y cuántas van. La lista queda abierta después
+   de agregar, así que sin este contador no se sabía cuántas veces se tocó. */
+.vta-result-add {
+  flex: none;
+  min-width: 34px;
+  height: 28px;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid var(--s-line);
+  background: var(--s-surface);
+  color: var(--s-text-2);
+  font-size: var(--s-13);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.vta-result.is-added { background: var(--s-gold-soft); }
+.vta-result.is-added .vta-result-add {
+  background: var(--s-gold-soft);
+  border-color: var(--s-gold-line);
+  color: var(--s-gold);
 }
 
 /* ─── CARRITO ─────────────────────────────────────────────────────────────── */
@@ -666,12 +713,36 @@ select.vta-input option { background: var(--s-raised); }
 }
 .vta-step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+/* La cantidad se escribe: es un campo, no una etiqueta. Se disfraza de texto
+   dentro del stepper para que el control siga leyéndose como una sola pieza. */
 .vta-step-qty {
-  min-width: 30px;
+  width: 46px;
+  min-width: 46px;
+  height: 38px;
+  padding: 0 2px;
+  border: none;
+  background: none;
   text-align: center;
-  font-size: var(--s-15);
+  font-family: 'Inter', sans-serif;
+  /* 16px: por debajo de eso iOS hace zoom al enfocar. */
+  font-size: 16px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+  outline: none;
+  -webkit-appearance: none;
+}
+.vta-step-qty::-webkit-outer-spin-button,
+.vta-step-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.vta-step-qty { -moz-appearance: textfield; }
+.vta-step-qty:focus { background: var(--s-surface); border-radius: 9px; }
+
+.vta-cart-sub-total {
+  flex: none;
+  font-size: var(--s-13);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--s-text);
 }
 
@@ -732,6 +803,69 @@ select.vta-input option { background: var(--s-raised); }
   color: var(--s-gold);
 }
 
+/* ─── DATOS DE LA VENTA (PLEGABLE) ────────────────────────────────────────── */
+
+.vta-fold {
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  background: var(--s-raised);
+  overflow: hidden;
+}
+
+.vta-fold-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--s-touch);
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: inherit;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vta-fold-title {
+  flex: none;
+  font-size: var(--s-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--s-text-2);
+}
+
+/* El resumen se trunca antes que el título: qué sección es importa más que el
+   nombre completo del cliente, que se ve entero al abrir. */
+.vta-fold-sum {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: var(--s-13);
+  color: var(--s-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vta-fold-chev {
+  flex: none;
+  color: var(--s-text-3);
+  font-size: var(--s-15);
+  line-height: 1;
+  transition: transform 0.18s ease;
+}
+.vta-fold.is-open .vta-fold-chev { transform: rotate(180deg); }
+
+.vta-fold-body { padding: 4px 14px 14px; border-top: 1px solid var(--s-line); }
+
+/* ─── PIE DE LA HOJA ──────────────────────────────────────────────────────── */
+
+.vta-foot { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.vta-foot-row { display: flex; gap: 10px; }
+.vta-foot-row .btn { flex: 1; width: auto; min-width: 0; }
+
 .vta-empty-cart {
   padding: 18px 14px;
   border: 1px dashed var(--s-line-strong);
@@ -747,6 +881,12 @@ select.vta-input option { background: var(--s-raised); }
    estirarse, así el ojo baja por columnas al comparar. */
 
 @media (min-width: 769px) {
+  /* En escritorio el pie vuelve a ser una fila: los botones no necesitan ancho
+     completo y la acción principal va a la derecha, como en el resto de la app. */
+  .vta-foot { flex-direction: row-reverse; justify-content: flex-start; align-items: center; }
+  .vta-foot-row { flex: none; }
+  .vta-foot .btn, .vta-foot-row .btn { flex: none; width: auto; }
+
   .vta-head { padding: 12px 28px 14px; border-radius: 0 0 22px 22px; }
   .vta-head-row { max-width: 760px; }
   .vta-search { max-width: 460px; }
@@ -806,6 +946,7 @@ select.vta-input option { background: var(--s-raised); }
 .vta-result:focus-visible,
 .vta-opt:focus-visible,
 .vta-act:focus-visible,
+.vta-fold-head:focus-visible,
 .vta-step-btn:focus-visible {
   outline: 2px solid var(--s-gold);
   outline-offset: -2px;

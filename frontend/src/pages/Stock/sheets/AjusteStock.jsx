@@ -27,6 +27,11 @@ export default function AjusteStock({ producto, variante, sucursal, onClose, onS
     return String(Math.max(0, (isNaN(base) ? actual : base) + delta))
   })
 
+  // Reponer entra de a bulto: un cajón son 12 o 24 unidades, y llegar ahí de a
+  // un toque son 24 toques sobre un botón de 52px. Los saltos cubren el caso
+  // real; el ±1 del stepper queda para la corrección fina.
+  const SALTOS = [-10, -5, 5, 10]
+
   const guardar = async () => {
     if (!valido) return toast.error('Ingresá una cantidad válida')
     if (diferencia === 0) return onClose()
@@ -84,6 +89,17 @@ export default function AjusteStock({ producto, variante, sucursal, onClose, onS
           />
           <button className="stk-step-btn" onClick={() => cambiar(1)} aria-label="Sumar uno">+</button>
         </div>
+        <div className="stk-quick">
+          {SALTOS.map(d => (
+            <button
+              key={d}
+              className="stk-quick-btn"
+              onClick={() => cambiar(d)}
+              disabled={d < 0 && valido && n <= 0}
+            >{d > 0 ? `+${d}` : d}</button>
+          ))}
+        </div>
+
         <p className="stk-help">
           {!valido
             ? 'Ingresá un número.'

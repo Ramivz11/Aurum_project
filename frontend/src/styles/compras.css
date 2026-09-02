@@ -30,8 +30,8 @@
 /* Pantalla completa, como Stock y Ventas: la barra de navegación de abajo se
    esconde mientras la sección está montada y el acceso al resto queda en el ☰. */
 body.cmp-full .bottom-nav { display: none; }
-body.cmp-full .fab { bottom: calc(var(--safe-bottom) + 16px); }
-body.cmp-full .toast-wrap { bottom: calc(var(--safe-bottom) + 12px); }
+body.cmp-full .fab { bottom: calc(var(--safe-bottom) + var(--kb) + 16px); }
+body.cmp-full .toast-wrap { bottom: calc(var(--safe-bottom) + var(--kb) + 12px); }
 
 /* ─── CABECERA ────────────────────────────────────────────────────────────── */
 
